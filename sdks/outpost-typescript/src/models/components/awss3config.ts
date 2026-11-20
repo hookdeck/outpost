@@ -18,7 +18,7 @@ export type Awss3Config = {
    */
   region: string;
   /**
-   * JMESPath expression for generating S3 object keys. Default is join('', [time.rfc3339_nano, '_', metadata."event-id", '.json']).
+   * JMESPath expression for generating S3 object keys. Default is join('', [time.rfc3339_nano, '_', metadata."event-id", '.json']). Templates may use field paths, string literals, `join`, `to_string`, `not_null` and `||`.
    */
   keyTemplate?: string | undefined;
   /**

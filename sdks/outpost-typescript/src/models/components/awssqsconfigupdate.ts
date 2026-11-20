@@ -13,11 +13,11 @@ import { SDKValidationError } from "../errors/sdkvalidationerror.js";
  */
 export type AWSSQSConfigUpdate = {
   /**
-   * Optional. Custom AWS endpoint URL (e.g., for LocalStack or specific regions).
+   * Optional. Custom AWS endpoint URL for emulators such as LocalStack. Only accepted when the Outpost deployment sets DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true.
    */
   endpoint?: string | undefined;
   /**
-   * The URL of the SQS queue.
+   * The URL of the SQS queue. A URL that is not an AWS SQS endpoint is only accepted when the Outpost deployment sets DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true.
    */
   queueUrl?: string | undefined;
 };

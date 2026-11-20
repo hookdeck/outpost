@@ -18,7 +18,7 @@ export type GCPPubSubConfig = {
    */
   topic: string;
   /**
-   * Optional. Custom endpoint URL (e.g., localhost:8085 for emulator).
+   * Optional. Custom endpoint (e.g., localhost:8085 for the Pub/Sub emulator), connected without TLS or authentication. Only accepted when the Outpost deployment sets DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true.
    */
   endpoint?: string | undefined;
 };
