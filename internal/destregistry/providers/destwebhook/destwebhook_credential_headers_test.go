@@ -128,7 +128,9 @@ func TestWebhookDestination_HeadersPreprocess(t *testing.T) {
 		return v, ok
 	}
 
-	for _, field := range []string{"credentials"} {
+	// config.custom_headers and credentials.custom_headers follow the same
+	// update rules.
+	for _, field := range []string{"config", "credentials"} {
 		t.Run(field, func(t *testing.T) {
 			t.Parallel()
 

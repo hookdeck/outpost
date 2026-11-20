@@ -281,7 +281,7 @@ For headers whose values are secrets, such as an `Authorization` token, use `cre
 
 Values are encrypted at rest and can't be read back: the API returns each one masked, showing only the first four characters of values 10 characters or longer (`Bear**************`).
 
-`credentials.custom_headers` updates header by header: a header you don't send keeps its value, and a header sent as `null` is removed. `"{\"X-Api-Key\": \"new-key\", \"X-Old-Key\": null}"` sets `X-Api-Key`, removes `X-Old-Key` and keeps every other header. Set the field itself to `null` to remove all its headers.
+Both header objects update header by header: a header you don't send keeps its value, and a header sent as `null` is removed. `"{\"X-Api-Key\": \"new-key\", \"X-Old-Key\": null}"` sets `X-Api-Key`, removes `X-Old-Key` and keeps every other header. Set the field itself to `null` to remove all its headers.
 
 Outpost stores the response body of each attempt: if the endpoint echoes request headers back, their values appear there.
 
