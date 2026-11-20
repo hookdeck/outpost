@@ -11,7 +11,7 @@ type AWSEventBridgeConfig struct {
 	EventBusName *string `json:"event_bus_name,omitempty"`
 	// The AWS region where the event bus is located.
 	Region string `json:"region"`
-	// Optional. Custom AWS endpoint URL (e.g., for LocalStack or VPC endpoints).
+	// Optional. Custom AWS endpoint URL for emulators such as LocalStack. Only accepted when the Outpost deployment sets DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true.
 	Endpoint *string `json:"endpoint,omitempty"`
 }
 

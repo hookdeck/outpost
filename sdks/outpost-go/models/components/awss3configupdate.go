@@ -12,7 +12,7 @@ type Awss3ConfigUpdate struct {
 	Bucket *string `json:"bucket,omitempty"`
 	// The AWS region where your bucket is located.
 	Region *string `json:"region,omitempty"`
-	// JMESPath expression for generating S3 object keys.
+	// JMESPath expression for generating S3 object keys. Templates may use field paths, string literals, `join`, `to_string`, `not_null` and `||`.
 	KeyTemplate *string `json:"key_template,omitempty"`
 	// The storage class for the S3 objects.
 	StorageClass *string `json:"storage_class,omitempty"`

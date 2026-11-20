@@ -8,9 +8,9 @@ import (
 
 // AWSSQSConfigUpdate - Partial AWS SQS config for PATCH updates (RFC 7396 merge-patch).
 type AWSSQSConfigUpdate struct {
-	// Optional. Custom AWS endpoint URL (e.g., for LocalStack or specific regions).
+	// Optional. Custom AWS endpoint URL for emulators such as LocalStack. Only accepted when the Outpost deployment sets DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true.
 	Endpoint *string `json:"endpoint,omitempty"`
-	// The URL of the SQS queue.
+	// The URL of the SQS queue. A URL that is not an AWS SQS endpoint is only accepted when the Outpost deployment sets DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true.
 	QueueURL *string `json:"queue_url,omitempty"`
 }
 

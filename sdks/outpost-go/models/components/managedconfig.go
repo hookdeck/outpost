@@ -62,6 +62,8 @@ type ManagedConfig struct {
 	DestinationsWebhookTimestampHeaderName optionalnullable.OptionalNullable[string] `json:"DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME,omitempty"`
 	// Complete name of the topic header. Unset uses the default "<prefix>topic"; an explicit value pins that exact name; an empty string disables the header. Only applies to "default" mode.
 	DestinationsWebhookTopicHeaderName        optionalnullable.OptionalNullable[string] `json:"DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME,omitempty"`
+	ExperimentalMcpEnabled                    optionalnullable.OptionalNullable[string] `json:"EXPERIMENTAL_MCP_ENABLED,omitempty"`
+	ExperimentalMcpEventsSchema               optionalnullable.OptionalNullable[string] `json:"EXPERIMENTAL_MCP_EVENTS_SCHEMA,omitempty"`
 	HTTPUserAgent                             optionalnullable.OptionalNullable[string] `json:"HTTP_USER_AGENT,omitempty"`
 	IdgenAttemptPrefix                        optionalnullable.OptionalNullable[string] `json:"IDGEN_ATTEMPT_PREFIX,omitempty"`
 	IdgenDestinationPrefix                    optionalnullable.OptionalNullable[string] `json:"IDGEN_DESTINATION_PREFIX,omitempty"`
@@ -316,6 +318,20 @@ func (m *ManagedConfig) GetDestinationsWebhookTopicHeaderName() optionalnullable
 		return nil
 	}
 	return m.DestinationsWebhookTopicHeaderName
+}
+
+func (m *ManagedConfig) GetExperimentalMcpEnabled() optionalnullable.OptionalNullable[string] {
+	if m == nil {
+		return nil
+	}
+	return m.ExperimentalMcpEnabled
+}
+
+func (m *ManagedConfig) GetExperimentalMcpEventsSchema() optionalnullable.OptionalNullable[string] {
+	if m == nil {
+		return nil
+	}
+	return m.ExperimentalMcpEventsSchema
 }
 
 func (m *ManagedConfig) GetHTTPUserAgent() optionalnullable.OptionalNullable[string] {
