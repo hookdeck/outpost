@@ -7,7 +7,11 @@ import { FilterSyntaxGuide } from "../../../common/FilterSyntaxGuide/FilterSynta
 import { AddIcon, CloseIcon, HelpIcon, Loading } from "../../../common/Icons";
 import { useSidebar } from "../../../common/Sidebar/Sidebar";
 import type { Filter } from "../../../typings/Destination";
-import { getFormValues } from "../../../utils/formHelper";
+import {
+  CREDENTIAL_FIELD_PREFIX,
+  getFormValues,
+  pickFieldValues,
+} from "../../../utils/formHelper";
 import { ApiContext, formatError } from "../../../app";
 import { showToast } from "../../../common/Toast/Toast";
 import { mutate } from "swr";
@@ -95,21 +99,14 @@ export default function ConfigStep() {
           ...(parsedFilter && Object.keys(parsedFilter).length > 0
             ? { filter: parsedFilter }
             : {}),
-          config: Object.fromEntries(
-            Object.entries(values)
-              .filter(([key]) =>
-                destination_type?.config_fields.some(
-                  (field) => field.key === key,
-                ),
-              )
-              .map(([key, value]) => [key, String(value)]),
+          config: pickFieldValues(
+            values,
+            destination_type?.config_fields ?? [],
           ),
-          credentials: Object.fromEntries(
-            Object.entries(values).filter(([key]) =>
-              destination_type?.credential_fields.some(
-                (field) => field.key === key,
-              ),
-            ),
+          credentials: pickFieldValues(
+            values,
+            destination_type?.credential_fields ?? [],
+            CREDENTIAL_FIELD_PREFIX,
           ),
         }),
       })

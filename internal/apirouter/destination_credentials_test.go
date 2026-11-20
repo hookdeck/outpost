@@ -3,6 +3,7 @@ package apirouter_test
 import (
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -35,6 +36,26 @@ func webhookStandardRegistry(t *testing.T) destregistry.Registry {
 			SignatureSecretEncoding:  destwebhook.StandardSecretEncoding,
 			SignatureSecretPrefix:    destwebhook.StandardSecretPrefix,
 			SigningSecretTemplate:    destwebhook.StandardSigningSecretTmpl,
+		},
+		AWSEventBridge: &destregistrydefault.DestAWSEventBridgeConfig{Source: "outpost"},
+	})
+	require.NoError(t, err)
+	return reg
+}
+
+// webhookDefaultRegistry creates a registry with the webhook provider in its
+// default mode.
+func webhookDefaultRegistry(t *testing.T) destregistry.Registry {
+	t.Helper()
+	reg := destregistry.NewRegistry(&destregistry.Config{}, testutil.CreateTestLogger(t))
+	err := destregistrydefault.RegisterDefault(reg, destregistrydefault.RegisterDefaultDestinationOptions{
+		Webhook: &destregistrydefault.DestWebhookConfig{
+			HeaderPrefix:             destwebhook.DefaultHeaderPrefix,
+			SignatureContentTemplate: destwebhook.DefaultSignatureContentTmpl,
+			SignatureHeaderTemplate:  destwebhook.DefaultSignatureHeaderTmpl,
+			SignatureEncoding:        destwebhook.DefaultEncoding,
+			SignatureAlgorithm:       destwebhook.DefaultAlgorithm,
+			SigningSecretTemplate:    destwebhook.DefaultSigningSecretTmpl,
 		},
 		AWSEventBridge: &destregistrydefault.DestAWSEventBridgeConfig{Source: "outpost"},
 	})
@@ -413,4 +434,115 @@ func TestDestinationCredentials_ExpiredPreviousSecretNotReturned(t *testing.T) {
 		assert.Empty(t, dest.Credentials["previous_secret_invalid_at"],
 			"previous_secret_invalid_at should not be returned when expired")
 	})
+}
+
+func TestDestinationCredentials_CustomHeaders(t *testing.T) {
+	for _, mode := range []struct {
+		name string
+		opts []apiTestOption
+	}{
+		{"default", []apiTestOption{withDestRegistry(webhookDefaultRegistry(t))}},
+		{"standard", []apiTestOption{withDestRegistry(webhookStandardRegistry(t))}},
+	} {
+		t.Run(mode.name, func(t *testing.T) {
+			h := newAPITest(t, mode.opts...)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			stored := func(t *testing.T, field string) string {
+				t.Helper()
+				dest, err := h.tenantStore.RetrieveDestination(t.Context(), "t1", "d1")
+				require.NoError(t, err)
+				if field == "config" {
+					return dest.Config["custom_headers"]
+				}
+				return dest.Credentials["custom_headers"]
+			}
+			patch := func(t *testing.T, body map[string]any) *httptest.ResponseRecorder {
+				t.Helper()
+				return h.do(h.withJWT(h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", body), "t1"))
+			}
+
+			// A tenant sets credential headers on create; the response masks
+			// the values.
+			createResp := h.do(h.withJWT(h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", map[string]any{
+				"id":     "d1",
+				"type":   "webhook",
+				"topics": []string{"user.created"},
+				"config": map[string]string{
+					"url":            "https://example.com/hook",
+					"custom_headers": `{"X-Tenant":"acme"}`,
+				},
+				"credentials": map[string]any{
+					"custom_headers": `{"Authorization":"Bearer sk_live_123"}`,
+				},
+			}), "t1"))
+			require.Equal(t, http.StatusCreated, createResp.Code, createResp.Body.String())
+			var created destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(createResp.Body.Bytes(), &created))
+			assert.JSONEq(t, `{"Authorization":"Bear**************"}`, created.Credentials["custom_headers"])
+			assert.JSONEq(t, `{"X-Tenant":"acme"}`, created.Config["custom_headers"])
+			assert.JSONEq(t, `{"Authorization":"Bearer sk_live_123"}`, stored(t, "credentials"))
+
+			t.Run("an update without credentials keeps them", func(t *testing.T) {
+				resp := patch(t, map[string]any{"config": map[string]string{"url": "https://example.com/other"}})
+				require.Equal(t, http.StatusOK, resp.Code, resp.Body.String())
+				assert.JSONEq(t, `{"Authorization":"Bearer sk_live_123"}`, stored(t, "credentials"))
+				assert.JSONEq(t, `{"X-Tenant":"acme"}`, stored(t, "config"))
+			})
+
+			t.Run("secret rotation keeps them", func(t *testing.T) {
+				resp := patch(t, map[string]any{"credentials": map[string]any{"rotate_secret": true}})
+				require.Equal(t, http.StatusOK, resp.Code, resp.Body.String())
+				assert.JSONEq(t, `{"Authorization":"Bearer sk_live_123"}`, stored(t, "credentials"))
+			})
+
+			for _, field := range []string{"config", "credentials"} {
+				saved := map[string]string{"config": `{"X-Tenant":"acme"}`, "credentials": `{"Authorization":"Bearer sk_live_123"}`}[field]
+				savedName := map[string]string{"config": "X-Tenant", "credentials": "Authorization"}[field]
+
+				t.Run(field+": a header sent is added; headers not sent are kept", func(t *testing.T) {
+					resp := patch(t, map[string]any{field: map[string]any{
+						"custom_headers": `{"X-Added-` + field + `":"v1"}`,
+					}})
+					require.Equal(t, http.StatusOK, resp.Code, resp.Body.String())
+					var want map[string]string
+					require.NoError(t, json.Unmarshal([]byte(saved), &want))
+					want["X-Added-"+field] = "v1"
+					wantJSON, _ := json.Marshal(want)
+					assert.JSONEq(t, string(wantJSON), stored(t, field))
+				})
+
+				t.Run(field+": the map can be sent as an object; null removes a header", func(t *testing.T) {
+					resp := patch(t, map[string]any{field: map[string]any{
+						"custom_headers": map[string]any{"X-Added-" + field: nil},
+					}})
+					require.Equal(t, http.StatusOK, resp.Code, resp.Body.String())
+					assert.JSONEq(t, saved, stored(t, field))
+				})
+
+				t.Run(field+": an empty value is rejected", func(t *testing.T) {
+					resp := patch(t, map[string]any{field: map[string]any{
+						"custom_headers": `{"` + savedName + `":""}`,
+					}})
+					assert.Equal(t, http.StatusUnprocessableEntity, resp.Code, resp.Body.String())
+					assert.JSONEq(t, saved, stored(t, field))
+				})
+			}
+
+			t.Run("the same name in config and credentials is rejected", func(t *testing.T) {
+				resp := patch(t, map[string]any{"config": map[string]string{"custom_headers": `{"authorization":"plain"}`}})
+				assert.Equal(t, http.StatusUnprocessableEntity, resp.Code, resp.Body.String())
+			})
+
+			t.Run("null removes the whole map", func(t *testing.T) {
+				resp := patch(t, map[string]any{
+					"config":      map[string]any{"custom_headers": nil},
+					"credentials": map[string]any{"custom_headers": nil},
+				})
+				require.Equal(t, http.StatusOK, resp.Code, resp.Body.String())
+				assert.Empty(t, stored(t, "config"))
+				assert.Empty(t, stored(t, "credentials"))
+			})
+		})
+	}
 }
