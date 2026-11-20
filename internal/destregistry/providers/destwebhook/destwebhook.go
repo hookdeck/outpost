@@ -47,7 +47,8 @@ const (
 // datetime.isoformat(timespec="milliseconds") produces for a naive datetime.
 const TimestampLayoutISO8601MilliNoOffset = "2006-01-02T15:04:05.000"
 
-// Reserved headers that cannot be set via custom_headers
+// Reserved headers that cannot be set via config.custom_headers or
+// credentials.custom_headers
 var reservedHeaders = map[string]bool{
 	"content-type":   true,
 	"content-length": true,
@@ -61,6 +62,12 @@ var headerNameRegex = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]*$`)
 
 // ValidateCustomHeaders validates custom header names and values
 func ValidateCustomHeaders(headers map[string]string) error {
+	return validateHeaders("config.custom_headers", headers)
+}
+
+// validateHeaders validates header names and values, reporting errors under
+// field (e.g. "config.custom_headers").
+func validateHeaders(field string, headers map[string]string) error {
 	if len(headers) == 0 {
 		return nil
 	}
@@ -71,7 +78,7 @@ func ValidateCustomHeaders(headers map[string]string) error {
 		// Check header name format
 		if !headerNameRegex.MatchString(name) {
 			errors = append(errors, destregistry.ValidationErrorDetail{
-				Field: fmt.Sprintf("config.custom_headers.%s", name),
+				Field: fmt.Sprintf("%s.%s", field, name),
 				Type:  "pattern",
 			})
 			continue
@@ -80,7 +87,7 @@ func ValidateCustomHeaders(headers map[string]string) error {
 		// Check reserved headers (case-insensitive)
 		if reservedHeaders[strings.ToLower(name)] {
 			errors = append(errors, destregistry.ValidationErrorDetail{
-				Field: fmt.Sprintf("config.custom_headers.%s", name),
+				Field: fmt.Sprintf("%s.%s", field, name),
 				Type:  "forbidden",
 			})
 			continue
@@ -89,7 +96,7 @@ func ValidateCustomHeaders(headers map[string]string) error {
 		// Check value is not empty
 		if value == "" {
 			errors = append(errors, destregistry.ValidationErrorDetail{
-				Field: fmt.Sprintf("config.custom_headers.%s", name),
+				Field: fmt.Sprintf("%s.%s", field, name),
 				Type:  "required",
 			})
 		}
@@ -159,7 +166,14 @@ type WebhookDestination struct {
 type WebhookDestinationConfig struct {
 	URL           string
 	CustomHeaders map[string]string
+	// CredentialHeaders come from credentials.custom_headers: sent like
+	// CustomHeaders, but encrypted at rest and masked in API responses.
+	CredentialHeaders map[string]string
 }
+
+// customHeadersKey is the key of the header maps in config and credentials,
+// each a JSON object of header name to value.
+const customHeadersKey = "custom_headers"
 
 type WebhookSecret struct {
 	Key       string     `json:"key"`
@@ -447,13 +461,17 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 	if err != nil {
 		return nil, err
 	}
-	// When following redirects, Go's default policy applies (at most 10).
+	// When following redirects, at most 10 hops as in Go's default policy,
+	// and credentials.custom_headers are dropped once a hop leaves the original
+	// host.
 	// Without a proxy the guard checks every hop at dial time; with one, the
 	// proxy must refuse private targets.
 	if !destination.followRedirects {
 		httpClient.CheckRedirect = func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
 		}
+	} else {
+		httpClient.CheckRedirect = checkRedirectDropCredentialHeaders
 	}
 	destination.httpClient = httpClient
 
@@ -489,7 +507,7 @@ func (d *WebhookDestination) ObfuscateDestination(destination *models.Destinatio
 	}
 
 	// Copy credentials, omitting expired previous_secret fields
-	// NOTE: Webhook secrets are intentionally not obfuscated for now because:
+	// NOTE: The signing secrets are intentionally not obfuscated for now because:
 	// 1. They're needed for secret rotation logic
 	// 2. They're less security-critical than other provider credentials (e.g. AWS keys)
 	// TODO: Implement proper secret obfuscation later if needed
@@ -497,10 +515,31 @@ func (d *WebhookDestination) ObfuscateDestination(destination *models.Destinatio
 		if skipPreviousSecret && (key == "previous_secret" || key == "previous_secret_invalid_at") {
 			continue
 		}
+		if key == customHeadersKey {
+			result.Credentials[key] = obfuscateHeaders(value)
+			continue
+		}
 		result.Credentials[key] = value
 	}
 
 	return &result
+}
+
+// obfuscateHeaders masks every value of a JSON header map, keeping the names.
+// A value that doesn't parse is masked whole.
+func obfuscateHeaders(raw string) string {
+	var headers map[string]string
+	if err := json.Unmarshal([]byte(raw), &headers); err != nil {
+		return destregistry.ObfuscateValue(raw)
+	}
+	for name, value := range headers {
+		headers[name] = destregistry.ObfuscateValue(value)
+	}
+	masked, err := json.Marshal(headers)
+	if err != nil {
+		return destregistry.ObfuscateValue(raw)
+	}
+	return string(masked)
 }
 
 func (d *WebhookDestination) Validate(ctx context.Context, destination *models.Destination) error {
@@ -613,6 +652,7 @@ func (d *WebhookDestination) CreatePublisher(ctx context.Context, destination *m
 		compat:               d.compat,
 		compatSM:             compatSM,
 		customHeaders:        config.CustomHeaders,
+		credentialHeaders:    config.CredentialHeaders,
 		maxResponseBodyBytes: d.maxResponseBodyBytes,
 	}, nil
 }
@@ -640,6 +680,22 @@ func (d *WebhookDestination) resolveConfig(ctx context.Context, destination *mod
 			return nil, nil, err
 		}
 	}
+
+	credentialHeaders, err := parseCredentialHeaders(destination.Credentials[customHeadersKey])
+	if err != nil {
+		return nil, nil, err
+	}
+	for name := range credentialHeaders {
+		for customName := range config.CustomHeaders {
+			if strings.EqualFold(name, customName) {
+				return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{
+					Field: fmt.Sprintf("credentials.%s.%s", customHeadersKey, name),
+					Type:  "invalid",
+				}})
+			}
+		}
+	}
+	config.CredentialHeaders = credentialHeaders
 
 	// Parse credentials directly from map
 	creds := &WebhookDestinationCredentials{
@@ -691,6 +747,112 @@ func (d *WebhookDestination) resolveConfig(ctx context.Context, destination *mod
 	}
 
 	return config, creds, nil
+}
+
+// parseCredentialHeaders parses and validates credentials.custom_headers. An
+// empty string or an empty object means no headers.
+func parseCredentialHeaders(raw string) (map[string]string, error) {
+	if raw == "" {
+		return nil, nil
+	}
+	var headers map[string]string
+	if err := json.Unmarshal([]byte(raw), &headers); err != nil {
+		return nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{
+			Field: "credentials." + customHeadersKey,
+			Type:  "invalid",
+		}})
+	}
+	if len(headers) == 0 {
+		return nil, nil
+	}
+	if err := validateHeaders("credentials."+customHeadersKey, headers); err != nil {
+		return nil, err
+	}
+	return headers, nil
+}
+
+// maxRedirects matches the net/http default redirect limit.
+const maxRedirects = 10
+
+type credentialHeaderNamesKey struct{}
+
+// checkRedirectDropCredentialHeaders follows redirects like the net/http
+// default policy, and drops the destination's credentials.custom_headers when
+// a redirect leaves the host (host and port) of the original request.
+func checkRedirectDropCredentialHeaders(req *http.Request, via []*http.Request) error {
+	if len(via) >= maxRedirects {
+		return fmt.Errorf("stopped after %d redirects", maxRedirects)
+	}
+	if req.URL.Host == via[0].URL.Host {
+		return nil
+	}
+	names, _ := req.Context().Value(credentialHeaderNamesKey{}).([]string)
+	for _, name := range names {
+		req.Header.Del(name)
+	}
+	return nil
+}
+
+// mergeHeaders applies a header map sent in a create or update to the saved
+// one, header by header, like the API's merge-patch on config and credentials:
+//   - a header not sent keeps its saved value;
+//   - a header sent with a value gets that value;
+//   - a header sent as null is removed.
+//
+// Names match case-insensitively. Removals apply before values, so a rename
+// that only changes case ({"Authorization": null, "authorization": "..."})
+// keeps the header; two values for the same name are rejected. A map equal to
+// the saved one (on update, a field the request left out) is returned as is.
+// Input that doesn't parse is returned as is for validation to reject. An
+// empty result is returned as "", which removes the field.
+func mergeHeaders(field, saved, raw string) (string, error) {
+	if raw == "" || raw == saved {
+		return raw, nil
+	}
+	var patch map[string]*string
+	if err := json.Unmarshal([]byte(raw), &patch); err != nil {
+		return raw, nil
+	}
+	merged := map[string]string{}
+	if saved != "" {
+		_ = json.Unmarshal([]byte(saved), &merged)
+	}
+	deleteName := func(name string) {
+		for savedName := range merged {
+			if strings.EqualFold(name, savedName) {
+				delete(merged, savedName)
+			}
+		}
+	}
+	for name, value := range patch {
+		if value == nil {
+			deleteName(name)
+		}
+	}
+	set := make(map[string]string, len(patch))
+	for name, value := range patch {
+		if value == nil {
+			continue
+		}
+		lower := strings.ToLower(name)
+		if _, ok := set[lower]; ok {
+			return "", destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{
+				Field: fmt.Sprintf("%s.%s", field, name),
+				Type:  "invalid",
+			}})
+		}
+		set[lower] = name
+		deleteName(name)
+		merged[name] = *value
+	}
+	if len(merged) == 0 {
+		return "", nil
+	}
+	out, err := json.Marshal(merged)
+	if err != nil {
+		return raw, nil
+	}
+	return string(out), nil
 }
 
 // rotateSecret handles secret rotation and returns clean credentials
@@ -856,9 +1018,20 @@ func (d *WebhookDestination) Preprocess(newDestination *models.Destination, orig
 		newDestination.Credentials = make(map[string]string)
 	}
 
+	// credentials.custom_headers merges header by header (see mergeHeaders).
+	// It's tenant-editable and independent of the signing secret, which the
+	// handling below rebuilds; it's added back after.
+	var savedCredentialHeaders string
+	if originalDestination != nil {
+		savedCredentialHeaders = originalDestination.Credentials[customHeadersKey]
+	}
+	credentialHeaders, err := mergeHeaders("credentials."+customHeadersKey, savedCredentialHeaders, newDestination.Credentials[customHeadersKey])
+	if err != nil {
+		return err
+	}
+
 	// Get clean credentials based on operation type
 	var cleanCredentials map[string]string
-	var err error
 	if isTruthy(newDestination.Credentials["rotate_secret"]) {
 		cleanCredentials, err = d.rotateSecret(originalDestination, opts)
 	} else {
@@ -876,6 +1049,10 @@ func (d *WebhookDestination) Preprocess(newDestination *models.Destination, orig
 	cleanCredentials, err = d.validateAndSanitizeCredentials(cleanCredentials)
 	if err != nil {
 		return err
+	}
+
+	if credentialHeaders != "" {
+		cleanCredentials[customHeadersKey] = credentialHeaders
 	}
 
 	newDestination.Credentials = cleanCredentials
@@ -898,6 +1075,7 @@ type WebhookPublisher struct {
 	compat               *compatSignature
 	compatSM             *SignatureManager
 	customHeaders        map[string]string
+	credentialHeaders    map[string]string
 	maxResponseBodyBytes int
 }
 
@@ -926,6 +1104,14 @@ func (p *WebhookPublisher) Format(ctx context.Context, event *models.Event) (*ht
 	now := time.Now()
 	rawBody := []byte(event.Data)
 
+	if len(p.credentialHeaders) > 0 {
+		names := make([]string, 0, len(p.credentialHeaders))
+		for name := range p.credentialHeaders {
+			names = append(names, name)
+		}
+		ctx = context.WithValue(ctx, credentialHeaderNamesKey{}, names)
+	}
+
 	req, err := http.NewRequestWithContext(ctx, "POST", p.url, bytes.NewBuffer(rawBody))
 	if err != nil {
 		return nil, err
@@ -935,6 +1121,9 @@ func (p *WebhookPublisher) Format(ctx context.Context, event *models.Event) (*ht
 
 	// Add custom headers FIRST (so metadata can override if there's a conflict)
 	for key, value := range p.customHeaders {
+		req.Header.Set(key, value)
+	}
+	for key, value := range p.credentialHeaders {
 		req.Header.Set(key, value)
 	}
 

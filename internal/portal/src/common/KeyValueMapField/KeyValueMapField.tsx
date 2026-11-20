@@ -13,6 +13,11 @@ interface KeyValueMapFieldProps {
   disabled?: boolean;
   keyPlaceholder?: string;
   valuePlaceholder?: string;
+  // Masks value inputs.
+  sensitive?: boolean;
+  // Masked saved values by key (matched case-insensitively), shown as the
+  // placeholder of an empty value.
+  maskedValues?: Record<string, string>;
   onChange?: (value: string) => void;
 }
 
@@ -22,6 +27,8 @@ const KeyValueMapField: React.FC<KeyValueMapFieldProps> = ({
   disabled,
   keyPlaceholder = "Key",
   valuePlaceholder = "Value",
+  sensitive,
+  maskedValues,
   onChange,
 }) => {
   const [pairs, setPairs] = useState<KeyValuePair[]>(() => {
@@ -74,6 +81,13 @@ const KeyValueMapField: React.FC<KeyValueMapFieldProps> = ({
     }
   }, [serializedValue]);
 
+  const maskedPlaceholder = (key: string) => {
+    const name = key.trim().toLowerCase();
+    return Object.entries(maskedValues ?? {}).find(
+      ([saved]) => saved.toLowerCase() === name,
+    )?.[1];
+  };
+
   const updatePair = (
     index: number,
     field: "key" | "value",
@@ -110,8 +124,9 @@ const KeyValueMapField: React.FC<KeyValueMapFieldProps> = ({
                 className="key-value-map-field__key"
               />
               <input
-                type="text"
-                placeholder={valuePlaceholder}
+                type={sensitive ? "password" : "text"}
+                autoComplete={sensitive ? "new-password" : undefined}
+                placeholder={maskedPlaceholder(pair.key) ?? valuePlaceholder}
                 value={pair.value}
                 onChange={(e) => updatePair(index, "value", e.target.value)}
                 disabled={disabled}

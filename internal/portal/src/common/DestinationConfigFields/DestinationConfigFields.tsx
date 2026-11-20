@@ -11,7 +11,10 @@ import { useSidebar } from "../Sidebar/Sidebar";
 import { ConfigurationGuide } from "../ConfigurationGuide/ConfigurationGuide";
 import { Checkbox } from "../Checkbox/Checkbox";
 import KeyValueMapField from "../KeyValueMapField/KeyValueMapField";
-import { isCheckedValue } from "../../utils/formHelper";
+import {
+  CREDENTIAL_FIELD_PREFIX,
+  isCheckedValue,
+} from "../../utils/formHelper";
 import CONFIGS from "../../config";
 
 const DestinationConfigFields = ({
@@ -91,9 +94,20 @@ const DestinationConfigFields = ({
           </a>
         </div>
       )}
-      {[...type.config_fields, ...type.credential_fields]
-        .filter((field) => {
-          // Filter out custom_headers if the feature flag is not enabled
+      {[
+        ...type.config_fields.map((field) => ({
+          field,
+          name: field.key,
+          saved: destination?.config,
+        })),
+        ...type.credential_fields.map((field) => ({
+          field,
+          name: CREDENTIAL_FIELD_PREFIX + field.key,
+          saved: destination?.credentials,
+        })),
+      ]
+        .filter(({ field }) => {
+          // Filter out header fields if the feature flag is not enabled
           if (
             field.key === "custom_headers" &&
             CONFIGS.ENABLE_WEBHOOK_CUSTOM_HEADERS !== "true"
@@ -102,9 +116,9 @@ const DestinationConfigFields = ({
           }
           return true;
         })
-        .map((field) => (
-          <div key={field.key} className="destination-config-field">
-            <label htmlFor={field.key}>
+        .map(({ field, name, saved }) => (
+          <div key={name} className="destination-config-field">
+            <label htmlFor={name}>
               {field.label}
               {field.required && <span className="required">*</span>}
             </label>
@@ -120,16 +134,14 @@ const DestinationConfigFields = ({
                       : "text"
                   }
                   placeholder={""}
-                  id={field.key}
-                  name={field.key}
+                  id={name}
+                  name={name}
                   defaultValue={
                     "sensitive" in field && field.sensitive
                       ? unlockedSensitiveFields[field.key]
                         ? ""
-                        : destination?.credentials[field.key] || field.default
-                      : destination?.config[field.key] ||
-                        destination?.credentials[field.key] ||
-                        field.default
+                        : saved?.[field.key] || field.default
+                      : saved?.[field.key] || field.default
                   }
                   disabled={
                     "sensitive" in field && field.sensitive
@@ -174,14 +186,9 @@ const DestinationConfigFields = ({
             )}
             {field.type === "select" && (
               <select
-                id={field.key}
-                name={field.key}
-                defaultValue={
-                  destination?.config[field.key] ||
-                  destination?.credentials[field.key] ||
-                  field.default ||
-                  ""
-                }
+                id={name}
+                name={name}
+                defaultValue={saved?.[field.key] || field.default || ""}
                 disabled={field.disabled}
                 required={field.required}
                 onChange={onChange}
@@ -196,14 +203,11 @@ const DestinationConfigFields = ({
             {field.type === "checkbox" && (
               <Checkbox
                 label=""
-                id={field.key}
-                name={field.key}
+                id={name}
+                name={name}
                 defaultChecked={
-                  (destination?.config[field.key] !== undefined
-                    ? isCheckedValue(destination?.config[field.key])
-                    : undefined) ??
-                  (destination?.credentials[field.key] !== undefined
-                    ? isCheckedValue(destination?.credentials[field.key])
+                  (saved?.[field.key] !== undefined
+                    ? isCheckedValue(saved?.[field.key])
                     : undefined) ??
                   (field.default !== undefined
                     ? isCheckedValue(field.default)
@@ -229,12 +233,8 @@ const DestinationConfigFields = ({
             )}
             {field.type === "key_value_map" && (
               <KeyValueMapField
-                name={field.key}
-                defaultValue={
-                  destination?.config[field.key] ||
-                  destination?.credentials[field.key] ||
-                  field.default
-                }
+                {...keyValueMapProps(field, saved?.[field.key])}
+                name={name}
                 disabled={field.disabled}
                 keyPlaceholder={field.key_placeholder}
                 valuePlaceholder={field.value_placeholder}
@@ -246,5 +246,42 @@ const DestinationConfigFields = ({
     </>
   );
 };
+
+// Saved values of a sensitive map never reach the portal, only their masked
+// form, which is shown as the placeholder and never put in the input. On
+// save, a row left empty is left out of the update, which keeps its saved
+// value (see keyValueMapUpdate).
+function keyValueMapProps(
+  field: DestinationTypeReference["credential_fields"][number],
+  saved: string | undefined,
+) {
+  const sensitive = "sensitive" in field && field.sensitive === true;
+  if (sensitive && saved) {
+    return {
+      sensitive,
+      defaultValue: blankValues(saved),
+      maskedValues: Object.fromEntries(parseEntries(saved)),
+    };
+  }
+  return { sensitive, defaultValue: saved || field.default };
+}
+
+function parseEntries(value: string): [string, string][] {
+  try {
+    const parsed = JSON.parse(value);
+    if (typeof parsed === "object" && parsed !== null) {
+      return Object.entries(parsed).map(([k, v]) => [k, String(v)]);
+    }
+  } catch {
+    // Not valid JSON
+  }
+  return [];
+}
+
+function blankValues(value: string): string {
+  return JSON.stringify(
+    Object.fromEntries(parseEntries(value).map(([name]) => [name, ""])),
+  );
+}
 
 export default DestinationConfigFields;

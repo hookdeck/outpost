@@ -358,6 +358,10 @@ components:
           format: date-time
           description: ISO timestamp when the previous secret becomes invalid. Read-only.
           example: "2024-01-02T00:00:00Z"
+        custom_headers:
+          type: string
+          description: JSON string of HTTP headers with secret values, such as Authorization, to include with every webhook request. Same name rules as `config.custom_headers`, and a name can't appear in both. Values are encrypted at rest and returned masked.
+          example: '{"Authorization":"Bear**************"}'
     AWSSQSConfig:
       type: object
       required: [queue_url]
@@ -2374,6 +2378,10 @@ components:
         rotate_secret:
           type: boolean
           description: Set to true to rotate the secret. The current secret becomes the previous_secret, and a new secret is generated. `previous_secret_invalid_at` defaults to 24h if not provided.
+        custom_headers:
+          type: string
+          description: JSON string of HTTP headers with secret values, merged header by header. A header not sent keeps its saved value, a header sent with a value gets that value, and a header sent as null is removed. Set the field to null to remove all.
+          example: '{"X-Api-Key":"new-key","X-Old-Key":null}'
     AWSSQSConfigUpdate:
       type: object
       description: Partial AWS SQS config for PATCH updates (RFC 7396 merge-patch).
@@ -4400,7 +4408,13 @@ paths:
                           label: "Custom Headers"
                           description: "Additional HTTP headers to include with every webhook request"
                           required: false
-                      credential_fields: []
+                      credential_fields:
+                        - key: "custom_headers"
+                          type: "key_value_map"
+                          label: "Secret Headers"
+                          description: "Headers with secret values, such as tokens or API keys. Stored encrypted."
+                          required: false
+                          sensitive: true
                     - type: "hookdeck"
                       label: "Hookdeck"
                       description: "Send events to Hookdeck Event Gateway."
