@@ -17,9 +17,8 @@ var JWT = jsonwebtoken{}
 
 var (
 	ErrInvalidToken = errors.New("invalid token")
-	// ErrNoJWTSecret is returned by New when no signing secret is configured.
-	// Tenant JWT auth is opt-in: with no secret, tokens are neither issued nor
-	// accepted (Extract and Verify return ErrInvalidToken).
+	// ErrNoJWTSecret is returned by New when no secret is set. Tenant JWT auth
+	// is opt-in: without a secret, tokens are neither issued nor accepted.
 	ErrNoJWTSecret = errors.New("JWT secret not configured")
 )
 
@@ -48,9 +47,8 @@ func (_ jsonwebtoken) New(jwtSecret string, claims JWTClaims) (string, error) {
 }
 
 func (_ jsonwebtoken) Extract(jwtSecret string, tokenString string) (JWTClaims, error) {
-	// An empty secret means tenant JWT auth is not configured. Without this
-	// guard, golang-jwt would verify HMAC against an empty key, which anyone
-	// can reproduce — a forged token for any tenant would be accepted.
+	// No secret means tenant JWTs are off. Verifying against an empty HMAC key
+	// would accept a token anyone can sign.
 	if jwtSecret == "" {
 		return JWTClaims{}, ErrInvalidToken
 	}

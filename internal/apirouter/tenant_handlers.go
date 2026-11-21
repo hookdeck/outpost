@@ -284,9 +284,8 @@ func (h *TenantHandlers) RetrievePortal(c *gin.Context) {
 	})
 }
 
-// abortTokenError maps a JWT.New error to a response. Tenant tokens are
-// opt-in: with no JWT secret configured, the token and portal endpoints are
-// not available.
+// abortTokenError maps a JWT.New error to a response: 501 when no JWT
+// secret is configured (tenant tokens are opt-in), 500 otherwise.
 func abortTokenError(c *gin.Context, err error) {
 	if errors.Is(err, ErrNoJWTSecret) {
 		AbortWithError(c, http.StatusNotImplemented, ErrorResponse{
