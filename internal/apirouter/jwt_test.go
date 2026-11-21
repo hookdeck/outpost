@@ -216,9 +216,6 @@ func TestJWT(t *testing.T) {
 		assert.ErrorIs(t, err, apirouter.ErrNoJWTSecret)
 	})
 
-	// Regression: with an empty secret, golang-jwt verifies the HMAC against an
-	// empty key — a signature anyone can reproduce — so a forged token for any
-	// tenant would be accepted. Extract/Verify must refuse when no secret is set.
 	t.Run("should reject a token forged with an empty secret", func(t *testing.T) {
 		t.Parallel()
 		now := time.Now()
@@ -256,6 +253,10 @@ func TestJWT(t *testing.T) {
 		}
 		_, err = apirouter.JWT.Extract(jwtKey, token)
 		assert.ErrorIs(t, err, apirouter.ErrInvalidToken)
+
+		valid, err := apirouter.JWT.Verify(jwtKey, token, tenantID)
+		assert.ErrorIs(t, err, apirouter.ErrInvalidToken)
+		assert.False(t, valid)
 	})
 
 	t.Run("should reject a token without an expiry", func(t *testing.T) {
@@ -271,5 +272,9 @@ func TestJWT(t *testing.T) {
 		}
 		_, err = apirouter.JWT.Extract(jwtKey, token)
 		assert.ErrorIs(t, err, apirouter.ErrInvalidToken)
+
+		valid, err := apirouter.JWT.Verify(jwtKey, token, tenantID)
+		assert.ErrorIs(t, err, apirouter.ErrInvalidToken)
+		assert.False(t, valid)
 	})
 }

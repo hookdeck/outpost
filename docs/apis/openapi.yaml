@@ -5749,6 +5749,12 @@ paths:
           $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalServerError"
+        "501":
+          description: Tenant tokens are not available because `API_JWT_SECRET` is not configured.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIErrorResponse"
 
   /tenants/{tenant_id}/token:
     parameters:
@@ -5785,6 +5791,12 @@ paths:
           $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalServerError"
+        "501":
+          description: Tenant tokens are not available because `API_JWT_SECRET` is not configured.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIErrorResponse"
 
   # Destinations
   /tenants/{tenant_id}/destinations:

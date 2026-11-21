@@ -17,9 +17,9 @@ var JWT = jsonwebtoken{}
 
 var (
 	ErrInvalidToken = errors.New("invalid token")
-	// ErrNoJWTSecret is returned when a JWT operation is attempted without a
-	// signing secret configured. Tenant JWT auth is opt-in: with no secret,
-	// tokens are neither issued nor accepted.
+	// ErrNoJWTSecret is returned by New when no signing secret is configured.
+	// Tenant JWT auth is opt-in: with no secret, tokens are neither issued nor
+	// accepted (Extract and Verify return ErrInvalidToken).
 	ErrNoJWTSecret = errors.New("JWT secret not configured")
 )
 

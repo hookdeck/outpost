@@ -67,6 +67,7 @@ type apiTestConfig struct {
 	subscriptionEmitter  apirouter.SubscriptionEmitter
 	logger               *logging.Logger
 	apiKey               string
+	jwtSecret            string
 	topics               []string
 	topicsAllowWildcards bool
 	deploymentID         string
@@ -137,6 +138,12 @@ func withAPIKeyConfig(apiKey string) apiTestOption {
 	}
 }
 
+func withJWTSecret(secret string) apiTestOption {
+	return func(cfg *apiTestConfig) {
+		cfg.jwtSecret = secret
+	}
+}
+
 func withTopics(topics []string) apiTestOption {
 	return func(cfg *apiTestConfig) {
 		cfg.topics = topics
@@ -168,6 +175,7 @@ func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 		tenantStore: tenantstore.NewMemTenantStore(),
 		logStore:    logstore.NewMemLogStore(),
 		apiKey:      testAPIKey,
+		jwtSecret:   testJWTSecret,
 		topics:      testutil.TestTopics,
 	}
 	for _, o := range opts {
@@ -200,7 +208,7 @@ func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 		apirouter.RouterConfig{
 			ServiceName:          "test",
 			APIKey:               cfg.apiKey,
-			JWTSecret:            testJWTSecret,
+			JWTSecret:            cfg.jwtSecret,
 			DeploymentID:         cfg.deploymentID,
 			Topics:               cfg.topics,
 			TopicsAllowWildcards: cfg.topicsAllowWildcards,
