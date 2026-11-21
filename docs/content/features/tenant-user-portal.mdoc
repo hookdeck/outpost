@@ -75,6 +75,7 @@ Portal settings are configured via [Hookdeck User Portal settings](https://dashb
 {% tab label="Self-Hosted" %}
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `API_JWT_SECRET` | — | Required. Secret used to sign portal sessions |
 | `PORTAL_REFERER_URL` | — | Required. URL to redirect to when JWT expires (also used as fallback when `PORTAL_REFRESH_URL` is not set) |
 | `PORTAL_REFRESH_URL` | — | URL in your app to silently generate a new JWT |
 | `PORTAL_ORGANIZATION_NAME` | — | Organization name shown in the portal header |

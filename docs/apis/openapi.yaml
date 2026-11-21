@@ -5750,7 +5750,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalServerError"
         "501":
-          description: Tenant tokens are not available because `API_JWT_SECRET` is not configured.
+          description: Tenant JWT is not enabled.
           content:
             application/json:
               schema:
@@ -5792,7 +5792,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalServerError"
         "501":
-          description: Tenant tokens are not available because `API_JWT_SECRET` is not configured.
+          description: Tenant JWT is not enabled.
           content:
             application/json:
               schema:

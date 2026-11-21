@@ -291,7 +291,7 @@ func abortTokenError(c *gin.Context, err error) {
 		AbortWithError(c, http.StatusNotImplemented, ErrorResponse{
 			Err:     err,
 			Code:    http.StatusNotImplemented,
-			Message: "tenant tokens are not available: API_JWT_SECRET is not configured",
+			Message: "tenant JWT is not enabled",
 		})
 		return
 	}
