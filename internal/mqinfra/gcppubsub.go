@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/pubsub"
+	"github.com/hookdeck/outpost/internal/util/gcpcreds"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -48,14 +49,28 @@ func (infra *infraGCPPubSub) dlqSubscriptionID() string {
 	return DefaultGCPPubSubDLQSubscriptionName(infra.dlqTopicID())
 }
 
+// clientOptions returns the Pub/Sub client options for the configured
+// credentials, accepting only service account keys. With no key configured it
+// returns no options, so the client uses Application Default Credentials.
+func (infra *infraGCPPubSub) clientOptions() ([]option.ClientOption, error) {
+	credentialsJSON := []byte(infra.cfg.GCPPubSub.ServiceAccountCredentials)
+	if len(credentialsJSON) == 0 {
+		return nil, nil
+	}
+	if err := gcpcreds.CheckServiceAccount(credentialsJSON); err != nil {
+		return nil, err
+	}
+	return []option.ClientOption{option.WithCredentialsJSON(credentialsJSON)}, nil
+}
+
 func (infra *infraGCPPubSub) Exist(ctx context.Context) (bool, error) {
 	if infra.cfg == nil || infra.cfg.GCPPubSub == nil {
 		return false, errors.New("failed assertion: cfg.GCPPubSub != nil") // IMPOSSIBLE
 	}
 
-	var opts []option.ClientOption
-	if infra.cfg.GCPPubSub.ServiceAccountCredentials != "" {
-		opts = append(opts, option.WithCredentialsJSON([]byte(infra.cfg.GCPPubSub.ServiceAccountCredentials)))
+	opts, err := infra.clientOptions()
+	if err != nil {
+		return false, fmt.Errorf("failed to load pubsub credentials: %w", err)
 	}
 
 	client, err := pubsub.NewClient(ctx, infra.cfg.GCPPubSub.ProjectID, opts...)
@@ -112,9 +127,9 @@ func (infra *infraGCPPubSub) Declare(ctx context.Context) error {
 		return errors.New("failed assertion: cfg.GCPPubSub != nil") // IMPOSSIBLE
 	}
 
-	var opts []option.ClientOption
-	if infra.cfg.GCPPubSub.ServiceAccountCredentials != "" {
-		opts = append(opts, option.WithCredentialsJSON([]byte(infra.cfg.GCPPubSub.ServiceAccountCredentials)))
+	opts, err := infra.clientOptions()
+	if err != nil {
+		return fmt.Errorf("failed to load pubsub credentials: %w", err)
 	}
 
 	client, err := pubsub.NewClient(ctx, infra.cfg.GCPPubSub.ProjectID, opts...)
@@ -239,9 +254,9 @@ func (infra *infraGCPPubSub) TearDown(ctx context.Context) error {
 		return errors.New("failed assertion: cfg.GCPPubSub != nil") // IMPOSSIBLE
 	}
 
-	var opts []option.ClientOption
-	if infra.cfg.GCPPubSub.ServiceAccountCredentials != "" {
-		opts = append(opts, option.WithCredentialsJSON([]byte(infra.cfg.GCPPubSub.ServiceAccountCredentials)))
+	opts, err := infra.clientOptions()
+	if err != nil {
+		return fmt.Errorf("failed to load pubsub credentials: %w", err)
 	}
 
 	client, err := pubsub.NewClient(ctx, infra.cfg.GCPPubSub.ProjectID, opts...)

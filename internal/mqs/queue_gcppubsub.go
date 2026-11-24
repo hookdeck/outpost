@@ -63,8 +63,14 @@ func (q *GCPPubSubQueue) Init(ctx context.Context) (func(), error) {
 	}, nil
 }
 
+// serviceAccountCredentials loads the configured key, accepting only
+// service account credentials.
+func (q *GCPPubSubQueue) serviceAccountCredentials(ctx context.Context) (*google.Credentials, error) {
+	return google.CredentialsFromJSONWithType(ctx, []byte(q.config.ServiceAccountCredentials), google.ServiceAccount, nativepubsub.ScopePubSub)
+}
+
 func (q *GCPPubSubQueue) getConn(ctx context.Context) (*grpc.ClientConn, error) {
-	credentials, err := google.CredentialsFromJSON(ctx, []byte(q.config.ServiceAccountCredentials), "https://www.googleapis.com/auth/pubsub")
+	credentials, err := q.serviceAccountCredentials(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +141,7 @@ func (q *GCPPubSubQueue) Subscribe(ctx context.Context, opts ...SubscribeOption)
 
 	var clientOpts []option.ClientOption
 	if q.config.ServiceAccountCredentials != "" {
-		creds, err := google.CredentialsFromJSON(ctx, []byte(q.config.ServiceAccountCredentials), "https://www.googleapis.com/auth/pubsub")
+		creds, err := q.serviceAccountCredentials(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("parse credentials: %w", err)
 		}

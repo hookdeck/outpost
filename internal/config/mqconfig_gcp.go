@@ -10,7 +10,7 @@ import (
 
 type GCPPubSubConfig struct {
 	Project                   string `yaml:"project" env:"GCP_PUBSUB_PROJECT" desc:"GCP Project ID for Pub/Sub. Required if GCP Pub/Sub is the chosen MQ provider." required:"C"`
-	ServiceAccountCredentials string `yaml:"service_account_credentials" env:"GCP_PUBSUB_SERVICE_ACCOUNT_CREDENTIALS" desc:"JSON string or path to a file containing GCP service account credentials for Pub/Sub. Required if GCP Pub/Sub is the chosen MQ provider and not running in an environment with implicit credentials (e.g., GCE, GKE)." required:"C"`
+	ServiceAccountCredentials string `yaml:"service_account_credentials" env:"GCP_PUBSUB_SERVICE_ACCOUNT_CREDENTIALS" desc:"GCP service account key JSON (inline) for Pub/Sub. To use a key file, leave this empty and set GOOGLE_APPLICATION_CREDENTIALS. Required if GCP Pub/Sub is the chosen MQ provider and not running in an environment with implicit credentials (e.g., GCE, GKE)." required:"C"`
 	DeliveryTopic             string `yaml:"delivery_topic" env:"GCP_PUBSUB_DELIVERY_TOPIC" desc:"Name of the GCP Pub/Sub topic for delivery events." required:"N"`
 	DeliverySubscription      string `yaml:"delivery_subscription" env:"GCP_PUBSUB_DELIVERY_SUBSCRIPTION" desc:"Name of the GCP Pub/Sub subscription for delivery events." required:"N"`
 	LogTopic                  string `yaml:"log_topic" env:"GCP_PUBSUB_LOG_TOPIC" desc:"Name of the GCP Pub/Sub topic for log events." required:"N"`
