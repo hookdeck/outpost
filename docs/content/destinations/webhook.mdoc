@@ -39,8 +39,9 @@ curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/destinations' \
 | `credentials.secret` | string | No | Signing secret — auto-generated if not provided |
 | `credentials.previous_secret` | string | No | Previous secret during a rotation window |
 | `credentials.previous_secret_invalid_at` | string | No | RFC 3339 timestamp when the previous secret expires |
+| `credentials.custom_headers` | string | No | JSON object of HTTP headers with secret values, masked in API responses. See [Custom Headers](#custom-headers) |
 
-If `secret` is not provided, one is auto-generated. Tenants can trigger secret rotation but cannot set secrets directly.
+If `secret` is not provided, one is auto-generated. Tenants can trigger secret rotation but cannot set the signing secret directly.
 
 ## Event Format
 
@@ -270,9 +271,23 @@ curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/destinations' \
 
 Header names must start with a letter or digit and may contain letters, digits, underscores, and hyphens. The following headers cannot be overridden: `content-type`, `content-length`, `host`, `connection`, `user-agent`.
 
+For headers whose values are secrets, such as an `Authorization` token, use `credentials.custom_headers`. It takes the same JSON object string and name rules, and a header can't be in both:
+
+```json
+"credentials": {
+  "custom_headers": "{\"Authorization\": \"Bearer <TOKEN>\"}"
+}
+```
+
+Values are encrypted at rest and can't be read back: the API returns each one masked, showing only the first four characters of values 10 characters or longer (`Bear**************`).
+
+Both header objects update header by header: a header you don't send keeps its value, and a header sent as `null` is removed. `"{\"X-Api-Key\": \"new-key\", \"X-Old-Key\": null}"` sets `X-Api-Key`, removes `X-Old-Key` and keeps every other header. Set the field itself to `null` to remove all its headers.
+
+Outpost stores the response body of each attempt: if the endpoint echoes request headers back, their values appear there.
+
 {% tabs tabGroup="deployment" %}
 {% tab label="Managed" %}
-Custom webhook headers in the tenant portal are disabled by default. Enable them in [Hookdeck User Portal settings](https://dashboard.hookdeck.com/settings/project/user-portal).
+Custom headers in the tenant portal are disabled by default. Enable them in [Hookdeck User Portal settings](https://dashboard.hookdeck.com/settings/project/user-portal).
 {% /tab %}
 {% tab label="Self-Hosted" %}
 Custom headers are disabled in the tenant portal by default. Enable with:
