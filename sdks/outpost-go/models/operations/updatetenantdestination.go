@@ -38,6 +38,50 @@ func (u *UpdateTenantDestinationRequest) GetBody() components.DestinationUpdate 
 	return u.Body
 }
 
+func (u *UpdateTenantDestinationRequest) GetBodyWebhook() *components.DestinationUpdateWebhook {
+	return u.GetBody().DestinationUpdateWebhook
+}
+
+func (u *UpdateTenantDestinationRequest) GetBodyAwsSqs() *components.DestinationUpdateAWSSQS {
+	return u.GetBody().DestinationUpdateAWSSQS
+}
+
+func (u *UpdateTenantDestinationRequest) GetBodyRabbitmq() *components.DestinationUpdateRabbitMQ {
+	return u.GetBody().DestinationUpdateRabbitMQ
+}
+
+func (u *UpdateTenantDestinationRequest) GetBodyHookdeck() *components.DestinationUpdateHookdeck {
+	return u.GetBody().DestinationUpdateHookdeck
+}
+
+func (u *UpdateTenantDestinationRequest) GetBodyAwsKinesis() *components.DestinationUpdateAWSKinesis {
+	return u.GetBody().DestinationUpdateAWSKinesis
+}
+
+func (u *UpdateTenantDestinationRequest) GetBodyAzureServicebus() *components.DestinationUpdateAzureServiceBus {
+	return u.GetBody().DestinationUpdateAzureServiceBus
+}
+
+func (u *UpdateTenantDestinationRequest) GetBodyAwsS3() *components.DestinationUpdateAwss3 {
+	return u.GetBody().DestinationUpdateAwss3
+}
+
+func (u *UpdateTenantDestinationRequest) GetBodyGcpPubsub() *components.DestinationUpdateGCPPubSub {
+	return u.GetBody().DestinationUpdateGCPPubSub
+}
+
+func (u *UpdateTenantDestinationRequest) GetBodyKafka() *components.DestinationUpdateKafka {
+	return u.GetBody().DestinationUpdateKafka
+}
+
+func (u *UpdateTenantDestinationRequest) GetBodyCloudflareQueues() *components.DestinationUpdateCloudflareQueues {
+	return u.GetBody().DestinationUpdateCloudflareQueues
+}
+
+func (u *UpdateTenantDestinationRequest) GetBodyAwsEventbridge() *components.DestinationUpdateAWSEventBridge {
+	return u.GetBody().DestinationUpdateAWSEventBridge
+}
+
 type UpdateTenantDestinationResponseBodyType string
 
 const (
@@ -60,7 +104,14 @@ func CreateUpdateTenantDestinationResponseBodyDestination(destination components
 	}
 }
 
-func (u *UpdateTenantDestinationResponseBody) UnmarshalJSON(data []byte) error {
+func (u *UpdateTenantDestinationResponseBody) UnmarshalJSON(data []byte) (err error) {
+	previous := *u
+	*u = UpdateTenantDestinationResponseBody{}
+	defer func() {
+		if err != nil {
+			*u = previous
+		}
+	}()
 
 	var destination components.Destination = components.Destination{}
 	if err := utils.UnmarshalJSON(data, &destination, "", true, nil); err == nil {

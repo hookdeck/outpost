@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -12,13 +13,13 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/hookdeck/outpost/internal/apirouter"
+	"github.com/hookdeck/outpost/internal/backoff"
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 )
@@ -93,13 +94,17 @@ func (r *mockRegistry) ListProviderMetadata() []*metadata.ProviderMetadata {
 	return metadataList
 }
 
+func (r *mockRegistry) RetryPolicy(string) (backoff.Backoff, int, bool) {
+	return nil, 0, false
+}
+
 // setupTestEnvironment creates a test environment with logger middleware and sanitizer
 func setupTestEnvironment(t *testing.T) (*gin.Engine, *observer.ObservedLogs, destregistry.Registry) {
 	gin.SetMode(gin.TestMode)
 
 	// Create observed logger to capture logs
 	core, logs := observer.New(zap.InfoLevel)
-	testLogger := &logging.Logger{Logger: otelzap.New(zap.New(core))}
+	testLogger := logging.NewTestLogger(zap.New(core))
 
 	// Create mock metadata with sensitive fields
 	metadataLoader := &mockMetadataLoader{
@@ -126,6 +131,13 @@ func setupTestEnvironment(t *testing.T) (*gin.Engine, *observer.ObservedLogs, de
 				CredentialFields: []metadata.FieldSchema{
 					{Key: "api_key", Sensitive: true, Required: false},
 					{Key: "bearer_token", Sensitive: true, Required: false},
+				},
+			},
+			"sensitive_config": {
+				Type: "sensitive_config",
+				ConfigFields: []metadata.FieldSchema{
+					{Key: "endpoint", Sensitive: false, Required: true},
+					{Key: "api_token", Sensitive: true, Required: true},
 				},
 			},
 		},
@@ -246,7 +258,9 @@ func TestLoggerMiddleware_SuccessResponseNoBodyLogging(t *testing.T) {
 func TestLoggerMiddleware_OversizedRequestBody(t *testing.T) {
 	router, logs, _ := setupTestEnvironment(t)
 
+	var handlerBody []byte
 	router.POST("/api/v1/test/destinations", func(c *gin.Context) {
+		handlerBody, _ = io.ReadAll(c.Request.Body)
 		c.AbortWithError(http.StatusInternalServerError, fmt.Errorf("test error"))
 	})
 
@@ -268,6 +282,7 @@ func TestLoggerMiddleware_OversizedRequestBody(t *testing.T) {
 
 	// Verify error response
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Equal(t, bodyBytes, handlerBody, "Handler should receive the whole body")
 
 	// Check that oversized body is handled with appropriate message
 	var foundTruncatedLog bool
@@ -301,18 +316,104 @@ func TestLoggerMiddleware_NonJSONRequestBody(t *testing.T) {
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 
-	// Check that non-JSON body is logged as-is
 	var foundPlainTextLog bool
 	for _, logEntry := range logs.All() {
 		for _, field := range logEntry.Context {
 			if field.Key == "request_body" {
 				foundPlainTextLog = true
-				assert.Equal(t, plainTextBody, field.String, "Non-JSON body should be logged as-is")
+				assert.Equal(t, "[REQUEST_BODY_UNPARSEABLE: 21 bytes]", field.String, "Non-JSON body should be replaced by a placeholder")
 			}
 		}
 	}
 
-	assert.True(t, foundPlainTextLog, "Should have logged non-JSON body")
+	assert.True(t, foundPlainTextLog, "Should have logged a placeholder for the non-JSON body")
+}
+
+// Test that keys are matched the way the request decoder matches them
+func TestLoggerMiddleware_KeyCaseAndUnparseableBodies(t *testing.T) {
+	router, logs, _ := setupTestEnvironment(t)
+
+	router.POST("/api/v1/test/destinations", func(c *gin.Context) {
+		c.AbortWithError(http.StatusInternalServerError, fmt.Errorf("test error"))
+	})
+
+	tests := []struct {
+		name     string
+		body     string
+		expected string
+	}{
+		{
+			name:     "upper case credentials key",
+			body:     `{"type":"webhook","CREDENTIALS":{"api_key":"secret-1"}}`,
+			expected: `{"CREDENTIALS":{"api_key":"[REDACTED]"},"type":"webhook"}`,
+		},
+		{
+			name:     "credentials key in two cases",
+			body:     `{"type":"webhook","credentials":{"api_key":"secret-1"},"Credentials":{"api_key":"secret-2"}}`,
+			expected: `{"Credentials":{"api_key":"[REDACTED]"},"credentials":{"api_key":"[REDACTED]"},"type":"webhook"}`,
+		},
+		{
+			name:     "upper case type key",
+			body:     `{"TYPE":"sensitive_config","config":{"endpoint":"https://example.com","api_token":"secret-1"}}`,
+			expected: `{"TYPE":"sensitive_config","config":{"api_token":"[REDACTED]","endpoint":"https://example.com"}}`,
+		},
+		{
+			name:     "type key in two cases",
+			body:     `{"type":"webhook","Type":"sensitive_config","config":{"endpoint":"https://example.com","api_token":"secret-1"}}`,
+			expected: `{"Type":"sensitive_config","config":{"api_token":"[REDACTED]","endpoint":"https://example.com"},"type":"webhook"}`,
+		},
+		{
+			name:     "upper case config key",
+			body:     `{"type":"sensitive_config","CONFIG":{"endpoint":"https://example.com","api_token":"secret-1"}}`,
+			expected: `{"CONFIG":{"api_token":"[REDACTED]","endpoint":"https://example.com"},"type":"sensitive_config"}`,
+		},
+		{
+			name:     "config key in two cases",
+			body:     `{"type":"sensitive_config","config":{"api_token":"secret-1"},"Config":{"api_token":"secret-2"}}`,
+			expected: `{"Config":{"api_token":"[REDACTED]"},"config":{"api_token":"[REDACTED]"},"type":"sensitive_config"}`,
+		},
+		{
+			name:     "upper case sensitive config field",
+			body:     `{"type":"sensitive_config","config":{"endpoint":"https://example.com","API_TOKEN":"secret-1","api_token":"secret-2"}}`,
+			expected: `{"config":{"API_TOKEN":"[REDACTED]","api_token":"[REDACTED]","endpoint":"https://example.com"},"type":"sensitive_config"}`,
+		},
+		{
+			name:     "truncated JSON",
+			body:     `{"type":"webhook","credentials":{"api_key":"secret-1"`,
+			expected: `[REQUEST_BODY_UNPARSEABLE: 53 bytes]`,
+		},
+		{
+			name:     "data after the JSON object",
+			body:     `{"type":"webhook","credentials":{"api_key":"secret-1"}} trailing`,
+			expected: `[REQUEST_BODY_UNPARSEABLE: 64 bytes]`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logs.TakeAll()
+
+			req := httptest.NewRequest("POST", "/api/v1/test/destinations", strings.NewReader(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusInternalServerError, w.Code)
+
+			var requestBodyLog string
+			for _, logEntry := range logs.All() {
+				for _, field := range logEntry.Context {
+					if field.Key == "request_body" {
+						requestBodyLog = field.String
+					}
+				}
+			}
+
+			assert.Equal(t, tt.expected, requestBodyLog)
+			assert.NotContains(t, requestBodyLog, "secret-")
+		})
+	}
 }
 
 // Test handling of empty request bodies
@@ -406,6 +507,46 @@ func TestLoggerMiddleware_PublishEndpointExcluded(t *testing.T) {
 	}
 }
 
+// Test that an id containing "publish" does not turn off body logging
+func TestLoggerMiddleware_PublishInIDIsLogged(t *testing.T) {
+	router, logs, _ := setupTestEnvironment(t)
+
+	router.POST("/api/v1/tenants/:tenant_id/destinations", func(c *gin.Context) {
+		c.AbortWithError(http.StatusInternalServerError, fmt.Errorf("test error"))
+	})
+	router.PATCH("/api/v1/tenants/:tenant_id/destinations/:destination_id", func(c *gin.Context) {
+		c.AbortWithError(http.StatusInternalServerError, fmt.Errorf("test error"))
+	})
+
+	body := `{"type":"webhook","credentials":{"api_key":"secret-1"}}`
+	requests := []struct{ method, path string }{
+		{http.MethodPost, "/api/v1/tenants/publisher-1/destinations"},
+		{http.MethodPatch, "/api/v1/tenants/t1/destinations/publish-x"},
+	}
+
+	for _, r := range requests {
+		logs.TakeAll()
+
+		req := httptest.NewRequest(r.method, r.path, strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+
+		var requestBodyLog string
+		for _, logEntry := range logs.All() {
+			for _, field := range logEntry.Context {
+				if field.Key == "request_body" {
+					requestBodyLog = field.String
+				}
+			}
+		}
+		assert.Equal(t, `{"credentials":{"api_key":"[REDACTED]"},"type":"webhook"}`, requestBodyLog, "%s %s", r.method, r.path)
+	}
+}
+
 // Test GET requests don't trigger body buffering
 func TestLoggerMiddleware_GETRequestNoBuffering(t *testing.T) {
 	router, logs, _ := setupTestEnvironment(t)
@@ -472,6 +613,20 @@ func TestLoggerMiddleware_DifferentDestinationTypes(t *testing.T) {
 			expectedKeep: []string{"https://public-api.example.com/webhook", "POST", "webhook"},
 		},
 		{
+			name: "credential not marked sensitive in metadata",
+			requestBody: map[string]interface{}{
+				"type": "webhook",
+				"config": map[string]interface{}{
+					"url": "https://example.com/webhook",
+				},
+				"credentials": map[string]interface{}{
+					"secret": "whsec_abc123def456",
+				},
+			},
+			expectedMask: []string{"whsec_abc123def456"},
+			expectedKeep: []string{"webhook", "https://example.com/webhook"},
+		},
+		{
 			name: "unknown destination type",
 			requestBody: map[string]interface{}{
 				"type": "unknown_type",
@@ -479,8 +634,8 @@ func TestLoggerMiddleware_DifferentDestinationTypes(t *testing.T) {
 					"some_field": "some_value",
 				},
 			},
-			expectedMask: []string{},
-			expectedKeep: []string{"unknown_type", "some_value"}, // Unknown type won't be sanitized
+			expectedMask: []string{"some_value"},
+			expectedKeep: []string{"unknown_type"},
 		},
 	}
 

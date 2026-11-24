@@ -20,6 +20,14 @@ SQS messages should have the same payload structure as the [Publish API endpoint
 }
 ```
 
+## Failed messages
+
+When Outpost fails to process a message, it makes the message visible again and SQS redelivers it immediately, with no backoff and no limit. This includes messages that can never succeed, such as invalid JSON, `data` that is not a JSON object, or a missing `topic` when `TOPICS` is set. A message larger than `MAX_EVENT_SIZE_BYTES` is the exception: Outpost deletes it on its first delivery, so it never reaches your dead-letter queue.
+
+Dead-lettering and redelivery limits are configured on your queue, not in Outpost. Set a [redrive policy](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-queues.html) with a dead-letter queue and `maxReceiveCount`. Outpost resets the visibility timeout on failure, so the queue's visibility timeout does not delay redeliveries.
+
+`PUBLISH_MAX_REDELIVERIES` sets a limit on the Outpost side instead: once a message has been redelivered that many times, Outpost deletes it. `0` deletes a message on its first failure. To keep those messages, set `maxReceiveCount` no higher than `PUBLISH_MAX_REDELIVERIES` so your dead-letter queue receives them first.
+
 ## Configuration
 
 Provide Outpost with connection and routing information for your SQS instance used for publishing events.
@@ -78,6 +86,10 @@ The following permissions are required for the provided access key:
 - `sqs:DeleteMessage`
 - `sqs:GetQueueUrl`
 - `sqs:ReceiveMessage`
+
+### Health
+
+In a self-hosted deployment, if the publish consumer fails (it can't subscribe, or 10 receives fail in a row, about 70 seconds), `/healthz` reports it `failed` (HTTP 503) until the process restarts. You can turn on restarts instead by adding `publishmq` to `SUPERVISOR_RESTART_WORKERS`: Outpost then restarts the consumer with a backoff and reports it `degraded` while it retries. See [Supervisor](/docs/outpost/self-hosting/configuration#supervisor) for the limits after which it reports `failed`.
 
 ### Troubleshooting
 

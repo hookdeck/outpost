@@ -26,3 +26,7 @@ value := operations.GetAttemptMetricsMeasuresEnum1Count
 | `GetAttemptMetricsMeasuresEnum1Rate`              | rate                                              |
 | `GetAttemptMetricsMeasuresEnum1SuccessfulRate`    | successful_rate                                   |
 | `GetAttemptMetricsMeasuresEnum1FailedRate`        | failed_rate                                       |
+| `GetAttemptMetricsMeasuresEnum1AvgLatency`        | avg_latency                                       |
+| `GetAttemptMetricsMeasuresEnum1P50Latency`        | p50_latency                                       |
+| `GetAttemptMetricsMeasuresEnum1P95Latency`        | p95_latency                                       |
+| `GetAttemptMetricsMeasuresEnum1P99Latency`        | p99_latency                                       |

@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/emetrics"
 	"github.com/hookdeck/outpost/internal/logging"
 	"go.uber.org/zap"
 )
@@ -14,9 +15,11 @@ import (
 // WorkerSupervisor manages and supervises multiple workers.
 // It tracks their health and handles graceful shutdown.
 type WorkerSupervisor struct {
-	workers         map[string]Worker
+	workers         map[string]*registration
 	health          *HealthTracker
 	logger          *logging.Logger
+	metrics         emetrics.OutpostMetrics
+	jitter          func(time.Duration) time.Duration
 	shutdownTimeout time.Duration // 0 means no timeout
 }
 
@@ -34,10 +37,15 @@ func WithShutdownTimeout(timeout time.Duration) SupervisorOption {
 
 // NewWorkerSupervisor creates a new WorkerSupervisor.
 func NewWorkerSupervisor(logger *logging.Logger, opts ...SupervisorOption) *WorkerSupervisor {
+	// emetrics.New only fails if OTel instrument creation fails; metrics are
+	// skipped in that case.
+	metrics, _ := emetrics.New()
 	r := &WorkerSupervisor{
-		workers:         make(map[string]Worker),
+		workers:         make(map[string]*registration),
 		health:          NewHealthTracker(),
 		logger:          logger,
+		metrics:         metrics,
+		jitter:          defaultJitter,
 		shutdownTimeout: 0, // Default: no timeout
 	}
 
@@ -50,11 +58,15 @@ func NewWorkerSupervisor(logger *logging.Logger, opts ...SupervisorOption) *Work
 
 // Register adds a worker to the supervisor.
 // Panics if a worker with the same name is already registered.
-func (r *WorkerSupervisor) Register(w Worker) {
+func (r *WorkerSupervisor) Register(w Worker, opts ...RegisterOption) {
 	if _, exists := r.workers[w.Name()]; exists {
 		panic(fmt.Sprintf("worker %s already registered", w.Name()))
 	}
-	r.workers[w.Name()] = w
+	reg := &registration{worker: w}
+	for _, opt := range opts {
+		opt(reg)
+	}
+	r.workers[w.Name()] = reg
 	r.logger.Info("worker registered", zap.String("worker", w.Name()))
 }
 
@@ -68,8 +80,9 @@ func (r *WorkerSupervisor) GetHealthTracker() *HealthTracker {
 // - ALL workers have exited (either successfully or with errors), OR
 // - The context is cancelled (SIGTERM/SIGINT)
 //
-// When a worker fails, it marks the worker as failed but does NOT
-// terminate other workers. This allows:
+// When a worker without a RestartPolicy fails, it marks the worker as failed
+// but does NOT terminate other workers. Workers registered WithRestartPolicy
+// are restarted instead (see RestartPolicy). This allows:
 // - Other workers to continue serving (e.g., HTTP server stays up)
 // - Health checks to report the failed worker status
 // - Orchestrator to detect failure and restart the pod/container
@@ -88,16 +101,21 @@ func (r *WorkerSupervisor) Run(ctx context.Context) error {
 	var wg sync.WaitGroup
 
 	// Start all workers
-	for name, worker := range r.workers {
+	for name, reg := range r.workers {
 		wg.Add(1)
-		go func(name string, w Worker) {
+		go func(name string, reg *registration) {
 			defer wg.Done()
 
 			r.logger.Debug("worker starting", zap.String("worker", name))
 			r.health.MarkHealthy(name)
 
+			if reg.policy != nil {
+				r.superviseWithRestarts(ctx, reg.worker, *reg.policy)
+				return
+			}
+
 			// Run the worker
-			if err := w.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+			if err := reg.worker.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 				r.logger.Error("worker failed",
 					zap.String("worker", name),
 					zap.Error(err))
@@ -105,7 +123,7 @@ func (r *WorkerSupervisor) Run(ctx context.Context) error {
 			} else {
 				r.logger.Info("worker stopped gracefully", zap.String("worker", name))
 			}
-		}(name, worker)
+		}(name, reg)
 	}
 
 	// Wait for either:

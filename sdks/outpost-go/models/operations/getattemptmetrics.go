@@ -58,6 +58,10 @@ const (
 	GetAttemptMetricsMeasuresEnum2Rate              GetAttemptMetricsMeasuresEnum2 = "rate"
 	GetAttemptMetricsMeasuresEnum2SuccessfulRate    GetAttemptMetricsMeasuresEnum2 = "successful_rate"
 	GetAttemptMetricsMeasuresEnum2FailedRate        GetAttemptMetricsMeasuresEnum2 = "failed_rate"
+	GetAttemptMetricsMeasuresEnum2AvgLatency        GetAttemptMetricsMeasuresEnum2 = "avg_latency"
+	GetAttemptMetricsMeasuresEnum2P50Latency        GetAttemptMetricsMeasuresEnum2 = "p50_latency"
+	GetAttemptMetricsMeasuresEnum2P95Latency        GetAttemptMetricsMeasuresEnum2 = "p95_latency"
+	GetAttemptMetricsMeasuresEnum2P99Latency        GetAttemptMetricsMeasuresEnum2 = "p99_latency"
 )
 
 func (e GetAttemptMetricsMeasuresEnum2) ToPointer() *GetAttemptMetricsMeasuresEnum2 {
@@ -90,6 +94,14 @@ func (e *GetAttemptMetricsMeasuresEnum2) UnmarshalJSON(data []byte) error {
 	case "successful_rate":
 		fallthrough
 	case "failed_rate":
+		fallthrough
+	case "avg_latency":
+		fallthrough
+	case "p50_latency":
+		fallthrough
+	case "p95_latency":
+		fallthrough
+	case "p99_latency":
 		*e = GetAttemptMetricsMeasuresEnum2(v)
 		return nil
 	default:
@@ -111,6 +123,10 @@ const (
 	GetAttemptMetricsMeasuresEnum1Rate              GetAttemptMetricsMeasuresEnum1 = "rate"
 	GetAttemptMetricsMeasuresEnum1SuccessfulRate    GetAttemptMetricsMeasuresEnum1 = "successful_rate"
 	GetAttemptMetricsMeasuresEnum1FailedRate        GetAttemptMetricsMeasuresEnum1 = "failed_rate"
+	GetAttemptMetricsMeasuresEnum1AvgLatency        GetAttemptMetricsMeasuresEnum1 = "avg_latency"
+	GetAttemptMetricsMeasuresEnum1P50Latency        GetAttemptMetricsMeasuresEnum1 = "p50_latency"
+	GetAttemptMetricsMeasuresEnum1P95Latency        GetAttemptMetricsMeasuresEnum1 = "p95_latency"
+	GetAttemptMetricsMeasuresEnum1P99Latency        GetAttemptMetricsMeasuresEnum1 = "p99_latency"
 )
 
 func (e GetAttemptMetricsMeasuresEnum1) ToPointer() *GetAttemptMetricsMeasuresEnum1 {
@@ -143,6 +159,14 @@ func (e *GetAttemptMetricsMeasuresEnum1) UnmarshalJSON(data []byte) error {
 	case "successful_rate":
 		fallthrough
 	case "failed_rate":
+		fallthrough
+	case "avg_latency":
+		fallthrough
+	case "p50_latency":
+		fallthrough
+	case "p95_latency":
+		fallthrough
+	case "p99_latency":
 		*e = GetAttemptMetricsMeasuresEnum1(v)
 		return nil
 	default:
@@ -157,7 +181,7 @@ const (
 	GetAttemptMetricsMeasuresUnionTypeArrayOfGetAttemptMetricsMeasuresEnum2 GetAttemptMetricsMeasuresUnionType = "arrayOfGetAttemptMetricsMeasuresEnum2"
 )
 
-// GetAttemptMetricsMeasuresUnion - Measures to compute. At least one required. Rate measures (`rate`, `successful_rate`, `failed_rate`) are throughput in events/second. Use bracket notation for multiple values (e.g., `measures[0]=count&measures[1]=error_rate`).
+// GetAttemptMetricsMeasuresUnion - Measures to compute. At least one required. Rate measures (`rate`, `successful_rate`, `failed_rate`) are throughput in events/second. Latency measures (`avg_latency`, `p50_latency`, `p95_latency`, `p99_latency`) are destination response times in milliseconds, `null` when no attempt in the bucket recorded a latency. Use bracket notation for multiple values (e.g., `measures[0]=count&measures[1]=error_rate`).
 type GetAttemptMetricsMeasuresUnion struct {
 	GetAttemptMetricsMeasuresEnum1        *GetAttemptMetricsMeasuresEnum1  `queryParam:"inline" union:"member"`
 	ArrayOfGetAttemptMetricsMeasuresEnum2 []GetAttemptMetricsMeasuresEnum2 `queryParam:"inline" union:"member"`
@@ -183,7 +207,14 @@ func CreateGetAttemptMetricsMeasuresUnionArrayOfGetAttemptMetricsMeasuresEnum2(a
 	}
 }
 
-func (u *GetAttemptMetricsMeasuresUnion) UnmarshalJSON(data []byte) error {
+func (u *GetAttemptMetricsMeasuresUnion) UnmarshalJSON(data []byte) (err error) {
+	previous := *u
+	*u = GetAttemptMetricsMeasuresUnion{}
+	defer func() {
+		if err != nil {
+			*u = previous
+		}
+	}()
 
 	var getAttemptMetricsMeasuresEnum1 GetAttemptMetricsMeasuresEnum1 = GetAttemptMetricsMeasuresEnum1("")
 	if err := utils.UnmarshalJSON(data, &getAttemptMetricsMeasuresEnum1, "", true, nil); err == nil {
@@ -335,7 +366,14 @@ func CreateGetAttemptMetricsDimensionsUnionArrayOfGetAttemptMetricsDimensionsEnu
 	}
 }
 
-func (u *GetAttemptMetricsDimensionsUnion) UnmarshalJSON(data []byte) error {
+func (u *GetAttemptMetricsDimensionsUnion) UnmarshalJSON(data []byte) (err error) {
+	previous := *u
+	*u = GetAttemptMetricsDimensionsUnion{}
+	defer func() {
+		if err != nil {
+			*u = previous
+		}
+	}()
 
 	var getAttemptMetricsDimensionsEnum1 GetAttemptMetricsDimensionsEnum1 = GetAttemptMetricsDimensionsEnum1("")
 	if err := utils.UnmarshalJSON(data, &getAttemptMetricsDimensionsEnum1, "", true, nil); err == nil {
@@ -399,7 +437,14 @@ func CreateGetAttemptMetricsFiltersDestinationIDArrayOfStr(arrayOfStr []string) 
 	}
 }
 
-func (u *GetAttemptMetricsFiltersDestinationID) UnmarshalJSON(data []byte) error {
+func (u *GetAttemptMetricsFiltersDestinationID) UnmarshalJSON(data []byte) (err error) {
+	previous := *u
+	*u = GetAttemptMetricsFiltersDestinationID{}
+	defer func() {
+		if err != nil {
+			*u = previous
+		}
+	}()
 
 	var str string = ""
 	if err := utils.UnmarshalJSON(data, &str, "", true, nil); err == nil {
@@ -463,7 +508,14 @@ func CreateFiltersDestinationTypeArrayOfDestinationType(arrayOfDestinationType [
 	}
 }
 
-func (u *FiltersDestinationType) UnmarshalJSON(data []byte) error {
+func (u *FiltersDestinationType) UnmarshalJSON(data []byte) (err error) {
+	previous := *u
+	*u = FiltersDestinationType{}
+	defer func() {
+		if err != nil {
+			*u = previous
+		}
+	}()
 
 	var destinationType components.DestinationType = components.DestinationType("")
 	if err := utils.UnmarshalJSON(data, &destinationType, "", true, nil); err == nil {
@@ -527,7 +579,14 @@ func CreateGetAttemptMetricsFiltersTopicArrayOfStr(arrayOfStr []string) GetAttem
 	}
 }
 
-func (u *GetAttemptMetricsFiltersTopic) UnmarshalJSON(data []byte) error {
+func (u *GetAttemptMetricsFiltersTopic) UnmarshalJSON(data []byte) (err error) {
+	previous := *u
+	*u = GetAttemptMetricsFiltersTopic{}
+	defer func() {
+		if err != nil {
+			*u = previous
+		}
+	}()
 
 	var str string = ""
 	if err := utils.UnmarshalJSON(data, &str, "", true, nil); err == nil {
@@ -643,7 +702,14 @@ func CreateFiltersStatusArrayOfFiltersStatusEnum2(arrayOfFiltersStatusEnum2 []Fi
 	}
 }
 
-func (u *FiltersStatus) UnmarshalJSON(data []byte) error {
+func (u *FiltersStatus) UnmarshalJSON(data []byte) (err error) {
+	previous := *u
+	*u = FiltersStatus{}
+	defer func() {
+		if err != nil {
+			*u = previous
+		}
+	}()
 
 	var filtersStatusEnum1 FiltersStatusEnum1 = FiltersStatusEnum1("")
 	if err := utils.UnmarshalJSON(data, &filtersStatusEnum1, "", true, nil); err == nil {
@@ -707,7 +773,14 @@ func CreateFiltersCodeArrayOfStr(arrayOfStr []string) FiltersCode {
 	}
 }
 
-func (u *FiltersCode) UnmarshalJSON(data []byte) error {
+func (u *FiltersCode) UnmarshalJSON(data []byte) (err error) {
+	previous := *u
+	*u = FiltersCode{}
+	defer func() {
+		if err != nil {
+			*u = previous
+		}
+	}()
 
 	var str string = ""
 	if err := utils.UnmarshalJSON(data, &str, "", true, nil); err == nil {
@@ -798,7 +871,14 @@ func CreateFiltersAttemptNumberArrayOfStr(arrayOfStr []string) FiltersAttemptNum
 	}
 }
 
-func (u *FiltersAttemptNumber) UnmarshalJSON(data []byte) error {
+func (u *FiltersAttemptNumber) UnmarshalJSON(data []byte) (err error) {
+	previous := *u
+	*u = FiltersAttemptNumber{}
+	defer func() {
+		if err != nil {
+			*u = previous
+		}
+	}()
 
 	var str string = ""
 	if err := utils.UnmarshalJSON(data, &str, "", true, nil); err == nil {
@@ -862,7 +942,14 @@ func CreateGetAttemptMetricsFiltersTenantIDArrayOfStr(arrayOfStr []string) GetAt
 	}
 }
 
-func (u *GetAttemptMetricsFiltersTenantID) UnmarshalJSON(data []byte) error {
+func (u *GetAttemptMetricsFiltersTenantID) UnmarshalJSON(data []byte) (err error) {
+	previous := *u
+	*u = GetAttemptMetricsFiltersTenantID{}
+	defer func() {
+		if err != nil {
+			*u = previous
+		}
+	}()
 
 	var str string = ""
 	if err := utils.UnmarshalJSON(data, &str, "", true, nil); err == nil {
@@ -901,7 +988,7 @@ type GetAttemptMetricsRequest struct {
 	// When omitted, returns a single aggregate row per dimension combination.
 	//
 	Granularity *string `queryParam:"style=form,explode=true,name=granularity"`
-	// Measures to compute. At least one required. Rate measures (`rate`, `successful_rate`, `failed_rate`) are throughput in events/second. Use bracket notation for multiple values (e.g., `measures[0]=count&measures[1]=error_rate`).
+	// Measures to compute. At least one required. Rate measures (`rate`, `successful_rate`, `failed_rate`) are throughput in events/second. Latency measures (`avg_latency`, `p50_latency`, `p95_latency`, `p99_latency`) are destination response times in milliseconds, `null` when no attempt in the bucket recorded a latency. Use bracket notation for multiple values (e.g., `measures[0]=count&measures[1]=error_rate`).
 	Measures GetAttemptMetricsMeasuresUnion `queryParam:"style=form,explode=true,name=measures"`
 	// Dimensions to group results by. Use bracket notation for multiple values (e.g., `dimensions[0]=status&dimensions[1]=destination_id`).
 	Dimensions *GetAttemptMetricsDimensionsUnion `queryParam:"style=form,explode=true,name=dimensions"`

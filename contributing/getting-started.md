@@ -9,43 +9,50 @@ cd outpost
 cp .env.dev .env
 cp .outpost.yaml.dev .outpost.yaml
 
-# Create Docker network (one-time setup)
-make network
-
 # Start everything
-make up/deps
-make up/outpost
+make up
 ```
 
 The API is now available at `http://localhost:3333`.
 
 **Default setup includes:**
 - Redis (cache and state)
-- PostgreSQL (log store)
-- RabbitMQ (message queue)
+- ClickHouse (log store)
+- NATS JetStream (internal message queue)
 
-See [Configuration](#configuration) to customize with ClickHouse, AWS SQS, GCP PubSub, Azure ServiceBus, and more.
+See [Configuration](#configuration) to customize with PostgreSQL, RabbitMQ, AWS SQS, GCP PubSub, Azure ServiceBus, and more.
 
 ## Day-to-Day Development
 
 ```sh
-# Start
-make up/deps
-make up/outpost
-
-# Stop
-make down/outpost
-make down/deps
-
-# Or use shortcuts
-make up    # starts deps + outpost
-make down  # stops outpost + deps
+make up      # bring up everything enabled in .env
+make down    # stop and remove the stack
+make nuke    # stop + remove volumes of every dev service, including disabled ones (wipe state)
 ```
+
+`make up` is declarative — it reads `.env` and reconciles the running stack
+to match. Edit `.env`, re-run `make up`, and only the diff is applied;
+services whose flag you turned off are removed.
+
+### Verifying the stack
+
+```sh
+make health              # reachability check, polls up to 5s by default
+make health WAIT=30      # override poll window (handy right after make up)
+make smoke               # end-to-end pipeline test (tenant → publish → log)
+```
+
+`make health` walks the same `LOCAL_DEV_*` flags as `make up` and probes
+only services that should be running. `make smoke` provisions a tenant +
+webhook destination, publishes one event to `https://mock.hookdeck.com`,
+and polls until the delivery attempt lands in the log store, then cleans
+up — exercising api, redis, mq, delivery worker, egress, log worker, and
+log store in one shot.
 
 ## Running Tests
 
 ```sh
-# Start test infrastructure
+# Start test infrastructure (ClickHouse, Postgres, NATS, mock server)
 make up/test
 
 # Run tests
@@ -64,17 +71,21 @@ make test TESTINFRA=1 TEST=./internal/config RUN=TestValidateService TESTARGS="-
 make down/test
 ```
 
-See the [Test](test.md) documentation for more details.
+Destination provider tests and tests of the other internal queues are opt-in (`TESTDEST=1`, `TESTCOMPAT=1`) and need the destination stack (`make up/dest`). See the [Test](test.md) documentation for the test groups and more details.
+
+## Testing Destinations
+
+`make up/dest` starts the brokers Outpost delivers to (RabbitMQ, LocalStack, Pub/Sub emulator, Kafka) as a separate stack that the `make up` services can reach, e.g. a RabbitMQ destination with `server_url` `dest-rabbitmq:5672`. `go run ./cmd/destinations/<type>` consumes what arrives. See [Destination stack](test.md#destination-stack) for addresses.
 
 ## Configuration
 
 Outpost can be configured via environment variables (`.env`) or a YAML file (`.outpost.yaml`). See [Configuration](config.md) for all options.
 
-> **Tip:** For smoother local DX, consider using `.outpost.yaml` for Outpost settings. Air detects changes to `.outpost.yaml` and automatically restarts the services, whereas `.env` changes require `make down/outpost && make up/outpost`.
+> **Tip:** For smoother local DX, consider using `.outpost.yaml` for Outpost settings. Air detects changes to `.outpost.yaml` and automatically restarts the services, whereas `.env` changes require `make down && make up`.
 
-### Local Dependencies (.env)
+### Local Dev Stack (.env)
 
-The `.env` file controls which services `make up/deps` starts. Add or remove `LOCAL_DEV_*` variables to customize your stack:
+The `.env` file controls which services `make up` starts. Add or remove `LOCAL_DEV_*` variables to customize your stack, then re-run `make up`:
 
 ```sh
 # .env
@@ -83,13 +94,14 @@ The `.env` file controls which services `make up/deps` starts. Add or remove `LO
 # LOCAL_DEV_DRAGONFLY=1
 
 # Log store
-LOCAL_DEV_POSTGRES=1
+LOCAL_DEV_CLICKHOUSE=1
 
-# Message queue
-LOCAL_DEV_RABBITMQ=1
+# Message queue (NATS JetStream is the default)
+LOCAL_DEV_NATS=1
+# LOCAL_DEV_RABBITMQ=1
 
 # Optional: Additional services
-# LOCAL_DEV_CLICKHOUSE=1
+# LOCAL_DEV_POSTGRES=1
 # LOCAL_DEV_LOCALSTACK=1
 # LOCAL_DEV_GCP=1
 
@@ -104,21 +116,57 @@ LOCAL_DEV_RABBITMQ=1
 | `LOCAL_DEV_DRAGONFLY=1` | Use Dragonfly instead of Redis |
 | `LOCAL_DEV_POSTGRES=1` | Enable PostgreSQL |
 | `LOCAL_DEV_CLICKHOUSE=1` | Enable ClickHouse |
+| `LOCAL_DEV_NATS=1` | Enable NATS JetStream (default internal MQ) |
 | `LOCAL_DEV_RABBITMQ=1` | Enable RabbitMQ |
 | `LOCAL_DEV_LOCALSTACK=1` | Enable LocalStack (AWS SQS) |
 | `LOCAL_DEV_GCP=1` | Enable GCP PubSub emulator |
 | `LOCAL_DEV_REDIS_COMMANDER=<port>` | Enable Redis Commander |
 | `LOCAL_DEV_PGADMIN=<port>` | Enable pgAdmin |
 | `LOCAL_DEV_TABIX=<port>` | Enable Tabix (ClickHouse UI) |
+| `LOCAL_DEV_ENVOY=1` | Forward proxy for `DESTINATIONS_PROXY_URL` testing |
+| `LOCAL_DEV_ENVOY_CHAIN=1` | Second proxy behind the first, for proxy hop-list testing |
+| `LOCAL_DEV_GRAFANA=1` | OTel collector + Prometheus + Grafana |
+| `LOCAL_DEV_UPTRACE=1` | Uptrace observability (alternative to Grafana — cannot be combined) |
+| `LOCAL_DEV_AZURE=1` | Azure Service Bus + SQL Edge emulators |
+| `LOCAL_DEV_MCP=1` | MCP Events on (`EXPERIMENTAL_MCP_ENABLED`) with sample events (`make up/mcp`) |
 
-After changing `.env`, restart dependencies:
+After changing `.env`, reconcile the stack:
 
 ```sh
-make down/deps
-make up/deps
+make up
 ```
 
-> **Note:** Azure ServiceBus has its own stack (`make up/azure`) because it's shared between dev and test environments.
+### Upgrading an existing setup (RabbitMQ → NATS default)
+
+Setups copied from `.env.dev` / `.outpost.yaml.dev` before NATS became the default keep working unchanged on RabbitMQ: `LOCAL_DEV_RABBITMQ=1` in `.env` and `mqs.rabbitmq` in `.outpost.yaml` still go together. To move to the NATS default, change both files together, then `make up` (it removes the RabbitMQ container):
+
+```sh
+cp .env.dev .env                    # or: LOCAL_DEV_NATS=1, drop LOCAL_DEV_RABBITMQ=1
+cp .outpost.yaml.dev .outpost.yaml  # or: mqs.nats.server_url "nats://nats:4222", drop mqs.rabbitmq
+make up
+```
+
+Changing only one of the two files leaves Outpost pointing at a queue that isn't running; `make up` stops with an error saying which flag is missing. `make nuke` resets all dev state: it removes the volumes of every service in the dev stack, including ones whose flag is off (e.g. old RabbitMQ or Postgres data).
+
+### Choosing the internal message queue
+
+A `LOCAL_DEV_*` flag only starts a queue; Outpost uses the one configured under `mqs:` in `.outpost.yaml`. The default pair is `LOCAL_DEV_NATS=1` and `mqs.nats.server_url: "nats://nats:4222"`. To run on RabbitMQ instead:
+
+```sh
+# .env
+LOCAL_DEV_RABBITMQ=1
+```
+
+```yaml
+# .outpost.yaml
+mqs:
+  rabbitmq:
+    server_url: "amqp://guest:guest@rabbitmq:5672"
+```
+
+When several queues are configured, Outpost picks one in this order: AWS SQS, Azure Service Bus, GCP Pub/Sub, RabbitMQ, NATS. So uncommenting `rabbitmq` is enough to switch; the `nats` block can stay. Comment out `LOCAL_DEV_NATS=1` too if you don't need NATS running. Then `make up`.
+
+NATS uses one stream (`outpost` by default) with the subjects `outpost.delivery` and `outpost.log`, and DLQ subjects `dlq.outpost-delivery` / `dlq.outpost-log` (streams `dlq-outpost-delivery` / `dlq-outpost-log`). To share one NATS server between several Outpost deployments, give each its own `NATS_STREAM` and subjects (`NATS_DELIVERY_SUBJECT`, `NATS_LOG_SUBJECT`, prefixed with the stream name); see `.env.example`.
 
 ### Host Ports Reference
 
@@ -128,6 +176,7 @@ make up/deps
 | PostgreSQL | localhost:25432 | outpost:outpost |
 | ClickHouse TCP | localhost:29000 | outpost:outpost |
 | ClickHouse HTTP | localhost:28123 | outpost:outpost |
+| NATS | localhost:24222 (monitoring localhost:28222) | - |
 | RabbitMQ AMQP | localhost:25672 | guest:guest |
 | RabbitMQ UI | localhost:25673 | guest:guest |
 | LocalStack (AWS) | localhost:24566 | test:test |

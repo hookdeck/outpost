@@ -211,3 +211,48 @@ const value: components.DestinationKafka = {
 };
 ```
 
+### `components.DestinationCloudflareQueues`
+
+```typescript
+const value: components.DestinationCloudflareQueues = {
+  id: "des_cf_queues_123",
+  type: "cloudflare_queues",
+  topics: [
+    "*",
+  ],
+  disabledAt: null,
+  createdAt: new Date("2024-03-10T14:30:00Z"),
+  updatedAt: new Date("2024-03-10T14:30:00Z"),
+  config: {
+    accountId: "023e105f4ecef8ad9ca31a8372d0c353",
+    queueId: "9d7d4cf8a3a14d9aaeb50c3e74e2f4b1",
+  },
+  credentials: {
+    apiToken: "v1.0-1234567890abcdef...",
+  },
+};
+```
+
+### `components.DestinationAWSEventBridge`
+
+```typescript
+const value: components.DestinationAWSEventBridge = {
+  id: "des_evb_123",
+  type: "aws_eventbridge",
+  topics: [
+    "*",
+  ],
+  disabledAt: null,
+  createdAt: new Date("2024-03-10T14:30:00Z"),
+  updatedAt: new Date("2024-03-10T14:30:00Z"),
+  config: {
+    eventBusName: "my-event-bus",
+    region: "us-east-1",
+  },
+  credentials: {
+    key: "AKIAIOSFODNN7EXAMPLE",
+    secret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+  },
+};
+```
+

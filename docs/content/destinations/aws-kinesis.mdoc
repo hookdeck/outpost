@@ -33,7 +33,7 @@ curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/destinations' \
 |-------|------|----------|-------------|
 | `config.stream_name` | string | Yes | The Kinesis stream name |
 | `config.region` | string | Yes | AWS region (e.g., `us-east-1`) |
-| `config.endpoint` | string | No | Custom endpoint URL (for LocalStack, etc.) |
+| `config.endpoint` | string | No | Custom endpoint URL for emulators such as LocalStack. Requires [`DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS`](/docs/outpost/self-hosting/configuration#destinations). |
 | `config.partition_key_template` | string | No | JMESPath expression for the partition key |
 
 ### Credentials
@@ -85,6 +85,8 @@ By default, the event ID is used as the partition key. Customize it with a JMESP
   }
 }
 ```
+
+Templates may use field paths, string literals, `join`, `to_string`, `not_null` and `||`.
 
 ## IAM Permissions
 

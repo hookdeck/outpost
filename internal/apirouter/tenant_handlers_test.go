@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -14,6 +15,7 @@ import (
 	"github.com/hookdeck/outpost/internal/apirouter"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/tenantstore"
+	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -27,6 +29,17 @@ type listUnsupportedStore struct {
 
 func (s *listUnsupportedStore) ListTenant(_ context.Context, _ tenantstore.ListTenantRequest) (*tenantstore.TenantPaginatedResult, error) {
 	return nil, tenantstore.ErrListTenantNotSupported
+}
+
+// deleteNotFoundStore wraps a TenantStore and overrides DeleteTenant
+// to return ErrTenantNotFound, simulating a tenant removed between
+// the auth lookup and the delete.
+type deleteNotFoundStore struct {
+	tenantstore.TenantStore
+}
+
+func (s *deleteNotFoundStore) DeleteTenant(_ context.Context, _ string) error {
+	return tenantstore.ErrTenantNotFound
 }
 
 func TestAPI_Tenants(t *testing.T) {
@@ -148,6 +161,45 @@ func TestAPI_Tenants(t *testing.T) {
 			var tenant models.Tenant
 			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &tenant))
 			assert.Equal(t, "t1", tenant.ID)
+		})
+
+		t.Run("wildcard patterns are hidden when disabled without changing storage", func(t *testing.T) {
+			store := tenantstore.NewMemTenantStore()
+			h := newAPITest(t, withTenantStore(store))
+			reenabled := newAPITest(t, withTenantStore(store), withTopicsAllowWildcards(true))
+
+			require.NoError(t, store.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1"))))
+			require.NoError(t, store.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"),
+				df.WithTenantID("t1"),
+				df.WithTopics([]string{"user.*", "order.created"}),
+			)))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1", nil)
+			resp := h.do(h.withAPIKey(req))
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var tenant models.Tenant
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &tenant))
+			assert.Equal(t, []string{"order.created"}, tenant.Topics)
+
+			listReq := httptest.NewRequest(http.MethodGet, "/api/v1/tenants", nil)
+			listResp := h.do(h.withAPIKey(listReq))
+			require.Equal(t, http.StatusOK, listResp.Code)
+			var tenants tenantstore.TenantPaginatedResult
+			require.NoError(t, json.Unmarshal(listResp.Body.Bytes(), &tenants))
+			require.Len(t, tenants.Models, 1)
+			assert.Equal(t, []string{"order.created"}, tenants.Models[0].Topics)
+
+			stored, err := store.RetrieveTenant(t.Context(), "t1")
+			require.NoError(t, err)
+			assert.ElementsMatch(t, []string{"user.*", "order.created"}, stored.Topics)
+
+			req = httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1", nil)
+			resp = reenabled.do(reenabled.withAPIKey(req))
+			require.Equal(t, http.StatusOK, resp.Code)
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &tenant))
+			assert.ElementsMatch(t, []string{"user.*", "order.created"}, tenant.Topics)
 		})
 
 		t.Run("jwt returns own tenant", func(t *testing.T) {
@@ -401,7 +453,7 @@ func TestAPI_Tenants(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants", nil)
 			resp := h.do(h.withAPIKey(req))
 
-			require.Equal(t, http.StatusNotImplemented, resp.Code)
+			testutil.RequireErrorResponse(t, resp, http.StatusNotImplemented, "list tenant feature is not enabled")
 		})
 	})
 
@@ -433,6 +485,16 @@ func TestAPI_Tenants(t *testing.T) {
 			// Verify deleted in store
 			_, err := h.tenantStore.RetrieveTenant(t.Context(), "t1")
 			assert.ErrorIs(t, err, tenantstore.ErrTenantDeleted)
+		})
+
+		t.Run("tenant gone at delete returns 404", func(t *testing.T) {
+			h := newAPITest(t, withTenantStore(&deleteNotFoundStore{tenantstore.NewMemTenantStore()}))
+			require.NoError(t, h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1"))))
+
+			req := httptest.NewRequest(http.MethodDelete, "/api/v1/tenants/t1", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "tenant not found")
 		})
 	})
 
@@ -486,6 +548,38 @@ func TestAPI_Tenants(t *testing.T) {
 			claims, err := apirouter.JWT.Extract(testJWTSecret, body["token"])
 			require.NoError(t, err)
 			assert.Equal(t, "t1", claims.TenantID)
+		})
+
+		t.Run("token with deployment id is accepted only by the deployment that issued it", func(t *testing.T) {
+			ts := tenantstore.NewMemTenantStore()
+			require.NoError(t, ts.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1"))))
+			issuer := newAPITest(t, withTenantStore(ts), withDeploymentID("dp_a"))
+			other := newAPITest(t, withTenantStore(ts), withDeploymentID("dp_b"))
+
+			tokenReq := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/token", nil)
+			resp := issuer.do(issuer.withAPIKey(tokenReq))
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var body map[string]string
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
+
+			claims, err := apirouter.JWT.Extract(testJWTSecret, body["token"])
+			require.NoError(t, err)
+			assert.Equal(t, "dp_a", claims.DeploymentID)
+
+			retrieveTenant := func(h *apiTest) int {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1", nil)
+				req.Header.Set("Authorization", "Bearer "+body["token"])
+				return h.do(req).Code
+			}
+
+			t.Run("issuing deployment returns 200", func(t *testing.T) {
+				assert.Equal(t, http.StatusOK, retrieveTenant(issuer))
+			})
+
+			t.Run("other deployment returns 401", func(t *testing.T) {
+				assert.Equal(t, http.StatusUnauthorized, retrieveTenant(other))
+			})
 		})
 
 		t.Run("nonexistent tenant returns 404", func(t *testing.T) {
@@ -607,5 +701,114 @@ func TestAPI_Tenants(t *testing.T) {
 
 			require.Equal(t, http.StatusUnauthorized, resp.Code)
 		})
+	})
+}
+
+// A body sent with chunked transfer encoding has no declared length.
+func TestAPI_TenantUpsert_ChunkedBody(t *testing.T) {
+	put := func(t *testing.T, h *apiTest, body string, chunked bool) (int, string) {
+		t.Helper()
+		server := httptest.NewServer(h.router)
+		defer server.Close()
+
+		req, err := http.NewRequest(http.MethodPut, server.URL+"/api/v1/tenants/t1", strings.NewReader(body))
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "application/json")
+		if chunked {
+			req.ContentLength = -1
+			req.TransferEncoding = []string{"chunked"}
+		}
+		resp, err := http.DefaultClient.Do(h.withAPIKey(req))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		respBody, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		return resp.StatusCode, string(respBody)
+	}
+	storedMetadata := func(t *testing.T, h *apiTest) models.Metadata {
+		t.Helper()
+		tenant, err := h.tenantStore.RetrieveTenant(t.Context(), "t1")
+		require.NoError(t, err)
+		return tenant.Metadata
+	}
+
+	for _, chunked := range []bool{false, true} {
+		name := "declared length"
+		if chunked {
+			name = "chunked"
+		}
+
+		t.Run(name+" creates tenant with metadata", func(t *testing.T) {
+			h := newAPITest(t)
+
+			status, _ := put(t, h, `{"metadata":{"plan":"pro"}}`, chunked)
+
+			require.Equal(t, http.StatusCreated, status)
+			assert.Equal(t, models.Metadata{"plan": "pro"}, storedMetadata(t, h))
+		})
+
+		t.Run(name+" invalid JSON returns 422", func(t *testing.T) {
+			h := newAPITest(t)
+
+			status, body := put(t, h, `{not json`, chunked)
+
+			require.Equal(t, http.StatusUnprocessableEntity, status)
+			assert.JSONEq(t, `{"status":422,"message":"invalid JSON"}`, body)
+			tenant, err := h.tenantStore.RetrieveTenant(t.Context(), "t1")
+			require.NoError(t, err)
+			assert.Nil(t, tenant)
+		})
+
+		t.Run(name+" updates metadata", func(t *testing.T) {
+			h := newAPITest(t)
+			require.NoError(t, h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1"), tf.WithMetadata(map[string]string{"plan": "pro"}))))
+
+			status, _ := put(t, h, `{"metadata":{"plan":"enterprise"}}`, chunked)
+
+			require.Equal(t, http.StatusOK, status)
+			assert.Equal(t, models.Metadata{"plan": "enterprise"}, storedMetadata(t, h))
+		})
+
+		t.Run(name+" empty body creates tenant", func(t *testing.T) {
+			h := newAPITest(t)
+
+			status, _ := put(t, h, "", chunked)
+
+			require.Equal(t, http.StatusCreated, status)
+			assert.Empty(t, storedMetadata(t, h))
+		})
+
+		t.Run(name+" empty body replaces metadata with none", func(t *testing.T) {
+			h := newAPITest(t)
+			require.NoError(t, h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1"), tf.WithMetadata(map[string]string{"plan": "pro"}))))
+
+			status, _ := put(t, h, "", chunked)
+
+			require.Equal(t, http.StatusOK, status)
+			assert.Empty(t, storedMetadata(t, h))
+		})
+	}
+
+	// A whitespace-only body is invalid JSON when its length is declared, and
+	// indistinguishable from an empty body when it is chunked.
+	t.Run("declared length whitespace-only body returns 422", func(t *testing.T) {
+		h := newAPITest(t)
+		require.NoError(t, h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1"), tf.WithMetadata(map[string]string{"plan": "pro"}))))
+
+		status, body := put(t, h, " \n ", false)
+
+		require.Equal(t, http.StatusUnprocessableEntity, status)
+		assert.JSONEq(t, `{"status":422,"message":"invalid JSON"}`, body)
+		assert.Equal(t, models.Metadata{"plan": "pro"}, storedMetadata(t, h))
+	})
+
+	t.Run("chunked whitespace-only body is treated as empty", func(t *testing.T) {
+		h := newAPITest(t)
+		require.NoError(t, h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1"), tf.WithMetadata(map[string]string{"plan": "pro"}))))
+
+		status, _ := put(t, h, " \n ", true)
+
+		require.Equal(t, http.StatusOK, status)
+		assert.Empty(t, storedMetadata(t, h))
 	})
 }

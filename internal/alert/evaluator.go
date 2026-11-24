@@ -1,90 +1,188 @@
+// Package alert tracks delivery health per destination: consecutive-failure
+// counting, alert thresholds, and retry exhaustion. It is a pure tracker — it
+// returns signals as data and performs no side effects outside its own state.
+// Acting on the signals (operator events, auto-disable, replay dedup) is the
+// caller's job.
 package alert
 
 import (
-	"sort"
+	"context"
+	"fmt"
 )
 
-// AlertEvaluator determines when alerts should be triggered
-type AlertEvaluator interface {
-	// ShouldAlert determines if an alert should be sent and returns the alert level
-	ShouldAlert(failures int) (level int, shouldAlert bool)
+// Attempt is the tracker's input: the identity and outcome of one delivery
+// attempt, nothing more.
+type Attempt struct {
+	TenantID         string
+	DestinationID    string
+	AttemptID        string
+	Number           int // 1-indexed attempt number
+	Success          bool
+	EligibleForRetry bool
+	// AttemptMax is the attempt count the delivery was allowed (retries + 1);
+	// 0 uses the evaluator's retry limit.
+	AttemptMax int
+	// NonRetryable: no further automatic retry follows this failed attempt.
+	NonRetryable bool
+	// SkipFailureCount keeps a failed attempt out of the consecutive-failure
+	// count: it neither increments nor resets it.
+	SkipFailureCount bool
 }
 
-type thresholdPair struct {
-	percentage int
-	failures   int
+// Evaluation is the tracker's verdict on one attempt: one field per signal
+// kind, nil/false when that kind has nothing to report. An attempt can carry
+// several signals at once. Zero value = nothing to report (success, or a
+// failure that crossed no threshold and exhausted no retries).
+type Evaluation struct {
+	// ConsecutiveFailure is non-nil when this attempt's consecutive-failure
+	// count crossed an alert threshold. Each threshold is reported once per
+	// failure streak.
+	ConsecutiveFailure *ConsecutiveFailureSignal
+	// RetriesExhausted reports that this attempt exceeded the retry budget for
+	// a retry-eligible event.
+	RetriesExhausted bool
 }
 
-type alertEvaluator struct {
-	thresholds              []thresholdPair // sorted pairs of percentage and failure counts
+// ConsecutiveFailureSignal reports a crossed consecutive-failure threshold.
+type ConsecutiveFailureSignal struct {
+	Failures int // current consecutive-failure count
+	Max      int // configured 100%-threshold failure count
+	Level    int // crossed threshold's percentage (e.g. 50/70/90/100)
+}
+
+// Option configures an evaluator.
+type Option func(*Evaluator)
+
+// WithAutoDisableFailureCount sets the consecutive-failure count that means
+// 100% — the denominator for threshold math.
+func WithAutoDisableFailureCount(count int) Option {
+	return func(e *Evaluator) {
+		e.autoDisableFailureCount = count
+	}
+}
+
+// WithAlertThresholds sets the percentage thresholds at which alerts fire.
+func WithAlertThresholds(thresholds []int) Option {
+	return func(e *Evaluator) {
+		e.alertThresholds = thresholds
+	}
+}
+
+// WithConsecutiveFailureEnabled toggles consecutive-failure tracking. When set
+// to false the evaluator never tracks failures or crosses thresholds.
+// Defaults to true.
+func WithConsecutiveFailureEnabled(enabled bool) Option {
+	return func(e *Evaluator) {
+		e.consecutiveFailureEnabled = enabled
+	}
+}
+
+// WithExhaustedRetriesEnabled toggles the retry-exhaustion signal. Defaults to
+// true.
+func WithExhaustedRetriesEnabled(enabled bool) Option {
+	return func(e *Evaluator) {
+		e.exhaustedRetriesEnabled = enabled
+	}
+}
+
+// WithPerAttemptRetryLimits declares that attempts carry their own retry limit
+// (Attempt.AttemptMax), so exhausted retries can fire even when the global
+// retry limit is 0.
+func WithPerAttemptRetryLimits() Option {
+	return func(e *Evaluator) {
+		e.perAttemptRetryLimits = true
+	}
+}
+
+// Evaluator evaluates delivery attempts against the destination's failure
+// history and returns the resulting signals as data.
+type Evaluator struct {
+	store      AlertStore
+	thresholds thresholdEvaluator
+
 	autoDisableFailureCount int
+	alertThresholds         []int
+	retryMaxLimit           int
+
+	consecutiveFailureEnabled bool
+	exhaustedRetriesEnabled   bool
+	perAttemptRetryLimits     bool
 }
 
-// NewAlertEvaluator creates a new alert evaluator
-func NewAlertEvaluator(thresholds []int, autoDisableFailureCount int) AlertEvaluator {
-	// Create pairs of percentage thresholds and their corresponding failure counts
-	finalThresholds := make([]thresholdPair, 0, len(thresholds))
-
-	// Convert percentages to failure counts
-	for _, percentage := range thresholds {
-		// Skip invalid percentages
-		if percentage <= 0 || percentage > 100 {
-			continue
-		}
-		// Ceiling division: (a + b - 1) / b
-		failures := (int(autoDisableFailureCount)*int(percentage) + 99) / 100
-		finalThresholds = append(finalThresholds, thresholdPair{
-			percentage: percentage,
-			failures:   failures,
-		})
+// NewEvaluator creates a new alert evaluator on the given store.
+func NewEvaluator(store AlertStore, retryMaxLimit int, opts ...Option) *Evaluator {
+	e := &Evaluator{
+		store:                     store,
+		retryMaxLimit:             retryMaxLimit,
+		alertThresholds:           []int{50, 70, 90, 100}, // default thresholds
+		consecutiveFailureEnabled: true,
+		exhaustedRetriesEnabled:   true,
 	}
 
-	sort.Slice(finalThresholds, func(i, j int) bool { return finalThresholds[i].failures < finalThresholds[j].failures })
-
-	// Check if we need to add 100
-	needsAutoDisable := true
-	if len(finalThresholds) > 0 && finalThresholds[len(finalThresholds)-1].percentage == 100 {
-		needsAutoDisable = false
+	for _, opt := range opts {
+		opt(e)
 	}
 
-	// Auto-include 100% threshold if not present
-	if needsAutoDisable {
-		finalThresholds = append(finalThresholds, thresholdPair{
-			percentage: 100,
-			failures:   autoDisableFailureCount,
-		})
-	}
+	e.thresholds = newThresholdEvaluator(e.alertThresholds, e.autoDisableFailureCount)
 
-	return &alertEvaluator{
-		thresholds:              finalThresholds,
-		autoDisableFailureCount: autoDisableFailureCount,
-	}
+	return e
 }
 
-func (e *alertEvaluator) ShouldAlert(failures int) (int, bool) {
-	// If no thresholds configured, never alert
-	if len(e.thresholds) == 0 {
-		return 0, false
+// SignalsEnabled reports whether any signal can ever fire: consecutive-failure
+// tracking, or exhausted-retries with a positive retry limit (global, or per
+// attempt). When false,
+// Evaluate never touches the store and always returns an empty verdict.
+func (e *Evaluator) SignalsEnabled() bool {
+	return e.consecutiveFailureEnabled || (e.exhaustedRetriesEnabled && (e.retryMaxLimit > 0 || e.perAttemptRetryLimits))
+}
+
+func (e *Evaluator) Evaluate(ctx context.Context, attempt Attempt) (Evaluation, error) {
+	if attempt.Success {
+		// Nothing is tracked when consecutive-failure tracking is disabled, so
+		// there is no count to reset.
+		if !e.consecutiveFailureEnabled {
+			return Evaluation{}, nil
+		}
+		if err := e.store.ResetConsecutiveFailureCount(ctx, attempt.TenantID, attempt.DestinationID); err != nil {
+			return Evaluation{}, err
+		}
+		return Evaluation{}, nil
 	}
 
-	// Get current alert level
-	// Iterate from highest to lowest threshold
-	for i := len(e.thresholds) - 1; i >= 0; i-- {
-		threshold := e.thresholds[i]
+	var eval Evaluation
 
-		// For the 100% threshold (auto-disable), use >= to ensure we don't miss it
-		// if concurrent processing causes us to skip over the exact count.
-		// For other thresholds, use exact match to avoid duplicate alerts.
-		if threshold.percentage == 100 {
-			if failures >= threshold.failures {
-				return threshold.percentage, true
-			}
-		} else {
-			if failures == threshold.failures {
-				return threshold.percentage, true
+	if e.consecutiveFailureEnabled && !attempt.SkipFailureCount {
+		count, isMaxHolder, err := e.store.RecordConsecutiveFailure(ctx, attempt.TenantID, attempt.DestinationID, attempt.AttemptID, e.autoDisableFailureCount)
+		if err != nil {
+			return Evaluation{}, fmt.Errorf("failed to track consecutive failures: %w", err)
+		}
+		level, crossed := e.thresholds.shouldAlert(count)
+		// Every failure at or past the 100% count crosses it; only the
+		// streak's max-failure holder reports it.
+		if crossed && level == 100 && !isMaxHolder {
+			crossed = false
+		}
+		if crossed {
+			eval.ConsecutiveFailure = &ConsecutiveFailureSignal{
+				Failures: count,
+				Max:      e.autoDisableFailureCount,
+				Level:    level,
 			}
 		}
 	}
 
-	return 0, false
+	// Exhausted retries check (independent of consecutive failure thresholds).
+	// Attempt is 1-indexed: with a limit of 10 retries, attempt 11 is the final one.
+	// A non-retryable failure ends the retries early, so it counts as exhausted.
+	// Skip if the limit is 0 (retries disabled — no exhausted state to report)
+	// or if the exhausted-retries signal is disabled.
+	limit := e.retryMaxLimit
+	if attempt.AttemptMax > 0 {
+		limit = attempt.AttemptMax - 1
+	}
+	if e.exhaustedRetriesEnabled && limit > 0 && attempt.EligibleForRetry && (attempt.NonRetryable || attempt.Number > limit) {
+		eval.RetriesExhausted = true
+	}
+
+	return eval, nil
 }

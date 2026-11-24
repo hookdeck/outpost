@@ -91,6 +91,7 @@ run();
 | Error Type                 | Status Code                | Content Type               |
 | -------------------------- | -------------------------- | -------------------------- |
 | errors.UnauthorizedError   | 401                        | application/json           |
+| errors.APIErrorResponse    | 403                        | application/json           |
 | errors.NotFoundError       | 404                        | application/json           |
 | errors.InternalServerError | 500                        | application/json           |
 | errors.APIError            | 4XX, 5XX                   | \*/\*                      |
@@ -252,9 +253,10 @@ run();
 
 | Error Type                 | Status Code                | Content Type               |
 | -------------------------- | -------------------------- | -------------------------- |
+| errors.BadRequestError     | 400                        | application/json           |
 | errors.UnauthorizedError   | 401                        | application/json           |
 | errors.NotFoundError       | 404                        | application/json           |
-| errors.APIErrorResponse    | 422                        | application/json           |
+| errors.APIErrorResponse    | 403, 413, 422              | application/json           |
 | errors.InternalServerError | 500                        | application/json           |
 | errors.APIError            | 4XX, 5XX                   | \*/\*                      |
 
@@ -327,6 +329,7 @@ run();
 | Error Type                 | Status Code                | Content Type               |
 | -------------------------- | -------------------------- | -------------------------- |
 | errors.UnauthorizedError   | 401                        | application/json           |
+| errors.APIErrorResponse    | 403                        | application/json           |
 | errors.NotFoundError       | 404                        | application/json           |
 | errors.InternalServerError | 500                        | application/json           |
 | errors.APIError            | 4XX, 5XX                   | \*/\*                      |
@@ -347,16 +350,7 @@ const outpost = new Outpost({
 
 async function run() {
   const result = await outpost.destinations.update("<id>", "<id>", {
-    topics: "*",
-    config: {
-      serverUrl: "localhost:5672",
-      exchange: "my-exchange",
-      tls: "false",
-    },
-    credentials: {
-      username: "guest",
-      password: "guest",
-    },
+    type: "kafka",
   });
 
   console.log(result);
@@ -381,16 +375,7 @@ const outpost = new OutpostCore({
 
 async function run() {
   const res = await destinationsUpdate(outpost, "<id>", "<id>", {
-    topics: "*",
-    config: {
-      serverUrl: "localhost:5672",
-      exchange: "my-exchange",
-      tls: "false",
-    },
-    credentials: {
-      username: "guest",
-      password: "guest",
-    },
+    type: "kafka",
   });
   if (res.ok) {
     const { value: result } = res;
@@ -414,12 +399,7 @@ const outpost = new Outpost({
 
 async function run() {
   const result = await outpost.destinations.update("<id>", "<id>", {
-    topics: [
-      "user.created",
-    ],
-    config: {
-      url: "https://my-service.com/webhook/new-handler",
-    },
+    type: "hookdeck",
   });
 
   console.log(result);
@@ -444,12 +424,7 @@ const outpost = new OutpostCore({
 
 async function run() {
   const res = await destinationsUpdate(outpost, "<id>", "<id>", {
-    topics: [
-      "user.created",
-    ],
-    config: {
-      url: "https://my-service.com/webhook/new-handler",
-    },
+    type: "hookdeck",
   });
   if (res.ok) {
     const { value: result } = res;
@@ -483,7 +458,7 @@ run();
 | -------------------------- | -------------------------- | -------------------------- |
 | errors.UnauthorizedError   | 401                        | application/json           |
 | errors.NotFoundError       | 404                        | application/json           |
-| errors.APIErrorResponse    | 422                        | application/json           |
+| errors.APIErrorResponse    | 403, 409, 413, 422         | application/json           |
 | errors.InternalServerError | 500                        | application/json           |
 | errors.APIError            | 4XX, 5XX                   | \*/\*                      |
 
@@ -556,6 +531,7 @@ run();
 | Error Type                 | Status Code                | Content Type               |
 | -------------------------- | -------------------------- | -------------------------- |
 | errors.UnauthorizedError   | 401                        | application/json           |
+| errors.APIErrorResponse    | 403                        | application/json           |
 | errors.NotFoundError       | 404                        | application/json           |
 | errors.InternalServerError | 500                        | application/json           |
 | errors.APIError            | 4XX, 5XX                   | \*/\*                      |
@@ -630,6 +606,7 @@ run();
 | -------------------------- | -------------------------- | -------------------------- |
 | errors.UnauthorizedError   | 401                        | application/json           |
 | errors.NotFoundError       | 404                        | application/json           |
+| errors.APIErrorResponse    | 403, 409                   | application/json           |
 | errors.InternalServerError | 500                        | application/json           |
 | errors.APIError            | 4XX, 5XX                   | \*/\*                      |
 
@@ -703,12 +680,16 @@ run();
 | -------------------------- | -------------------------- | -------------------------- |
 | errors.UnauthorizedError   | 401                        | application/json           |
 | errors.NotFoundError       | 404                        | application/json           |
+| errors.APIErrorResponse    | 403, 409                   | application/json           |
 | errors.InternalServerError | 500                        | application/json           |
 | errors.APIError            | 4XX, 5XX                   | \*/\*                      |
 
 ## listAttempts
 
 Retrieves a paginated list of attempts scoped to a specific destination.
+
+Returns `404` if the destination does not exist or has been deleted. The attempts of a deleted destination remain available from `GET /attempts?destination_id=`.
+
 
 ### Example Usage
 
@@ -726,9 +707,7 @@ async function run() {
     destinationId: "<id>",
   });
 
-  for await (const page of result) {
-    console.log(page);
-  }
+  console.log(result);
 }
 
 run();
@@ -755,9 +734,7 @@ async function run() {
   });
   if (res.ok) {
     const { value: result } = res;
-    for await (const page of result) {
-    console.log(page);
-  }
+    console.log(result);
   } else {
     console.log("destinationsListAttempts failed:", res.error);
   }
@@ -777,20 +754,25 @@ run();
 
 ### Response
 
-**Promise\<[operations.ListTenantDestinationAttemptsResponse](../../models/operations/listtenantdestinationattemptsresponse.md)\>**
+**Promise\<[components.AttemptPaginatedResult](../../models/components/attemptpaginatedresult.md)\>**
 
 ### Errors
 
 | Error Type                 | Status Code                | Content Type               |
 | -------------------------- | -------------------------- | -------------------------- |
+| errors.BadRequestError     | 400                        | application/json           |
 | errors.UnauthorizedError   | 401                        | application/json           |
 | errors.NotFoundError       | 404                        | application/json           |
+| errors.APIErrorResponse    | 403, 422                   | application/json           |
 | errors.InternalServerError | 500                        | application/json           |
 | errors.APIError            | 4XX, 5XX                   | \*/\*                      |
 
 ## getAttempt
 
 Retrieves details for a specific attempt scoped to a destination.
+
+Returns `404` if the destination does not exist or has been deleted, or if the destination has no attempt with this ID. An attempt of a deleted destination remains available from `GET /attempts/{attempt_id}`.
+
 
 ### Example Usage
 
@@ -840,15 +822,15 @@ run();
 
 ### Parameters
 
-| Parameter                                                                                                                                                                                                                                                                                                                         | Type                                                                                                                                                                                                                                                                                                                              | Required                                                                                                                                                                                                                                                                                                                          | Description                                                                                                                                                                                                                                                                                                                       |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tenantId`                                                                                                                                                                                                                                                                                                                        | *string*                                                                                                                                                                                                                                                                                                                          | :heavy_check_mark:                                                                                                                                                                                                                                                                                                                | The ID of the tenant. Required when using AdminApiKey authentication.                                                                                                                                                                                                                                                             |
-| `destinationId`                                                                                                                                                                                                                                                                                                                   | *string*                                                                                                                                                                                                                                                                                                                          | :heavy_check_mark:                                                                                                                                                                                                                                                                                                                | The ID of the destination.                                                                                                                                                                                                                                                                                                        |
-| `attemptId`                                                                                                                                                                                                                                                                                                                       | *string*                                                                                                                                                                                                                                                                                                                          | :heavy_check_mark:                                                                                                                                                                                                                                                                                                                | The ID of the attempt.                                                                                                                                                                                                                                                                                                            |
-| `include`                                                                                                                                                                                                                                                                                                                         | *operations.GetTenantDestinationAttemptInclude*                                                                                                                                                                                                                                                                                   | :heavy_minus_sign:                                                                                                                                                                                                                                                                                                                | Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).<br/>- `event`: Include event summary<br/>- `event.data`: Include full event with payload data<br/>- `response_data`: Include response body and headers<br/>- `destination`: Include the full destination object<br/> |
-| `options`                                                                                                                                                                                                                                                                                                                         | RequestOptions                                                                                                                                                                                                                                                                                                                    | :heavy_minus_sign:                                                                                                                                                                                                                                                                                                                | Used to set various options for making HTTP requests.                                                                                                                                                                                                                                                                             |
-| `options.fetchOptions`                                                                                                                                                                                                                                                                                                            | [RequestInit](https://developer.mozilla.org/en-US/docs/Web/API/Request/Request#options)                                                                                                                                                                                                                                           | :heavy_minus_sign:                                                                                                                                                                                                                                                                                                                | Options that are passed to the underlying HTTP request. This can be used to inject extra headers for examples. All `Request` options, except `method` and `body`, are allowed.                                                                                                                                                    |
-| `options.retries`                                                                                                                                                                                                                                                                                                                 | [RetryConfig](../../lib/utils/retryconfig.md)                                                                                                                                                                                                                                                                                     | :heavy_minus_sign:                                                                                                                                                                                                                                                                                                                | Enables retrying HTTP requests under certain failure conditions.                                                                                                                                                                                                                                                                  |
+| Parameter                                                                                                                                                                                                                                                                                                                                         | Type                                                                                                                                                                                                                                                                                                                                              | Required                                                                                                                                                                                                                                                                                                                                          | Description                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tenantId`                                                                                                                                                                                                                                                                                                                                        | *string*                                                                                                                                                                                                                                                                                                                                          | :heavy_check_mark:                                                                                                                                                                                                                                                                                                                                | The ID of the tenant. Required when using AdminApiKey authentication.                                                                                                                                                                                                                                                                             |
+| `destinationId`                                                                                                                                                                                                                                                                                                                                   | *string*                                                                                                                                                                                                                                                                                                                                          | :heavy_check_mark:                                                                                                                                                                                                                                                                                                                                | The ID of the destination.                                                                                                                                                                                                                                                                                                                        |
+| `attemptId`                                                                                                                                                                                                                                                                                                                                       | *string*                                                                                                                                                                                                                                                                                                                                          | :heavy_check_mark:                                                                                                                                                                                                                                                                                                                                | The ID of the attempt.                                                                                                                                                                                                                                                                                                                            |
+| `include`                                                                                                                                                                                                                                                                                                                                         | *operations.GetTenantDestinationAttemptInclude*                                                                                                                                                                                                                                                                                                   | :heavy_minus_sign:                                                                                                                                                                                                                                                                                                                                | Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).<br/>- `event`: Include event summary<br/>- `event.data`: Include full event with payload data<br/>- `response_data`: Include response body and headers<br/>- `destination`: Include the destination object, without credentials<br/> |
+| `options`                                                                                                                                                                                                                                                                                                                                         | RequestOptions                                                                                                                                                                                                                                                                                                                                    | :heavy_minus_sign:                                                                                                                                                                                                                                                                                                                                | Used to set various options for making HTTP requests.                                                                                                                                                                                                                                                                                             |
+| `options.fetchOptions`                                                                                                                                                                                                                                                                                                                            | [RequestInit](https://developer.mozilla.org/en-US/docs/Web/API/Request/Request#options)                                                                                                                                                                                                                                                           | :heavy_minus_sign:                                                                                                                                                                                                                                                                                                                                | Options that are passed to the underlying HTTP request. This can be used to inject extra headers for examples. All `Request` options, except `method` and `body`, are allowed.                                                                                                                                                                    |
+| `options.retries`                                                                                                                                                                                                                                                                                                                                 | [RetryConfig](../../lib/utils/retryconfig.md)                                                                                                                                                                                                                                                                                                     | :heavy_minus_sign:                                                                                                                                                                                                                                                                                                                                | Enables retrying HTTP requests under certain failure conditions.                                                                                                                                                                                                                                                                                  |
 
 ### Response
 
@@ -859,6 +841,7 @@ run();
 | Error Type                 | Status Code                | Content Type               |
 | -------------------------- | -------------------------- | -------------------------- |
 | errors.UnauthorizedError   | 401                        | application/json           |
+| errors.APIErrorResponse    | 403                        | application/json           |
 | errors.NotFoundError       | 404                        | application/json           |
 | errors.InternalServerError | 500                        | application/json           |
 | errors.APIError            | 4XX, 5XX                   | \*/\*                      |

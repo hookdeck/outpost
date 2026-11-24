@@ -32,7 +32,7 @@ Paste the **## Template** block from `[hookdeck-outpost-agent-prompt.mdoc](../..
 **Measurement:** Heuristic `scoreScenario02` in [`src/score-transcript.ts`](../src/score-transcript.ts); LLM judge maps the bullets below ([README.md § Measuring scenarios](../README.md#measuring-scenarios)). Execution row is manual.
 
 - Depends on `@hookdeck/outpost-sdk`; uses `Outpost` client with `apiKey` from `process.env.OUTPOST_API_KEY`.
-- Calls `tenants.upsert`, `destinations.create` (webhook), `publish.event`.
+- Calls `tenants.upsert`, `destinations.create` (webhook), `outpost.publish`.
 - Uses a topic that matches the dashboard list from the prompt (or asks which topic if ambiguous).
 - Webhook URL from `OUTPOST_TEST_WEBHOOK_URL` (or clearly documented env).
 - No API key in source; fails fast if env missing.

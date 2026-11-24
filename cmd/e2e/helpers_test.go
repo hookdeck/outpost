@@ -7,10 +7,13 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
+	"testing"
 	"time"
 
 	opeventsmock "github.com/hookdeck/outpost/cmd/e2e/opevents"
 	"github.com/hookdeck/outpost/internal/idgen"
+	"github.com/hookdeck/outpost/internal/util/testutil"
 )
 
 const (
@@ -115,6 +118,17 @@ func (d *webhookDestination) SetCredentials(s *basicSuite, creds map[string]stri
 // Internal HTTP helpers
 // =============================================================================
 
+// requireJSONAPIResponse fails the test when a response from the Outpost API
+// is not JSON with a body: every API response must be. Responses from other
+// servers (the mock destination server) are not checked.
+func requireJSONAPIResponse(t testing.TB, req *http.Request, resp *http.Response, body []byte) {
+	t.Helper()
+	if req.URL.Path != "/api" && !strings.HasPrefix(req.URL.Path, "/api/") {
+		return
+	}
+	testutil.RequireJSONResponse(t, req.Method+" "+req.URL.Path, resp.StatusCode, resp.Header, body)
+}
+
 // doJSON sends a request with admin API key auth. Returns status code.
 // Fails test on transport/marshal errors. result can be nil to discard body.
 func (s *basicSuite) doJSON(method, url string, body any, result any) int {
@@ -131,11 +145,24 @@ func (s *basicSuite) doJSONRaw(method, url string, body any, result any) int {
 func (s *basicSuite) doJSONWithAuth(method, url string, authHeader string, body any, result any) int {
 	s.T().Helper()
 
-	var bodyReader io.Reader
+	var raw []byte
 	if body != nil {
 		b, err := json.Marshal(body)
 		s.Require().NoError(err)
-		bodyReader = bytes.NewReader(b)
+		raw = b
+	}
+
+	return s.doRawWithAuth(method, url, authHeader, raw, result)
+}
+
+// doRawWithAuth sends body as it is, so a test can send malformed JSON.
+// An empty authHeader sends no Authorization header.
+func (s *basicSuite) doRawWithAuth(method, url string, authHeader string, body []byte, result any) int {
+	s.T().Helper()
+
+	var bodyReader io.Reader
+	if body != nil {
+		bodyReader = bytes.NewReader(body)
 	}
 
 	req, err := http.NewRequest(method, url, bodyReader)
@@ -151,6 +178,7 @@ func (s *basicSuite) doJSONWithAuth(method, url string, authHeader string, body 
 
 	respBody, err := io.ReadAll(resp.Body)
 	s.Require().NoError(err)
+	requireJSONAPIResponse(s.T(), req, resp, respBody)
 
 	// Log response body on non-2xx when caller doesn't inspect it (aids CI debugging).
 	if result == nil && resp.StatusCode >= 400 && len(respBody) > 0 {
@@ -178,6 +206,7 @@ func (s *basicSuite) doRawGet(url string) (int, []byte) {
 
 	body, err := io.ReadAll(resp.Body)
 	s.Require().NoError(err)
+	requireJSONAPIResponse(s.T(), req, resp, body)
 	return resp.StatusCode, body
 }
 
@@ -200,6 +229,11 @@ func (s *basicSuite) waitForEventInLogstore(eventID string) []byte {
 // apiURL builds a full URL for the outpost API.
 func (s *basicSuite) apiURL(path string) string {
 	return fmt.Sprintf("http://localhost:%d/api/v1%s", s.config.APIPort, path)
+}
+
+// rootURL builds a full URL for a path outside /api/v1.
+func (s *basicSuite) rootURL(path string) string {
+	return fmt.Sprintf("http://localhost:%d%s", s.config.APIPort, path)
 }
 
 // mockServerURL returns the mock server base URL.

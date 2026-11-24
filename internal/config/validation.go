@@ -5,6 +5,10 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"strings"
+
+	"github.com/hookdeck/outpost/internal/netguard"
+	"github.com/hookdeck/outpost/internal/proxychain"
 )
 
 // Validate checks if the configuration is valid
@@ -29,11 +33,19 @@ func (c *Config) Validate(flags Flags) error {
 		return err
 	}
 
+	if err := c.validatePublishMQ(); err != nil {
+		return err
+	}
+
 	if err := c.validateAESEncryptionSecret(); err != nil {
 		return err
 	}
 
 	if err := c.validatePortal(); err != nil {
+		return err
+	}
+
+	if err := c.validateDestinations(); err != nil {
 		return err
 	}
 
@@ -45,12 +57,37 @@ func (c *Config) Validate(flags Flags) error {
 		return err
 	}
 
+	if err := c.validateMaxEventSize(); err != nil {
+		return err
+	}
+
 	if err := c.validateRetryConfiguration(); err != nil {
+		return err
+	}
+
+	if err := c.validateAlert(); err != nil {
+		return err
+	}
+
+	if err := c.Supervisor.validate(); err != nil {
+		return err
+	}
+
+	if err := c.validateMCP(); err != nil {
 		return err
 	}
 
 	// Mark as validated if we get here
 	c.validated = true
+	return nil
+}
+
+// validateAlert rejects malformed alert config (non-numeric or out-of-range
+// consecutive_failure_count / exhausted_retries_window_seconds) at startup.
+func (c *Config) validateAlert() error {
+	if _, err := c.Alert.ToConfig(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -85,6 +122,9 @@ func (c *Config) validateRedis() error {
 	if c.Redis.Host == "" {
 		return ErrMissingRedis
 	}
+	if c.Redis.PoolSize < 0 {
+		return ErrInvalidRedisPoolSize
+	}
 	return nil
 }
 
@@ -92,6 +132,20 @@ func (c *Config) validateRedis() error {
 func (c *Config) validateLogStorage() error {
 	if c.ClickHouse.Addr == "" && c.PostgresURL == "" {
 		return ErrMissingLogStorage
+	}
+	if c.ClickHouse.Addr != "" {
+		if c.ClickHouse.MaxOpenConns < 0 {
+			return fmt.Errorf("config validation error: clickhouse.max_open_conns must not be negative, got %d", c.ClickHouse.MaxOpenConns)
+		}
+		if c.ClickHouse.DialTimeoutSeconds < 1 {
+			return fmt.Errorf("config validation error: clickhouse.dial_timeout_seconds must be at least 1, got %d", c.ClickHouse.DialTimeoutSeconds)
+		}
+		if c.ClickHouse.ReadTimeoutSeconds < 1 {
+			return fmt.Errorf("config validation error: clickhouse.read_timeout_seconds must be at least 1, got %d", c.ClickHouse.ReadTimeoutSeconds)
+		}
+		if c.ClickHouse.IdleCloseSeconds < 1 {
+			return fmt.Errorf("config validation error: clickhouse.idle_close_seconds must be at least 1, got %d", c.ClickHouse.IdleCloseSeconds)
+		}
 	}
 	return nil
 }
@@ -121,6 +175,17 @@ func (c *Config) validateMQs() error {
 	return nil
 }
 
+// validatePublishMQ validates the optional publish MQ configuration
+func (c *Config) validatePublishMQ() error {
+	if err := c.PublishMQ.Validate(); err != nil {
+		return fmt.Errorf("failed to validate publish queue config: %w", err)
+	}
+	if c.PublishMaxRedeliveries < -1 {
+		return ErrInvalidPublishMaxRedeliveries
+	}
+	return nil
+}
+
 // validateAESEncryptionSecret validates the AES encryption secret
 func (c *Config) validateAESEncryptionSecret() error {
 	if c.AESEncryptionSecret == "" {
@@ -135,6 +200,28 @@ func (c *Config) validatePortal() error {
 		if _, err := url.Parse(c.Portal.ProxyURL); err != nil {
 			return ErrInvalidPortalProxyURL
 		}
+	}
+	return nil
+}
+
+// validateDestinations fails boot on a malformed proxy chain so a bad hop
+// never reaches the delivery path, and on an EventBridge source that AWS
+// would reject on every publish.
+func (c *Config) validateDestinations() error {
+	if _, err := proxychain.Parse(c.Destinations.ProxyURL); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidDestinationsProxyURL, err)
+	}
+	if _, err := proxychain.Parse(c.Destinations.Webhook.ProxyURL); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidWebhookProxyURL, err)
+	}
+	if _, err := netguard.ParseAllowlist(c.Destinations.PrivateAddressAllowlist); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidPrivateAddressAllowlist, err)
+	}
+	switch source := c.Destinations.AWSEventBridge.Source; {
+	case source == "":
+		return fmt.Errorf("%w: DESTINATIONS_AWS_EVENTBRIDGE_SOURCE must not be empty", ErrInvalidAWSEventBridgeSource)
+	case strings.HasPrefix(source, "aws."):
+		return fmt.Errorf("%w: DESTINATIONS_AWS_EVENTBRIDGE_SOURCE must not start with 'aws.'", ErrInvalidAWSEventBridgeSource)
 	}
 	return nil
 }
@@ -167,9 +254,39 @@ func (c *Config) validateDeploymentID() error {
 
 // validateRetryConfiguration validates and adjusts the retry configuration
 func (c *Config) validateRetryConfiguration() error {
+	for i, seconds := range c.RetrySchedule {
+		if seconds < 1 {
+			return fmt.Errorf("config validation error: retry_schedule entries must be at least 1 second, got %d at index %d", seconds, i)
+		}
+	}
+	if len(c.RetrySchedule) == 0 && c.RetryIntervalSeconds < 1 {
+		return fmt.Errorf("config validation error: retry_interval_seconds must be at least 1, got %d", c.RetryIntervalSeconds)
+	}
+	if c.RetryPollBackoffMs < 0 {
+		return fmt.Errorf("config validation error: retry_poll_backoff_ms must not be negative, got %d", c.RetryPollBackoffMs)
+	}
+	if c.RetryMaxConcurrency < 0 {
+		return fmt.Errorf("config validation error: retry_max_concurrency must not be negative, got %d", c.RetryMaxConcurrency)
+	}
+	if c.RetryMaxReceiveCount < 1 {
+		return fmt.Errorf("config validation error: retry_max_receive_count must be at least 1, got %d", c.RetryMaxReceiveCount)
+	}
+	if c.RetryLookupBatchSize < 0 || c.RetryLookupBatchSize > 100 {
+		return fmt.Errorf("config validation error: retry_lookup_batch_size must be between 0 and 100, got %d", c.RetryLookupBatchSize)
+	}
+	if c.RetryLookupBatchSize > 1 && c.RetryLookupBatchWaitMs < 1 {
+		return fmt.Errorf("config validation error: retry_lookup_batch_wait_ms must be at least 1, got %d", c.RetryLookupBatchWaitMs)
+	}
 	// If retry_schedule is provided, override retry_max_limit to match schedule length
 	if len(c.RetrySchedule) > 0 {
 		c.RetryMaxLimit = len(c.RetrySchedule)
+	}
+	return nil
+}
+
+func (c *Config) validateMaxEventSize() error {
+	if c.MaxEventSizeBytes < 0 {
+		return fmt.Errorf("config validation error: max_event_size_bytes must not be negative, got %d", c.MaxEventSizeBytes)
 	}
 	return nil
 }

@@ -159,3 +159,73 @@ Based on:
 - [python v1.3.0] sdks/outpost-python
 ### Releases
 - [PyPI v1.3.0] https://pypi.org/project/outpost_sdk/1.3.0 - sdks/outpost-python
+
+## 2026-05-29 18:40:35
+### Changes
+Based on:
+- OpenAPI Doc  
+- Speakeasy CLI 1.768.2 (2.889.1) https://github.com/speakeasy-api/speakeasy
+### Generated
+- [python v1.4.0] sdks/outpost-python
+### Releases
+- [PyPI v1.4.0] https://pypi.org/project/outpost_sdk/1.4.0 - sdks/outpost-python
+
+## 2026-06-16 18:48:07
+### Changes
+Based on:
+- OpenAPI Doc  
+- Speakeasy CLI 1.780.0 (2.906.0) https://github.com/speakeasy-api/speakeasy
+### Generated
+- [python v1.4.1] sdks/outpost-python
+### Releases
+- [PyPI v1.4.1] https://pypi.org/project/outpost_sdk/1.4.1 - sdks/outpost-python
+
+## 2026-07-24 16:12:55
+### Changes
+Based on:
+- OpenAPI Doc  
+- Speakeasy CLI 1.791.0 (2.924.0) https://github.com/speakeasy-api/speakeasy
+### Generated
+- [python v1.5.0] sdks/outpost-python
+### Releases
+- [PyPI v1.5.0] https://pypi.org/project/outpost_sdk/1.5.0 - sdks/outpost-python
+
+## 2026-09-22 10:27:26
+### Changes
+Based on:
+- OpenAPI Doc  
+- Speakeasy CLI 1.798.0 (2.938.0) https://github.com/speakeasy-api/speakeasy
+### Generated
+- [python v1.6.0] sdks/outpost-python
+### Releases
+- [PyPI v1.6.0] https://pypi.org/project/outpost_sdk/1.6.0 - sdks/outpost-python
+
+## 2026-09-23 18:01:55
+### Changes
+Based on:
+- OpenAPI Doc  
+- Speakeasy CLI 1.798.0 (2.938.0) https://github.com/speakeasy-api/speakeasy
+### Generated
+- [python v1.6.1] sdks/outpost-python
+### Releases
+- [PyPI v1.6.1] https://pypi.org/project/outpost_sdk/1.6.1 - sdks/outpost-python
+
+## 2026-10-02 17:10:38
+### Changes
+Based on:
+- OpenAPI Doc  
+- Speakeasy CLI 1.800.1 (2.943.0) https://github.com/speakeasy-api/speakeasy
+### Generated
+- [python v1.7.0] sdks/outpost-python
+### Releases
+- [PyPI v1.7.0] https://pypi.org/project/outpost_sdk/1.7.0 - sdks/outpost-python
+
+## 2026-11-11 13:41:48
+### Changes
+Based on:
+- OpenAPI Doc  
+- Speakeasy CLI 1.808.1 (2.960.8) https://github.com/speakeasy-api/speakeasy
+### Generated
+- [python v1.8.0] sdks/outpost-python
+### Releases
+- [PyPI v1.8.0] https://pypi.org/project/outpost_sdk/1.8.0 - sdks/outpost-python

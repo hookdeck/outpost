@@ -2,7 +2,6 @@ package destregistry
 
 import (
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/models"
@@ -10,8 +9,10 @@ import (
 
 // BasePublisher provides common publisher functionality
 type BasePublisher struct {
+	// mu makes the closed check and active.Add one step with respect to StartClose.
+	mu                          sync.RWMutex
 	active                      sync.WaitGroup
-	closed                      atomic.Bool
+	closed                      bool
 	includeMillisecondTimestamp bool
 	deliveryMetadata            map[string]string
 }
@@ -46,7 +47,9 @@ func NewBasePublisher(opts ...BasePublisherOption) *BasePublisher {
 
 // StartPublish returns error if publisher is closed, otherwise adds to waitgroup
 func (p *BasePublisher) StartPublish() error {
-	if p.closed.Load() {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	if p.closed {
 		return ErrPublisherClosed
 	}
 	p.active.Add(1)
@@ -60,7 +63,9 @@ func (p *BasePublisher) FinishPublish() {
 
 // StartClose marks publisher as closed and waits for active operations
 func (p *BasePublisher) StartClose() {
-	p.closed.Store(true)
+	p.mu.Lock()
+	p.closed = true
+	p.mu.Unlock()
 	p.active.Wait()
 }
 

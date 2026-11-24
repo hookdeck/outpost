@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Configuration API is available for **managed Outpost** deployments only. It allows you to read and update instance-level settings — the same settings available as environment variables in self-hosted deployments.
+The Configuration API is only available on managed Outpost. It allows you to read and update instance-level settings, the same settings available as environment variables in self-hosted deployments.
 
 
 ### Available Operations
@@ -14,7 +14,7 @@ The Configuration API is available for **managed Outpost** deployments only. It 
 
 Returns managed Outpost configuration values.
 
-This endpoint is only available for the managed version.
+This endpoint is only available on managed Outpost.
 In self-hosted deployments, configuration is controlled through environment variables instead.
 
 
@@ -70,7 +70,7 @@ func main() {
 
 Updates one or more managed Outpost configuration values. Null values clear the configuration and reverts to Outpost default behavior.
 
-This endpoint is only available for the managed version.
+This endpoint is only available on managed Outpost.
 In self-hosted deployments, configuration is controlled through environment variables instead.
 
 Only the supported configuration keys are accepted.
@@ -85,6 +85,7 @@ package main
 import(
 	"context"
 	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
+	"github.com/hookdeck/outpost/sdks/outpost-go/optionalnullable"
 	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 	"log"
 )
@@ -97,8 +98,9 @@ func main() {
     )
 
     res, err := s.Configuration.UpdateManagedConfig(ctx, components.ManagedConfig{
-        DestinationsWebhookMode: outpostgo.Pointer("default"),
-        Topics: outpostgo.Pointer("user.created,user.updated"),
+        DestinationsWebhookMode: optionalnullable.From(outpostgo.Pointer("default")),
+        Topics: optionalnullable.From(outpostgo.Pointer("user.created,user.updated")),
+        TopicsAllowWildcards: optionalnullable.From(outpostgo.Pointer("false")),
     })
     if err != nil {
         log.Fatal(err)

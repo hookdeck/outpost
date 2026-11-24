@@ -1,0 +1,252 @@
+{
+  "events": [
+    {
+      "name": "incident.created",
+      "description": "An incident was opened.",
+      "delivery": [
+        "webhook"
+      ],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "severity": {
+            "type": "string",
+            "enum": [
+              "P1",
+              "P2",
+              "P3"
+            ]
+          },
+          "service": {
+            "type": "string"
+          }
+        }
+      },
+      "payloadSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "service": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "P1",
+              "P2",
+              "P3"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "opened_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "examples": [
+          {
+            "id": "inc_1042",
+            "service": "checkout",
+            "severity": "P1",
+            "title": "Checkout error rate above 5%",
+            "opened_at": "2026-10-31T15:04:05Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "incident.resolved",
+      "description": "An incident was resolved.",
+      "delivery": [
+        "webhook"
+      ],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "service": {
+            "type": "string"
+          }
+        }
+      },
+      "payloadSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "service": {
+            "type": "string"
+          },
+          "resolved_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "examples": [
+          {
+            "id": "inc_1042",
+            "service": "checkout",
+            "resolved_at": "2026-10-31T15:42:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "order.created",
+      "description": "An order was placed.",
+      "delivery": [
+        "webhook"
+      ],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "paid"
+            ]
+          },
+          "currency": {
+            "type": "string"
+          }
+        }
+      },
+      "payloadSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "customer_id": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "integer",
+            "description": "Minor units."
+          },
+          "currency": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "paid"
+            ]
+          }
+        },
+        "examples": [
+          {
+            "id": "ord_881",
+            "customer_id": "cus_17",
+            "amount": 4200,
+            "currency": "usd",
+            "status": "pending"
+          }
+        ]
+      }
+    },
+    {
+      "name": "invoice.paid",
+      "description": "An invoice was paid.",
+      "delivery": [
+        "webhook"
+      ],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "customer_id": {
+            "type": "string"
+          }
+        }
+      },
+      "payloadSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "customer_id": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "integer",
+            "description": "Minor units."
+          },
+          "currency": {
+            "type": "string"
+          },
+          "paid_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "examples": [
+          {
+            "id": "inv_204",
+            "customer_id": "cus_17",
+            "amount": 4200,
+            "currency": "usd",
+            "paid_at": "2026-10-31T15:10:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "user.created",
+      "description": "A user signed up.",
+      "delivery": [
+        "webhook"
+      ],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "plan": {
+            "type": "string",
+            "enum": [
+              "free",
+              "pro",
+              "enterprise"
+            ]
+          }
+        }
+      },
+      "payloadSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "plan": {
+            "type": "string",
+            "enum": [
+              "free",
+              "pro",
+              "enterprise"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "examples": [
+          {
+            "id": "usr_5",
+            "email": "ada@example.com",
+            "plan": "free",
+            "created_at": "2026-10-31T15:00:00Z"
+          }
+        ]
+      }
+    }
+  ]
+}

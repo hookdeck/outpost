@@ -60,4 +60,5 @@ Deterministic via modulo arithmetic (identical for both backends):
 - **3 topics** — `order.created`, `order.updated`, `payment.received`
 - **Time** — evenly spread across January 2000
 - **Attempts** — chained retries (1 event -> 1-4 attempts), 0.5% permanently failed
+- **Latency** — `20 + (n*7919) % 500` ms per attempt; every 200th event's attempts time out at 5000ms (~1.6% of attempts, a p99 tail for the percentile benchmarks)
 - 10M events -> ~12.6M attempts (22.6M total rows)

@@ -22,6 +22,7 @@ func TestRedisClusterConfigDefaults(t *testing.T) {
 			Password:       "test",
 			Database:       0,
 			TLSEnabled:     false,
+			TLSVerify:      false,
 			ClusterEnabled: false,
 		}
 
@@ -46,6 +47,7 @@ func TestRedisClusterConfigDefaults(t *testing.T) {
 			Password:   "test",
 			Database:   0,
 			TLSEnabled: false,
+			TLSVerify:  false,
 			// ClusterEnabled is not set, should default to false
 		}
 

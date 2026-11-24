@@ -1,0 +1,60 @@
+---
+title: "MCP Events Delivery"
+description: "Experimental. Deliver events to an agent's MCP Events callback, signed with Standard Webhooks."
+---
+
+{% callout type="warning" %}
+Experimental. The MCP Events spec ([SEP-3415](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/3415)) is still a draft, so this destination may change without notice.
+{% /callout %}
+
+Delivers one topic's events to an agent's HTTPS callback URL, signed with [Standard Webhooks](https://www.standardwebhooks.com/). The `mcp` destination is created only by the subscribe endpoint, never through the destinations API. To set it up, see [MCP Events](/docs/outpost/features/mcp-events). Publishing to its ID as a `destination_id` matches nothing.
+
+## Fields
+
+Attempts and events identify a subscription by `destination_id` (the subscription ID, also sent as `X-MCP-Subscription-Id`) and `destination_type` (`mcp`). Operator events that carry the destination, such as alerts, show it with these fields. Credentials never appear in them.
+
+| Field | Description |
+|-------|-------------|
+| `type` | `mcp` |
+| `id` | The subscription ID |
+| `topics` | The one event the subscription is for |
+| `config.url` | The callback URL |
+| `config.arguments` | The subscription's arguments, as canonical JSON. Omitted when empty |
+
+## Event Format
+
+Each delivery is a `POST` with the MCP Events envelope as a JSON body. `data` is the event's `data`, unchanged, and `timestamp` is its `time` in UTC, truncated to milliseconds:
+
+```json
+{
+  "eventId": "evt_123",
+  "name": "order.created",
+  "timestamp": "2026-11-11T12:00:00Z",
+  "data": { "order_id": "ord_1", "status": "paid", "total": 42.5 },
+  "cursor": null
+}
+```
+
+`cursor` is always `null`: there is no replay.
+
+| Header | Value |
+|--------|-------|
+| `Content-Type` | `application/json` |
+| `webhook-id` | Message ID, the same on every retry of a delivery |
+| `webhook-timestamp` | Unix seconds |
+| `webhook-signature` | `v1,<base64 HMAC-SHA256>` of `<webhook-id>.<webhook-timestamp>.<body>`, one entry per valid secret, space-separated |
+| `X-MCP-Subscription-Id` | The subscription ID |
+
+An event whose envelope would exceed 256 KiB isn't sent. The attempt fails with the code `payload_too_large`.
+
+## Callback verification
+
+Before it stores a subscription, Outpost `POST`s a signed `{"type": "verification", "challenge": "<random>"}` to the callback URL, with the same headers as a delivery. The callback must answer `2xx` with a JSON object whose `challenge` member repeats the challenge. Redirects aren't followed, and a response that echoes the whole request body is refused. A passed verification is cached per tenant and callback URL, for the period set in [configuration](/docs/outpost/self-hosting/configuration#mcp-events-experimental).
+
+## Secret rotation
+
+The secret is `whsec_` followed by the base64 of 24 to 64 bytes. When a refresh brings a new secret, deliveries are signed with both for 24 hours, so the callback can accept either while it switches.
+
+## Retries
+
+Failed deliveries retry automatically, 1, 3, 5 and 5 minutes after the previous attempt: five attempts in all, over 14 minutes. `RETRY_SCHEDULE` and `MAX_RETRY_LIMIT` don't apply, and a manual retry of a subscription's attempt answers `404`. A `410` or `413` response isn't retried and doesn't count toward the consecutive-failure count.

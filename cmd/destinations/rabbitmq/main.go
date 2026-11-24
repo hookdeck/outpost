@@ -5,14 +5,18 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
+	"github.com/hookdeck/outpost/cmd/destinations/internal/destenv"
 	"github.com/rabbitmq/amqp091-go"
 )
 
-const (
-	RABBIT_SERVER_URL = "amqp://guest:guest@localhost:15672"
-	RABBIT_EXCHANGE   = "destination_exchange"
-	RABBIT_QUEUE      = "destination_queue"
+// Consumes a RabbitMQ destination: binds a queue to the exchange and prints
+// every message. Defaults match the local destination stack (`make up/dest`).
+var (
+	RABBIT_SERVER_URL = destenv.Get("DEST_RABBITMQ_URL", "amqp://guest:guest@localhost:15672")
+	RABBIT_EXCHANGE   = destenv.Get("DEST_RABBITMQ_EXCHANGE", "destination_exchange")
+	RABBIT_QUEUE      = destenv.Get("DEST_RABBITMQ_QUEUE", "destination_queue")
 )
 
 func main() {
@@ -22,7 +26,7 @@ func main() {
 }
 
 func run() error {
-	conn, err := amqp091.Dial(RABBIT_SERVER_URL)
+	conn, err := dialWithRetry(RABBIT_SERVER_URL, 30*time.Second)
 	if err != nil {
 		return err
 	}
@@ -59,7 +63,7 @@ func run() error {
 	}
 	err = ch.QueueBind(
 		q.Name,          // queue name
-		"",              // routing key
+		"#",             // routing key: Outpost publishes with the event topic, take all
 		RABBIT_EXCHANGE, // exchange
 		false,
 		nil,
@@ -91,4 +95,21 @@ func run() error {
 	<-termChan
 
 	return nil
+}
+
+// dialWithRetry retries while the broker starts: right after `make up/dest`
+// RabbitMQ accepts TCP before it completes the AMQP handshake.
+func dialWithRetry(url string, timeout time.Duration) (*amqp091.Connection, error) {
+	deadline := time.Now().Add(timeout)
+	for {
+		conn, err := amqp091.Dial(url)
+		if err == nil {
+			return conn, nil
+		}
+		if time.Now().After(deadline) {
+			return nil, err
+		}
+		log.Printf("[*] waiting for RabbitMQ at %s: %v", url, err)
+		time.Sleep(time.Second)
+	}
 }

@@ -2,6 +2,7 @@ package destawss3_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
@@ -29,7 +30,7 @@ func TestAWSS3Destination_Validate(t *testing.T) {
 		}),
 	)
 
-	awsS3Destination, err := destawss3.New(testutil.Registry.MetadataLoader(), nil)
+	awsS3Destination, err := destawss3.New(testutil.Registry.MetadataLoader(), nil, destawss3.WithAllowCustomEndpoints(true))
 	require.NoError(t, err)
 
 	t.Run("should validate valid destination", func(t *testing.T) {
@@ -91,7 +92,11 @@ func TestAWSS3Destination_Validate(t *testing.T) {
 	t.Run("should validate invalid storage class", func(t *testing.T) {
 		t.Parallel()
 		invalidDestination := validDestination
-		invalidDestination.Config["storage_class"] = "INVALID"
+		invalidDestination.Config = map[string]string{
+			"bucket":        "my-bucket",
+			"region":        "us-east-1",
+			"storage_class": "INVALID",
+		}
 		err := awsS3Destination.Validate(context.Background(), &invalidDestination)
 		var validationErr *destregistry.ErrDestinationValidation
 		assert.ErrorAs(t, err, &validationErr)
@@ -122,6 +127,62 @@ func TestAWSS3Destination_Validate(t *testing.T) {
 		assert.Equal(t, "pattern", validationErr.Errors[0].Type)
 	})
 
+	t.Run("should reject a key template over the length limit", func(t *testing.T) {
+		t.Parallel()
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("aws_s3"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"bucket":       "my-bucket",
+				"region":       "us-east-1",
+				"key_template": "join('', ['" + strings.Repeat("a", 1024) + "'])",
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"key":    "test-key",
+				"secret": "test-secret",
+			}),
+		)
+		err := awsS3Destination.Validate(context.Background(), &destination)
+		var validationErr *destregistry.ErrDestinationValidation
+		require.ErrorAs(t, err, &validationErr)
+		assert.Equal(t, "config.key_template", validationErr.Errors[0].Field)
+		assert.Equal(t, "maxlength", validationErr.Errors[0].Type)
+	})
+
+	t.Run("should accept a key template at the length limit", func(t *testing.T) {
+		t.Parallel()
+		template := "join('', ['" + strings.Repeat("a", 1024-len("join('', [''])")) + "'])"
+		require.Len(t, template, 1024)
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("aws_s3"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"bucket":       "my-bucket",
+				"region":       "us-east-1",
+				"key_template": template,
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"key":    "test-key",
+				"secret": "test-secret",
+			}),
+		)
+		assert.NoError(t, awsS3Destination.Validate(context.Background(), &destination))
+	})
+
+	t.Run("should accept an omitted key template", func(t *testing.T) {
+		t.Parallel()
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("aws_s3"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"bucket": "my-bucket",
+				"region": "us-east-1",
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"key":    "test-key",
+				"secret": "test-secret",
+			}),
+		)
+		assert.NoError(t, awsS3Destination.Validate(context.Background(), &destination))
+	})
+
 	t.Run("should validate missing credentials", func(t *testing.T) {
 		t.Parallel()
 		invalidDestination := validDestination
@@ -137,7 +198,7 @@ func TestAWSS3Destination_Validate(t *testing.T) {
 func TestAWSS3Destination_ComputeTarget(t *testing.T) {
 	t.Parallel()
 
-	awsS3Destination, err := destawss3.New(testutil.Registry.MetadataLoader(), nil)
+	awsS3Destination, err := destawss3.New(testutil.Registry.MetadataLoader(), nil, destawss3.WithAllowCustomEndpoints(true))
 	require.NoError(t, err)
 
 	destination := testutil.DestinationFactory.Any(

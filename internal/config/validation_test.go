@@ -135,6 +135,33 @@ func TestRedis(t *testing.T) {
 			}(),
 			wantErr: config.ErrMissingRedis,
 		},
+		{
+			name: "custom redis pool size",
+			config: func() *config.Config {
+				c := validConfig()
+				c.Redis.PoolSize = 100
+				return c
+			}(),
+			wantErr: nil,
+		},
+		{
+			name: "negative redis pool size",
+			config: func() *config.Config {
+				c := validConfig()
+				c.Redis.PoolSize = -1
+				return c
+			}(),
+			wantErr: config.ErrInvalidRedisPoolSize,
+		},
+		{
+			name: "negative publish max redeliveries",
+			config: func() *config.Config {
+				c := validConfig()
+				c.PublishMaxRedeliveries = -2
+				return c
+			}(),
+			wantErr: config.ErrInvalidPublishMaxRedeliveries,
+		},
 	}
 
 	for _, tt := range tests {
@@ -260,6 +287,138 @@ func TestMisc(t *testing.T) {
 				return c
 			}(),
 			wantErr: config.ErrInvalidPortalProxyURL,
+		},
+		{
+			name: "webhook proxy chain is valid",
+			config: func() *config.Config {
+				c := validConfig()
+				c.Destinations.Webhook.ProxyURL = "http://user:pass@a:10000 https://b:8443"
+				return c
+			}(),
+			wantErr: nil,
+		},
+		{
+			name: "invalid webhook proxy url",
+			config: func() *config.Config {
+				c := validConfig()
+				c.Destinations.Webhook.ProxyURL = "://invalid"
+				return c
+			}(),
+			wantErr: config.ErrInvalidWebhookProxyURL,
+		},
+		{
+			name: "socks5 webhook proxy url is rejected",
+			config: func() *config.Config {
+				c := validConfig()
+				c.Destinations.Webhook.ProxyURL = "socks5://a:1080"
+				return c
+			}(),
+			wantErr: config.ErrInvalidWebhookProxyURL,
+		},
+		{
+			name: "custom EventBridge source is valid",
+			config: func() *config.Config {
+				c := validConfig()
+				c.Destinations.AWSEventBridge.Source = "com.example.app"
+				return c
+			}(),
+			wantErr: nil,
+		},
+		{
+			name: "empty EventBridge source is rejected",
+			config: func() *config.Config {
+				c := validConfig()
+				c.Destinations.AWSEventBridge.Source = ""
+				return c
+			}(),
+			wantErr: config.ErrInvalidAWSEventBridgeSource,
+		},
+		{
+			name: "EventBridge source with the reserved aws. prefix is rejected",
+			config: func() *config.Config {
+				c := validConfig()
+				c.Destinations.AWSEventBridge.Source = "aws.events"
+				return c
+			}(),
+			wantErr: config.ErrInvalidAWSEventBridgeSource,
+		},
+		{
+			name: "destinations proxy chain is valid",
+			config: func() *config.Config {
+				c := validConfig()
+				c.Destinations.ProxyURL = "http://user:pass@a:10000 https://b:8443"
+				return c
+			}(),
+			wantErr: nil,
+		},
+		{
+			name: "invalid destinations proxy url",
+			config: func() *config.Config {
+				c := validConfig()
+				c.Destinations.ProxyURL = "http://a:10000 socks5://b:1080"
+				return c
+			}(),
+			wantErr: config.ErrInvalidDestinationsProxyURL,
+		},
+		{
+			name: "publish proxy chain is valid",
+			config: func() *config.Config {
+				c := validConfig()
+				c.PublishMQ.RabbitMQ.ServerURL = "amqp://broker:5672"
+				c.PublishMQ.ProxyURL = "http://user:pass@a:10000 https://b:8443"
+				return c
+			}(),
+			wantErr: nil,
+		},
+		{
+			name: "invalid publish proxy url",
+			config: func() *config.Config {
+				c := validConfig()
+				c.PublishMQ.RabbitMQ.ServerURL = "amqp://broker:5672"
+				c.PublishMQ.ProxyURL = "socks5://a:1080"
+				return c
+			}(),
+			wantErr: config.ErrInvalidPublishProxyURL,
+		},
+		{
+			name: "invalid publish proxy url with a non-rabbitmq provider",
+			config: func() *config.Config {
+				c := validConfig()
+				c.PublishMQ.GCPPubSub.Project = "p"
+				c.PublishMQ.ProxyURL = "://invalid"
+				return c
+			}(),
+			wantErr: config.ErrInvalidPublishProxyURL,
+		},
+		{
+			name: "webhook compat signature is valid",
+			config: func() *config.Config {
+				c := validConfig()
+				c.Destinations.Webhook.Compat.SignatureHeaderName = "webhook-signature"
+				c.Destinations.Webhook.Compat.Headers = config.HeaderTemplates{"webhook-id": "{{.EventID}}"}
+				return c
+			}(),
+			wantErr: nil,
+		},
+		{
+			name: "webhook compat signature is valid in standard mode",
+			config: func() *config.Config {
+				c := validConfig()
+				c.Destinations.Webhook.Mode = "standard"
+				c.Destinations.Webhook.Compat.SignatureHeaderName = "x-legacy-signature"
+				return c
+			}(),
+			wantErr: nil,
+		},
+		{
+			name: "webhook compat options are ignored without a signature header name",
+			config: func() *config.Config {
+				c := validConfig()
+				c.Destinations.Webhook.Mode = "standard"
+				c.Destinations.Webhook.Compat.SignatureEncoding = "base64"
+				return c
+			}(),
+			wantErr: nil,
 		},
 		{
 			name: "empty deployment id is valid",

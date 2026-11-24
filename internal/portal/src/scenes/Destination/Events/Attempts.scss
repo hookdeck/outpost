@@ -14,11 +14,13 @@
     align-items: center;
     gap: var(--spacing-2);
     justify-content: space-between;
+    flex-wrap: wrap;
 
     &-filters {
       display: flex;
       align-items: center;
       gap: var(--spacing-3);
+      flex-wrap: wrap;
     }
 
     &-title .badge {
@@ -70,10 +72,21 @@
     &--active {
       grid-template-columns: 1fr 516px;
 
+      @media (max-width: 1024px) {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto;
+      }
+
       .table {
         height: 100%;
         border-top-right-radius: 0;
         border-bottom-right-radius: 0;
+
+        @media (max-width: 1024px) {
+          border-radius: var(--radius-m);
+          border-bottom-left-radius: 0;
+          border-bottom-right-radius: 0;
+        }
       }
 
       .drawer {
@@ -84,6 +97,12 @@
         border: 1px solid var(--colors-outline-neutral);
         border-top-right-radius: var(--radius-m);
         border-bottom-right-radius: var(--radius-m);
+
+        @media (max-width: 1024px) {
+          border-top: none;
+          border-radius: 0 0 var(--radius-m) var(--radius-m);
+          max-height: 60vh;
+        }
 
         &__header {
           display: flex;
@@ -159,6 +178,9 @@ dl.description-list {
     padding-top: var(--spacing-4);
     padding-bottom: var(--spacing-4);
     border-bottom: 1px solid var(--colors-outline-neutral);
+    // Allow long values (e.g. IDs, URLs) to wrap onto a new line under the
+    // label on narrow viewports without forcing every row to stack.
+    flex-wrap: wrap;
 
     &:last-child {
       border-bottom: none;

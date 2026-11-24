@@ -97,6 +97,81 @@ func TestRequestBodySanitizer_SanitizeDestinationRequest(t *testing.T) {
 	}
 }
 
+func TestRequestBodySanitizer_RedactsAllCredentials(t *testing.T) {
+	sanitizer := &RequestBodySanitizer{}
+
+	// No type, as in a PATCH body, so metadata can't be loaded.
+	input := `{"credentials":{"secret":"whsec_abc123","username":"app_user"},"topics":["user.created"]}`
+
+	result, err := sanitizer.SanitizeRequestBody(strings.NewReader(input))
+	if err != nil {
+		t.Fatalf("SanitizeRequestBody() error = %v", err)
+	}
+
+	expected := `{"credentials":{"secret":"[REDACTED]","username":"[REDACTED]"},"topics":["user.created"]}`
+	if string(result) != expected {
+		t.Errorf("SanitizeRequestBody() = %s, want %s", result, expected)
+	}
+}
+
+func TestRequestBodySanitizer_CredentialsKeyCase(t *testing.T) {
+	sanitizer := &RequestBodySanitizer{}
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "upper case",
+			input:    `{"CREDENTIALS":{"password":"hunter2"}}`,
+			expected: `{"CREDENTIALS":{"password":"[REDACTED]"}}`,
+		},
+		{
+			name:     "mixed case",
+			input:    `{"Credentials":{"password":"hunter2"}}`,
+			expected: `{"Credentials":{"password":"[REDACTED]"}}`,
+		},
+		{
+			name:     "unicode case folding",
+			input:    `{"credential\u017f":{"password":"hunter2"}}`,
+			expected: `{"credentialſ":{"password":"[REDACTED]"}}`,
+		},
+		{
+			name:     "several variants in one body",
+			input:    `{"credentials":{"password":"hunter2"},"CREDENTIALS":{"password":"hunter3"},"Credentials":{"token":"hunter4"}}`,
+			expected: `{"CREDENTIALS":{"password":"[REDACTED]"},"Credentials":{"token":"[REDACTED]"},"credentials":{"password":"[REDACTED]"}}`,
+		},
+		{
+			name:     "string value",
+			input:    `{"credentials":"hunter2"}`,
+			expected: `{"credentials":"[REDACTED]"}`,
+		},
+		{
+			name:     "array value",
+			input:    `{"Credentials":[{"password":"hunter2"}]}`,
+			expected: `{"Credentials":"[REDACTED]"}`,
+		},
+		{
+			name:     "null value",
+			input:    `{"credentials":null}`,
+			expected: `{"credentials":null}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := sanitizer.SanitizeRequestBody(strings.NewReader(tt.input))
+			if err != nil {
+				t.Fatalf("SanitizeRequestBody() error = %v", err)
+			}
+			if string(result) != tt.expected {
+				t.Errorf("SanitizeRequestBody() = %s, want %s", result, tt.expected)
+			}
+		})
+	}
+}
+
 func TestRequestBodySanitizer_SizeLimit(t *testing.T) {
 	sanitizer := &RequestBodySanitizer{}
 
@@ -125,7 +200,27 @@ func TestRequestBodySanitizer_BasicFunctionality(t *testing.T) {
 		{
 			name:     "handle non-JSON input",
 			input:    "not json",
-			expected: "not json",
+			expected: "[REQUEST_BODY_UNPARSEABLE: 8 bytes]",
+		},
+		{
+			name:     "handle truncated JSON",
+			input:    `{"credentials":{"password":"hunter2"`,
+			expected: "[REQUEST_BODY_UNPARSEABLE: 36 bytes]",
+		},
+		{
+			name:     "handle data after the JSON object",
+			input:    `{"credentials":{"password":"hunter2"}} trailing`,
+			expected: "[REQUEST_BODY_UNPARSEABLE: 47 bytes]",
+		},
+		{
+			name:     "handle top-level JSON array",
+			input:    `[{"credentials":{"password":"hunter2"}}]`,
+			expected: "[REQUEST_BODY_UNPARSEABLE: 40 bytes]",
+		},
+		{
+			name:     "handle form-encoded input",
+			input:    "password=hunter2",
+			expected: "[REQUEST_BODY_UNPARSEABLE: 16 bytes]",
 		},
 		{
 			name:     "handle empty input",

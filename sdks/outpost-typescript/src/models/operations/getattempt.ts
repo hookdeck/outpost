@@ -15,7 +15,7 @@ import { SDKValidationError } from "../errors/sdkvalidationerror.js";
  * - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
  * - `event.data`: Include full event with payload data
  * - `response_data`: Include response body and headers
- * - `destination`: Include the full destination object
+ * - `destination`: Include the destination object, without credentials
  */
 export type GetAttemptInclude = string | Array<string>;
 
@@ -35,7 +35,7 @@ export type GetAttemptRequest = {
    * - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
    * - `event.data`: Include full event with payload data
    * - `response_data`: Include response body and headers
-   * - `destination`: Include the full destination object
+   * - `destination`: Include the destination object, without credentials
    */
   include?: string | Array<string> | undefined;
 };

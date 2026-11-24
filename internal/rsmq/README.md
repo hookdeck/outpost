@@ -9,6 +9,12 @@ The main change in this fork is support for custom message IDs. This allows for:
 - Message deduplication
 - Message overriding/rescheduling
 
+It also adds receipts:
+
+- `ReceiveMessage` returns a receipt (`QueueMessage.Receipt`), new on every receive. `SendMessage` with a custom ID clears it.
+- `DeleteMessageWithReceipt` deletes the message if the receipt is current, else returns `ErrReceiptMismatch`.
+- `ChangeMessageVisibilityWithReceipt` changes visibility under the same condition; the receipt stays current.
+
 ### Custom ID Notes
 
 When using custom IDs, be aware that:

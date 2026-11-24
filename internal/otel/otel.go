@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/log/global"
 	"go.opentelemetry.io/otel/propagation"
 )
 
@@ -38,6 +37,8 @@ func SetupOTelSDK(ctx context.Context, config *OpenTelemetryConfig) (shutdown fu
 	prop := newPropagator()
 	otel.SetTextMapPropagator(prop)
 
+	filter := newScopeFilter(config.EnabledInstrumentations)
+
 	// Set up trace provider.
 	tracerProvider, err := newTraceProvider(ctx, config)
 	if err != nil {
@@ -46,7 +47,7 @@ func SetupOTelSDK(ctx context.Context, config *OpenTelemetryConfig) (shutdown fu
 	}
 	if tracerProvider != nil {
 		shutdownFuncs = append(shutdownFuncs, tracerProvider.Shutdown)
-		otel.SetTracerProvider(tracerProvider)
+		otel.SetTracerProvider(&filteredTracerProvider{tp: tracerProvider, filter: filter})
 	}
 
 	// Set up meter provider.
@@ -57,7 +58,7 @@ func SetupOTelSDK(ctx context.Context, config *OpenTelemetryConfig) (shutdown fu
 	}
 	if meterProvider != nil {
 		shutdownFuncs = append(shutdownFuncs, meterProvider.Shutdown)
-		otel.SetMeterProvider(meterProvider)
+		otel.SetMeterProvider(&filteredMeterProvider{mp: meterProvider, filter: filter})
 	}
 
 	// Set up logger provider.
@@ -68,7 +69,7 @@ func SetupOTelSDK(ctx context.Context, config *OpenTelemetryConfig) (shutdown fu
 	}
 	if loggerProvider != nil {
 		shutdownFuncs = append(shutdownFuncs, loggerProvider.Shutdown)
-		global.SetLoggerProvider(loggerProvider)
+		otel.SetLoggerProvider(loggerProvider)
 	}
 
 	return

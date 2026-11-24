@@ -83,15 +83,15 @@ export type ListEventsRequest = {
    */
   time?: components.Operator | undefined;
   /**
-   * Number of items per page (default 100, max 1000).
+   * Number of items per page (1-1000, default 100). A value outside this range, or one that is not an integer, returns a 400.
    */
   limit?: number | undefined;
   /**
-   * Cursor for next page of results.
+   * Cursor for the next page of results, from `pagination.next` of a previous response. Mutually exclusive with `prev`. A cursor that cannot be read returns a 400.
    */
   next?: string | undefined;
   /**
-   * Cursor for previous page of results.
+   * Cursor for the previous page of results, from `pagination.prev` of a previous response. Mutually exclusive with `next`. A cursor that cannot be read returns a 400.
    */
   prev?: string | undefined;
   /**
@@ -102,10 +102,6 @@ export type ListEventsRequest = {
    * Sort direction.
    */
   dir?: ListEventsDir | undefined;
-};
-
-export type ListEventsResponse = {
-  result: components.EventPaginatedResult;
 };
 
 /** @internal */
@@ -327,52 +323,5 @@ export function listEventsRequestFromJSON(
     jsonString,
     (x) => ListEventsRequest$inboundSchema.parse(JSON.parse(x)),
     `Failed to parse 'ListEventsRequest' from JSON`,
-  );
-}
-
-/** @internal */
-export const ListEventsResponse$inboundSchema: z.ZodType<
-  ListEventsResponse,
-  z.ZodTypeDef,
-  unknown
-> = z.object({
-  Result: components.EventPaginatedResult$inboundSchema,
-}).transform((v) => {
-  return remap$(v, {
-    "Result": "result",
-  });
-});
-/** @internal */
-export type ListEventsResponse$Outbound = {
-  Result: components.EventPaginatedResult$Outbound;
-};
-
-/** @internal */
-export const ListEventsResponse$outboundSchema: z.ZodType<
-  ListEventsResponse$Outbound,
-  z.ZodTypeDef,
-  ListEventsResponse
-> = z.object({
-  result: components.EventPaginatedResult$outboundSchema,
-}).transform((v) => {
-  return remap$(v, {
-    result: "Result",
-  });
-});
-
-export function listEventsResponseToJSON(
-  listEventsResponse: ListEventsResponse,
-): string {
-  return JSON.stringify(
-    ListEventsResponse$outboundSchema.parse(listEventsResponse),
-  );
-}
-export function listEventsResponseFromJSON(
-  jsonString: string,
-): SafeParseResult<ListEventsResponse, SDKValidationError> {
-  return safeParse(
-    jsonString,
-    (x) => ListEventsResponse$inboundSchema.parse(JSON.parse(x)),
-    `Failed to parse 'ListEventsResponse' from JSON`,
   );
 }

@@ -3,20 +3,17 @@ package apirouter
 import (
 	"errors"
 	"net/http"
-	"reflect"
-	"strings"
 
 	"fmt"
 
 	"github.com/gin-gonic/gin"
-	"github.com/gin-gonic/gin/binding"
-	"github.com/go-playground/validator/v10"
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logstore"
 	"github.com/hookdeck/outpost/internal/portal"
 	"github.com/hookdeck/outpost/internal/telemetry"
 	"github.com/hookdeck/outpost/internal/tenantstore"
+	"github.com/hookdeck/outpost/internal/topicschema"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
 
@@ -29,15 +26,27 @@ type RouteDefinition struct {
 	Middlewares   []gin.HandlerFunc
 }
 
+const (
+	apiBasePath = "/api/v1"
+	publishPath = "/publish"
+)
+
 type RouterConfig struct {
-	ServiceName  string
-	APIKey       string
-	JWTSecret    string
-	DeploymentID string
-	Topics       []string
-	Registry     destregistry.Registry
-	PortalConfig portal.PortalConfig
-	GinMode      string
+	ServiceName          string
+	APIKey               string
+	JWTSecret            string
+	DeploymentID         string
+	Topics               []string
+	TopicsAllowWildcards bool
+	Registry             destregistry.Registry
+	PortalConfig         portal.PortalConfig
+	GinMode              string
+
+	// MCPSubscribe turns the MCP subscribe endpoints on; they answer 404
+	// while it is false.
+	MCPSubscribe bool
+	// MaxEventSizeBytes caps the size of a publish request body; 0 means no cap.
+	MaxEventSizeBytes int64
 }
 
 type RouterDeps struct {
@@ -47,7 +56,10 @@ type RouterDeps struct {
 	DeliveryPublisher   deliveryPublisher
 	EventHandler        eventHandler
 	Telemetry           telemetry.Telemetry
-	SubscriptionEmitter SubscriptionEmitter // optional — emits tenant.subscription.updated on destination mutations
+	SubscriptionEmitter SubscriptionEmitter  // optional — emits tenant.subscription.updated on destination mutations
+	MCPVerifier         MCPVerifier          // optional — set when MCP Events is enabled; purged on tenant delete
+	MCPCatalog          *topicschema.Catalog // optional — event definitions served by GET /mcp/events/list
+	MCPEventsError      error                // optional — why the event definitions are unusable; MCP routes answer 503
 }
 
 func (d RouterDeps) validate() error {
@@ -83,10 +95,12 @@ func registerRoutes(router *gin.RouterGroup, cfg RouterConfig, tenantRetriever T
 func buildMiddlewareChain(cfg RouterConfig, tenantRetriever TenantRetriever, def RouteDefinition) []gin.HandlerFunc {
 	chain := make([]gin.HandlerFunc, 0)
 
-	chain = append(chain, AuthMiddleware(cfg.APIKey, cfg.JWTSecret, tenantRetriever, AuthOptions{
+	chain = append(chain, AuthMiddleware(cfg.APIKey, cfg.JWTSecret, cfg.DeploymentID, tenantRetriever, AuthOptions{
 		AdminOnly:     def.AdminOnly,
 		RequireTenant: def.RequireTenant,
 	}))
+
+	chain = append(chain, TextParamsMiddleware())
 
 	// Add custom middlewares
 	chain = append(chain, def.Middlewares...)
@@ -109,7 +123,7 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 
 	r := gin.New()
 	// Core middlewares
-	r.Use(gin.Recovery())
+	r.Use(RecoveryMiddleware())
 	r.Use(deps.Telemetry.MakeSentryHandler())
 	r.Use(otelgin.Middleware(cfg.ServiceName))
 	r.Use(MetricsMiddleware())
@@ -122,39 +136,37 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 
 	// Application logic
 	r.Use(ErrorHandlerMiddleware())
+	r.Use(RequestBodyLimitMiddleware(cfg.MaxEventSizeBytes))
 
-	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
-		v.RegisterTagNameFunc(func(fld reflect.StructField) string {
-			name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
-			if name == "-" {
-				return ""
-			}
-			return name
-		})
-	}
+	portal.AddRoutes(r, cfg.PortalConfig, func(c *gin.Context) {
+		AbortWithError(c, http.StatusNotFound, ErrorResponse{Code: http.StatusNotFound, Message: "not found"})
+	})
 
-	portal.AddRoutes(r, cfg.PortalConfig)
+	apiRouter := r.Group(apiBasePath)
 
-	apiRouter := r.Group("/api/v1")
+	displayer := newDestinationDisplayer(cfg.Registry, cfg.TopicsAllowWildcards)
 
-	displayer := newDestinationDisplayer(cfg.Registry)
-
-	tenantHandlers := NewTenantHandlers(deps.Logger, deps.Telemetry, cfg.JWTSecret, cfg.DeploymentID, deps.TenantStore)
-	destinationHandlers := NewDestinationHandlers(deps.Logger, deps.Telemetry, deps.TenantStore, deps.SubscriptionEmitter, cfg.Topics, cfg.Registry, displayer)
+	tenantHandlers := NewTenantHandlers(deps.Logger, deps.Telemetry, cfg.JWTSecret, cfg.DeploymentID, deps.TenantStore, cfg.TopicsAllowWildcards, deps.MCPVerifier)
+	// Destinations of internal types stay out of the destinations API.
+	publicStore := tenantstore.NewPublicStore(deps.TenantStore)
+	destinationHandlers := NewDestinationHandlers(deps.Logger, deps.Telemetry, publicStore, deps.SubscriptionEmitter, cfg.Topics, cfg.TopicsAllowWildcards, cfg.Registry, displayer)
 	publishHandlers := NewPublishHandlers(deps.Logger, deps.EventHandler)
-	logHandlers := NewLogHandlers(deps.Logger, deps.LogStore, deps.TenantStore, displayer)
-	retryHandlers := NewRetryHandlers(deps.Logger, deps.TenantStore, deps.LogStore, deps.DeliveryPublisher)
+	logHandlers := NewLogHandlers(deps.Logger, deps.LogStore, publicStore, displayer)
+	retryHandlers := NewRetryHandlers(deps.Logger, publicStore, deps.LogStore, deps.DeliveryPublisher, cfg.TopicsAllowWildcards)
 	topicHandlers := NewTopicHandlers(deps.Logger, cfg.Topics)
 	metricsHandlers := NewMetricsHandlers(deps.Logger, deps.LogStore)
+	mcpEventsHandlers := NewMCPEventsHandlers(deps.Logger, deps.MCPCatalog, deps.MCPEventsError)
+	mcpSubscribeHandlers := NewMCPSubscribeHandlers(deps.TenantStore, destinationHandlers, tenantHandlers, cfg.MCPSubscribe, deps.MCPEventsError)
 
 	routes := []RouteDefinition{
 		// Schemas & Topics
 		{Method: http.MethodGet, Path: "/destination-types", Handler: destinationHandlers.ListProviderMetadata},
 		{Method: http.MethodGet, Path: "/destination-types/:type", Handler: destinationHandlers.RetrieveProviderMetadata},
 		{Method: http.MethodGet, Path: "/topics", Handler: topicHandlers.List},
+		{Method: http.MethodGet, Path: "/mcp/events/list", Handler: mcpEventsHandlers.List, AdminOnly: true},
 
 		// Publish / Retry
-		{Method: http.MethodPost, Path: "/publish", Handler: publishHandlers.Ingest, AdminOnly: true},
+		{Method: http.MethodPost, Path: publishPath, Handler: publishHandlers.Ingest, AdminOnly: true},
 		{Method: http.MethodPost, Path: "/retry", Handler: retryHandlers.Retry},
 
 		// Tenants
@@ -175,6 +187,10 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 		{Method: http.MethodPut, Path: "/tenants/:tenant_id/destinations/:destination_id/disable", Handler: destinationHandlers.Disable, RequireTenant: true},
 		{Method: http.MethodGet, Path: "/tenants/:tenant_id/destinations/:destination_id/attempts", Handler: logHandlers.ListDestinationAttempts, RequireTenant: true},
 		{Method: http.MethodGet, Path: "/tenants/:tenant_id/destinations/:destination_id/attempts/:attempt_id", Handler: logHandlers.RetrieveAttempt, RequireTenant: true},
+
+		// MCP subscribe endpoints
+		{Method: http.MethodPost, Path: "/tenants/:tenant_id/mcp/events/subscribe", Handler: mcpSubscribeHandlers.Subscribe, AdminOnly: true},
+		{Method: http.MethodPost, Path: "/tenants/:tenant_id/mcp/events/unsubscribe", Handler: mcpSubscribeHandlers.Unsubscribe, AdminOnly: true},
 
 		// Events
 		{Method: http.MethodGet, Path: "/events", Handler: logHandlers.ListEvents},

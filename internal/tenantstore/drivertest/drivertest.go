@@ -24,11 +24,13 @@ type Harness interface {
 type HarnessMaker func(ctx context.Context, t *testing.T) (Harness, error)
 
 // RunConformanceTests executes the core conformance test suite for a tenantstore driver.
-// The suite is organized into four parts:
+// The suite is organized into six parts:
 //   - CRUD: tenant and destination create/read/update/delete
 //   - List: destination listing and filtering operations
 //   - Match: event matching operations
 //   - Misc: max destinations, deployment isolation
+//   - Mutations: update/delete/create races on destinations and tenants
+//   - Internal: destinations of internal types in lists, tenant counts and limits
 func RunConformanceTests(t *testing.T, newHarness HarnessMaker) {
 	t.Helper()
 
@@ -46,6 +48,12 @@ func RunConformanceTests(t *testing.T, newHarness HarnessMaker) {
 	})
 	t.Run("Misc", func(t *testing.T) {
 		testMisc(t, newHarness)
+	})
+	t.Run("Mutations", func(t *testing.T) {
+		testMutations(t, newHarness)
+	})
+	t.Run("Internal", func(t *testing.T) {
+		testInternal(t, newHarness)
 	})
 }
 

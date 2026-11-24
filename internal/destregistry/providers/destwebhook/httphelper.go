@@ -9,7 +9,10 @@ import (
 	"strings"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
+	"github.com/hookdeck/outpost/internal/netguard"
 )
+
+const maxLocationBytes = 2048
 
 // HTTPRequestResult contains the result of an HTTP request execution.
 type HTTPRequestResult struct {
@@ -26,17 +29,20 @@ type HTTPRequestResult struct {
 // Most errors return a Delivery object with a classified error code so the
 // caller can record a failed attempt.
 //
-// Proxy *infrastructure* errors (ErrProxyInfra) return Delivery: nil so the
+// Proxy *infrastructure* errors (destregistry.ErrProxyInfra) return Delivery: nil so the
 // caller signals the queue to nack the message instead of recording a
 // customer-visible attempt. See registry.go for the nil-attempt handling.
 //
+// maxResponseBodyBytes caps how much of the destination response body is read
+// and stored on the attempt. 0 means no limit. See ParseHTTPResponse.
+//
 // See: https://github.com/hookdeck/outpost/issues/571
-func ExecuteHTTPRequest(ctx context.Context, client *http.Client, req *http.Request, provider string) *HTTPRequestResult {
+func ExecuteHTTPRequest(ctx context.Context, client *http.Client, req *http.Request, provider string, maxResponseBodyBytes int) *HTTPRequestResult {
 	resp, err := client.Do(req)
 	if err != nil {
 		// Proxy infrastructure error: nack via nil Delivery so the customer's
 		// retry budget is not charged for our infra outage.
-		var infraErr *ErrProxyInfra
+		var infraErr *destregistry.ErrProxyInfra
 		if errors.As(err, &infraErr) {
 			return &HTTPRequestResult{
 				Delivery: nil,
@@ -51,7 +57,7 @@ func ExecuteHTTPRequest(ctx context.Context, client *http.Client, req *http.Requ
 		// Proxy-attributed destination error: use the explicit Code instead of
 		// substring-matching the underlying error.
 		var code string
-		var destErr *ErrProxyDestination
+		var destErr *destregistry.ErrProxyDestination
 		if errors.As(err, &destErr) {
 			code = destErr.Code
 		} else {
@@ -82,14 +88,16 @@ func ExecuteHTTPRequest(ctx context.Context, client *http.Client, req *http.Requ
 			Response: nil,
 		}
 	}
+	defer resp.Body.Close()
 
-	// HTTP error response (4xx, 5xx)
-	if resp.StatusCode >= 400 {
+	// Non-2xx fails the attempt. Unless WithFollowRedirects is set, redirects
+	// aren't followed, so a 3xx lands here too.
+	if resp.StatusCode >= 300 {
 		delivery := &destregistry.Delivery{
 			Status: "failed",
 			Code:   fmt.Sprintf("%d", resp.StatusCode),
 		}
-		ParseHTTPResponse(delivery, resp)
+		ParseHTTPResponse(delivery, resp, maxResponseBodyBytes)
 
 		// Extract body for error details
 		var bodyStr string
@@ -117,7 +125,7 @@ func ExecuteHTTPRequest(ctx context.Context, client *http.Client, req *http.Requ
 		Status: "success",
 		Code:   fmt.Sprintf("%d", resp.StatusCode),
 	}
-	ParseHTTPResponse(delivery, resp)
+	ParseHTTPResponse(delivery, resp, maxResponseBodyBytes)
 
 	return &HTTPRequestResult{
 		Delivery: delivery,
@@ -130,17 +138,28 @@ func ExecuteHTTPRequest(ctx context.Context, client *http.Client, req *http.Requ
 // All errors classified here are destination-level failures (DeliveryError → ack + retry).
 //
 // Error codes and their meanings:
-//   - dns_error:          Domain doesn't exist or DNS lookup failed
-//   - connection_refused: Server not running or rejecting connections
-//   - connection_reset:   Connection was dropped by the server
+//   - address_not_allowed: Address is private and not allowlisted
+//   - dns_error:           Domain doesn't exist or DNS lookup failed
+//   - connection_refused:  Server not running or rejecting connections
+//   - connection_reset:    Connection was dropped by the server (reset, or closed before a response)
 //   - network_unreachable: Network path to destination is unavailable
-//   - timeout:            Request took too long (I/O timeout or context deadline)
-//   - tls_error:          TLS/SSL certificate or handshake failure
-//   - redirect_error:     Too many redirects
-//   - network_error:      Other network-related failures (catch-all)
+//   - timeout:             Request took too long (I/O timeout or context deadline)
+//   - tls_error:           TLS/SSL certificate or handshake failure
+//   - network_error:       Other network-related failures (catch-all)
 func ClassifyNetworkError(err error) string {
 	if err == nil {
 		return "unknown"
+	}
+
+	if netguard.IsAddressNotAllowed(err) {
+		return "address_not_allowed"
+	}
+
+	// A peer that closes the connection before responding surfaces as a bare
+	// EOF rather than "connection reset". Through a forward proxy an upstream
+	// reset also arrives this way, since the proxy closes its side of the tunnel.
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return "connection_reset"
 	}
 
 	errStr := err.Error()
@@ -160,8 +179,6 @@ func ClassifyNetworkError(err error) string {
 		return "timeout"
 	case strings.Contains(errStr, "tls:") || strings.Contains(errStr, "x509:"):
 		return "tls_error"
-	case strings.Contains(errStr, "too many redirects") || strings.Contains(errStr, "stopped after"):
-		return "redirect_error"
 	default:
 		return "network_error"
 	}
@@ -169,10 +186,38 @@ func ClassifyNetworkError(err error) string {
 
 // ParseHTTPResponse reads the HTTP response body into the delivery as a raw string.
 // The body is stored verbatim regardless of content type to preserve data integrity.
-func ParseHTTPResponse(delivery *destregistry.Delivery, resp *http.Response) {
-	bodyBytes, _ := io.ReadAll(resp.Body)
+//
+// maxBytes caps the stored body so an oversized response can't push the attempt
+// log past the queue's per-message size limit (which would fail to publish and
+// retry forever). 0 disables the cap. When the body exceeds maxBytes it is
+// replaced wholesale with a placeholder rather than truncated, so consumers never
+// receive a partial/corrupt body. We read with a maxBytes+1 LimitReader: enough to
+// detect the overflow without buffering the whole body, but it means we stop
+// before draining resp.Body, so that connection won't be reused — an acceptable
+// trade-off versus downloading an arbitrarily large body just to discard it.
+func ParseHTTPResponse(delivery *destregistry.Delivery, resp *http.Response, maxBytes int) {
+	var body string
+	if maxBytes > 0 {
+		bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, int64(maxBytes)+1))
+		if len(bodyBytes) > maxBytes {
+			body = fmt.Sprintf("Response body exceeded %d bytes and was not stored", maxBytes)
+		} else {
+			body = string(bodyBytes)
+		}
+	} else {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		body = string(bodyBytes)
+	}
 	delivery.Response = map[string]interface{}{
 		"status": resp.StatusCode,
-		"body":   string(bodyBytes),
+		"body":   body,
+	}
+	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
+		if loc := resp.Header.Get("Location"); loc != "" {
+			if len(loc) > maxLocationBytes {
+				loc = loc[:maxLocationBytes]
+			}
+			delivery.Response["location"] = loc
+		}
 	}
 }

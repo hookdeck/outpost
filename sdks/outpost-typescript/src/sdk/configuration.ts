@@ -15,7 +15,7 @@ export class Configuration extends ClientSDK {
    * @remarks
    * Returns managed Outpost configuration values.
    *
-   * This endpoint is only available for the managed version.
+   * This endpoint is only available on managed Outpost.
    * In self-hosted deployments, configuration is controlled through environment variables instead.
    */
   async getManagedConfig(
@@ -33,7 +33,7 @@ export class Configuration extends ClientSDK {
    * @remarks
    * Updates one or more managed Outpost configuration values. Null values clear the configuration and reverts to Outpost default behavior.
    *
-   * This endpoint is only available for the managed version.
+   * This endpoint is only available on managed Outpost.
    * In self-hosted deployments, configuration is controlled through environment variables instead.
    *
    * Only the supported configuration keys are accepted.

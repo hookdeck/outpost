@@ -14,7 +14,7 @@ export const TopicsEnum = {
 export type TopicsEnum = ClosedEnum<typeof TopicsEnum>;
 
 /**
- * "*" or an array of enabled topics.
+ * "*" or an array of enabled topics. Topic strings can include "*" as a wildcard matching any run of characters. When available topics are configured, wildcard patterns must match at least one available topic.
  */
 export type Topics = TopicsEnum | Array<string>;
 

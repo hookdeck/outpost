@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 )
 
 type ErrDestinationValidation struct {
@@ -23,10 +24,33 @@ func NewErrDestinationValidation(errors []ValidationErrorDetail) error {
 	return &ErrDestinationValidation{Errors: errors}
 }
 
+// ErrDestinationRateLimited: a limit on Outpost's side stopped validation.
+type ErrDestinationRateLimited struct {
+	Code       string
+	RetryAfter time.Duration
+}
+
+func (e *ErrDestinationRateLimited) Error() string {
+	return "rate limited: " + e.Code
+}
+
+// ErrDestinationUnavailable: validation could not run on Outpost's side.
+type ErrDestinationUnavailable struct {
+	Code string
+}
+
+func (e *ErrDestinationUnavailable) Error() string {
+	return "unavailable: " + e.Code
+}
+
 type ErrDestinationPublishAttempt struct {
 	Err      error
 	Provider string
 	Data     map[string]interface{}
+	// NonRetryable: no automatic retry is scheduled for this failure.
+	NonRetryable bool
+	// SkipFailureCount: the failure is left out of the consecutive-failure count.
+	SkipFailureCount bool
 }
 
 var _ error = &ErrDestinationPublishAttempt{}
@@ -37,6 +61,27 @@ func (e *ErrDestinationPublishAttempt) Error() string {
 
 func NewErrDestinationPublishAttempt(err error, provider string, data map[string]interface{}) error {
 	return &ErrDestinationPublishAttempt{Err: err, Provider: provider, Data: data}
+}
+
+// NewFormatError returns the (*Delivery, error) a publisher should return when
+// formatting an event fails before it can be sent (e.g. an invalid key/partition
+// template or an unparseable payload). It records a failed attempt so the failure
+// is visible to the customer and the message is acked, instead of nacking into the DLQ.
+//
+// message is the customer-facing string persisted on the attempt (ResponseData);
+// when empty a generic default is used. The raw err is carried only in the returned
+// error (for logs/telemetry) and is not persisted on the attempt.
+func NewFormatError(provider, message string, err error) (*Delivery, error) {
+	if message == "" {
+		message = "could not format event for delivery"
+	}
+	return &Delivery{
+			Status:   "failed",
+			Code:     "ERR",
+			Response: map[string]interface{}{"error": message},
+		}, NewErrDestinationPublishAttempt(err, provider, map[string]interface{}{
+			"error": "format_failed",
+		})
 }
 
 // NewErrPublishCanceled creates an error for when publish is canceled (e.g., service shutdown).

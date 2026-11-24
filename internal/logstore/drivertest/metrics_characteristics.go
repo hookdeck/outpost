@@ -244,6 +244,11 @@ func testMetricsCharacteristics(t *testing.T, ctx context.Context, logStore driv
 				assert.Equal(t, 0.0, *dp.Rate, "rate must be 0.0")
 				assert.Equal(t, 0.0, *dp.SuccessfulRate, "successful_rate must be 0.0")
 				assert.Equal(t, 0.0, *dp.FailedRate, "failed_rate must be 0.0")
+				// Latency measures are nil in empty buckets, not 0.
+				assert.Nil(t, dp.AvgLatency, "avg_latency must be nil in empty bucket at %s", dp.TimeBucket)
+				assert.Nil(t, dp.P50Latency, "p50_latency must be nil in empty bucket at %s", dp.TimeBucket)
+				assert.Nil(t, dp.P95Latency, "p95_latency must be nil in empty bucket at %s", dp.TimeBucket)
+				assert.Nil(t, dp.P99Latency, "p99_latency must be nil in empty bucket at %s", dp.TimeBucket)
 			}
 		}
 	})

@@ -43,19 +43,7 @@ func main() {
         log.Fatal(err)
     }
     if res.EventPaginatedResult != nil {
-        for {
-            // handle items
-
-            res, err = res.Next()
-
-            if err != nil {
-                // handle error
-            }
-
-            if res == nil {
-                break
-            }
-        }
+        // handle response
     }
 }
 ```
@@ -76,7 +64,9 @@ func main() {
 
 | Error Type                    | Status Code                   | Content Type                  |
 | ----------------------------- | ----------------------------- | ----------------------------- |
+| apierrors.BadRequestError     | 400                           | application/json              |
 | apierrors.UnauthorizedError   | 401                           | application/json              |
+| apierrors.APIErrorResponse    | 403, 422                      | application/json              |
 | apierrors.InternalServerError | 500                           | application/json              |
 | apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |
 

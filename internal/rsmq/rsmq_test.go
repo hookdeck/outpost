@@ -173,7 +173,7 @@ func (s *RSMQSuite) TestGetQueueAttributes() {
 	queAttrib, err := s.rsmq.GetQueueAttributes(qname)
 	assert.Nil(t, err, "error is not nil on getting queue attributes")
 	assert.NotNil(t, queAttrib, "queueAttributes is nil")
-	assert.EqualValues(t, defaultVt, queAttrib.Vt, "queueAttributes vt is not as expected")
+	assert.EqualValues(t, DefaultVt, queAttrib.Vt, "queueAttributes vt is not as expected")
 	assert.EqualValues(t, defaultDelay, queAttrib.Delay, "queueAttributes delay is not as expected")
 	assert.Equal(t, defaultMaxsize, queAttrib.Maxsize, "queueAttributes maxsize is not as expected")
 	assert.Zero(t, queAttrib.TotalRecv, "queueAttributes totalRecv is not zero")
@@ -304,7 +304,7 @@ func (s *RSMQSuite) TestSetQueueAttributes() {
 		queAttrib, err = s.rsmq.GetQueueAttributes(qname)
 		assert.Nil(t, err, "error is not nil on getting queue attributes")
 		assert.NotNil(t, queAttrib, "queueAttributes is nil")
-		assert.EqualValues(t, defaultVt, queAttrib.Vt, "queueAttributes vt is not as expected")
+		assert.EqualValues(t, DefaultVt, queAttrib.Vt, "queueAttributes vt is not as expected")
 	})
 
 	t.Run("error when the queue attribute delay is not valid", func(t *testing.T) {
@@ -471,6 +471,80 @@ func (s *RSMQSuite) TestReceiveMessage() {
 		assert.NotNil(t, err, "error is nil on receiving the message with invalid vt")
 		assert.Equal(t, ErrInvalidVt, err, "error is not as expected")
 		assert.Nil(t, queMsg, "queueMessage is not nil when the vt is not valid")
+	})
+}
+
+func (s *RSMQSuite) TestReceiveMessagePoll() {
+	t := s.T()
+	qname := "que"
+
+	err := s.rsmq.CreateQueue(qname, UnsetVt, UnsetDelay, UnsetMaxsize)
+	assert.Nil(t, err, "error is not nil on creating a queue")
+
+	t.Run("empty queue reports no next message", func(t *testing.T) {
+		res, err := s.rsmq.ReceiveMessagePoll(qname, UnsetVt)
+		assert.Nil(t, err, "error is not nil on polling an empty queue")
+		assert.Nil(t, res.Message, "message is not nil on polling an empty queue")
+		assert.False(t, res.HasNext, "HasNext is true on polling an empty queue")
+	})
+
+	t.Run("delayed message reports when it comes due", func(t *testing.T) {
+		id, err := s.rsmq.SendMessage(qname, "delayed", 30)
+		assert.Nil(t, err, "error is not nil on sending a delayed message")
+
+		res, err := s.rsmq.ReceiveMessagePoll(qname, UnsetVt)
+		assert.Nil(t, err, "error is not nil on polling for a not-yet-due message")
+		assert.Nil(t, res.Message, "message is not nil while the message is not due")
+		assert.True(t, res.HasNext, "HasNext is false while a message is queued")
+		assert.Greater(t, res.NextDue, 25*time.Second, "NextDue is too small")
+		assert.LessOrEqual(t, res.NextDue, 30*time.Second, "NextDue is too large")
+
+		assert.Nil(t, s.rsmq.DeleteMessage(qname, id), "error is not nil on cleaning up")
+	})
+
+	t.Run("due message is returned", func(t *testing.T) {
+		id, err := s.rsmq.SendMessage(qname, "message", UnsetDelay)
+		assert.Nil(t, err, "error is not nil on sending a message")
+
+		res, err := s.rsmq.ReceiveMessagePoll(qname, UnsetVt)
+		assert.Nil(t, err, "error is not nil on polling for a due message")
+		assert.NotNil(t, res.Message, "message is nil on polling for a due message")
+		assert.Equal(t, id, res.Message.ID, "message ID is not as expected")
+		assert.Equal(t, "message", res.Message.Message, "message body is not as expected")
+		assert.Equal(t, uint64(1), res.Message.Rc, "receive count is not as expected")
+
+		// The message is now hidden by vt rather than removed, so the queue
+		// still reports it as the next one due.
+		res, err = s.rsmq.ReceiveMessagePoll(qname, UnsetVt)
+		assert.Nil(t, err, "error is not nil on polling for a hidden message")
+		assert.Nil(t, res.Message, "message is not nil while hidden by vt")
+		assert.True(t, res.HasNext, "HasNext is false while a message is hidden by vt")
+		assert.Greater(t, res.NextDue, time.Duration(0), "NextDue is not positive while hidden by vt")
+		assert.LessOrEqual(t, res.NextDue, time.Duration(DefaultVt)*time.Second, "NextDue exceeds vt")
+
+		assert.Nil(t, s.rsmq.DeleteMessage(qname, id), "error is not nil on cleaning up")
+	})
+
+	t.Run("explicit vt overrides the queue vt", func(t *testing.T) {
+		id, err := s.rsmq.SendMessage(qname, "message", UnsetDelay)
+		assert.Nil(t, err, "error is not nil on sending a message")
+
+		res, err := s.rsmq.ReceiveMessagePoll(qname, 100)
+		assert.Nil(t, err, "error is not nil on polling with an explicit vt")
+		assert.NotNil(t, res.Message, "message is nil on polling with an explicit vt")
+
+		res, err = s.rsmq.ReceiveMessagePoll(qname, UnsetVt)
+		assert.Nil(t, err, "error is not nil on polling for a hidden message")
+		assert.Nil(t, res.Message, "message is not nil while hidden by the explicit vt")
+		assert.Greater(t, res.NextDue, time.Duration(DefaultVt)*time.Second, "explicit vt was not applied")
+
+		assert.Nil(t, s.rsmq.DeleteMessage(qname, id), "error is not nil on cleaning up")
+	})
+
+	t.Run("error when the queue does not exist", func(t *testing.T) {
+		res, err := s.rsmq.ReceiveMessagePoll("non-existing", UnsetVt)
+		assert.Equal(t, ErrQueueNotFound, err, "error is not as expected")
+		assert.Nil(t, res.Message, "message is not nil on polling a non-existing queue")
 	})
 }
 
@@ -734,6 +808,48 @@ func (s *RSMQSuite) TestSendMessageWithCustomID() {
 		}
 	})
 
+	t.Run("override resets receive count", func(t *testing.T) {
+		err := s.rsmq.CreateQueue(qname, UnsetVt, UnsetDelay, UnsetMaxsize)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer s.rsmq.DeleteQueue(qname)
+
+		_, err = s.rsmq.SendMessage(qname, "first message", UnsetDelay, WithMessageID(customID))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for i := uint64(1); i <= 2; i++ {
+			msg, err := s.rsmq.ReceiveMessage(qname, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if msg == nil {
+				t.Fatal("expected to receive a message")
+			}
+			if msg.Rc != i {
+				t.Errorf("expected receive count %d, got %d", i, msg.Rc)
+			}
+		}
+
+		_, err = s.rsmq.SendMessage(qname, "second message", UnsetDelay, WithMessageID(customID))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		msg, err := s.rsmq.ReceiveMessage(qname, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if msg == nil {
+			t.Fatal("expected to receive the overwritten message")
+		}
+		if msg.Rc != 1 {
+			t.Errorf("expected receive count 1 after override, got %d", msg.Rc)
+		}
+	})
+
 	t.Run("override changes delay timing", func(t *testing.T) {
 		err := s.rsmq.CreateQueue(qname, UnsetVt, UnsetDelay, UnsetMaxsize)
 		if err != nil {
@@ -781,4 +897,41 @@ func (s *RSMQSuite) TestSendMessageWithCustomID() {
 			t.Errorf("expected message content %s, got %s", secondMessage, msg.Message)
 		}
 	})
+}
+
+// TestScriptCacheFlushed covers a Redis/Dragonfly restart, which empties the
+// server's script cache: script-backed operations must keep working.
+func (s *RSMQSuite) TestScriptCacheFlushed() {
+	t := s.T()
+	qname := "que"
+
+	flushClient, err := redis.New(context.Background(), s.cfg)
+	s.Require().NoError(err)
+	defer flushClient.Close()
+	flushScripts := func() {
+		s.Require().NoError(flushClient.ScriptFlush(context.Background()).Err())
+	}
+
+	s.Require().NoError(s.rsmq.CreateQueue(qname, UnsetVt, UnsetDelay, UnsetMaxsize))
+	id1, err := s.rsmq.SendMessage(qname, "message-1", UnsetDelay)
+	s.Require().NoError(err)
+	id2, err := s.rsmq.SendMessage(qname, "message-2", UnsetDelay)
+	s.Require().NoError(err)
+
+	flushScripts()
+	queMsg, err := s.rsmq.ReceiveMessage(qname, UnsetVt)
+	assert.NoError(t, err, "receive after script flush")
+	if assert.NotNil(t, queMsg) {
+		assert.Equal(t, id1, queMsg.ID)
+	}
+
+	flushScripts()
+	assert.NoError(t, s.rsmq.ChangeMessageVisibility(qname, id1, 0), "change visibility after script flush")
+
+	flushScripts()
+	queMsg, err = s.rsmq.PopMessage(qname)
+	assert.NoError(t, err, "pop after script flush")
+	if assert.NotNil(t, queMsg) {
+		assert.Contains(t, []string{id1, id2}, queMsg.ID)
+	}
 }

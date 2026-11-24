@@ -14,21 +14,31 @@ import (
 
 // destinationSummary is a package-private summary used for Redis storage.
 type destinationSummary struct {
-	ID       string        `json:"id"`
-	Type     string        `json:"type"`
-	Topics   models.Topics `json:"topics"`
-	Filter   models.Filter `json:"filter,omitempty"`
-	Disabled bool          `json:"disabled"`
+	ID        string        `json:"id"`
+	Type      string        `json:"type"`
+	Topics    models.Topics `json:"topics"`
+	Filter    models.Filter `json:"filter,omitempty"`
+	Disabled  bool          `json:"disabled"`
+	ExpiresAt *int64        `json:"expires_at,omitempty"`
+}
+
+func (ds *destinationSummary) expired(now time.Time) bool {
+	return ds.ExpiresAt != nil && now.UnixMilli() >= *ds.ExpiresAt
 }
 
 func newDestinationSummary(d models.Destination) *destinationSummary {
-	return &destinationSummary{
+	ds := &destinationSummary{
 		ID:       d.ID,
 		Type:     d.Type,
 		Topics:   d.Topics,
 		Filter:   d.Filter,
 		Disabled: d.DisabledAt != nil,
 	}
+	if d.ExpiresAt != nil {
+		ms := d.ExpiresAt.UnixMilli()
+		ds.ExpiresAt = &ms
+	}
+	return ds
 }
 
 func (ds *destinationSummary) MarshalBinary() ([]byte, error) {
@@ -92,6 +102,12 @@ func parseDestinationHash(cmd *redis.MapStringStringCmd, tenantID string, cipher
 	d := &models.Destination{TenantID: tenantID}
 	d.ID = hash["id"]
 	d.Type = hash["type"]
+	if hash["version"] != "" {
+		d.Version, err = strconv.ParseInt(hash["version"], 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid version: %w", err)
+		}
+	}
 
 	d.CreatedAt, err = parseTimestamp(hash["created_at"])
 	if err != nil {
@@ -111,6 +127,13 @@ func parseDestinationHash(cmd *redis.MapStringStringCmd, tenantID string, cipher
 		disabledAt, err := parseTimestamp(hash["disabled_at"])
 		if err == nil {
 			d.DisabledAt = &disabledAt
+		}
+	}
+
+	if hash["expires_at"] != "" {
+		expiresAt, err := parseTimestamp(hash["expires_at"])
+		if err == nil {
+			d.ExpiresAt = &expiresAt
 		}
 	}
 
@@ -290,8 +313,10 @@ func parseResp3SearchResult(resultMap map[interface{}]interface{}) ([]models.Ten
 
 // destinationFilter specifies criteria for filtering destinations (package-private).
 type destinationFilter struct {
-	Type   []string
-	Topics []string
+	Type            []string
+	Topics          []string
+	AllowWildcards  bool
+	ExcludeInternal bool
 }
 
 // parseListDestinationSummaryByTenantCmd parses a Redis HGetAll command result into destination summaries.
@@ -318,6 +343,22 @@ func parseListDestinationSummaryByTenantCmd(cmd *redis.MapStringStringCmd, filte
 		}
 	}
 	return destinationSummaryList, nil
+}
+
+// tenantDestinationStats returns the count of destinations of non-internal
+// types and the topics of every live destination, internal ones included.
+func tenantDestinationStats(summaries []destinationSummary, now time.Time) (int, []string) {
+	count := 0
+	live := make([]destinationSummary, 0, len(summaries))
+	for _, ds := range summaries {
+		if !models.IsInternalDestinationType(ds.Type) {
+			count++
+		}
+		if !ds.expired(now) {
+			live = append(live, ds)
+		}
+	}
+	return count, parseTenantTopics(live)
 }
 
 // parseTenantTopics extracts and deduplicates topics from a list of destination summaries.
@@ -349,6 +390,9 @@ func parseTenantTopics(destinationSummaryList []destinationSummary) []string {
 
 // matchDestinationFilter checks if a destination summary matches the given filter criteria.
 func matchDestinationFilter(filter *destinationFilter, summary destinationSummary) bool {
+	if filter.ExcludeInternal && models.IsInternalDestinationType(summary.Type) {
+		return false
+	}
 	if len(filter.Type) > 0 {
 		found := false
 		for _, t := range filter.Type {
@@ -368,14 +412,7 @@ func matchDestinationFilter(filter *destinationFilter, summary destinationSummar
 				return false
 			}
 			for _, topic := range filter.Topics {
-				found := false
-				for _, st := range summary.Topics {
-					if st == topic {
-						found = true
-						break
-					}
-				}
-				if !found {
+				if !summary.Topics.MatchTopic(topic, filter.AllowWildcards) {
 					return false
 				}
 			}

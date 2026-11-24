@@ -1,0 +1,74 @@
+[
+  {
+    "tenant": "user_8f2c",
+    "url": "https://receiver.example.com/mcp-events/abc123",
+    "name": "order.created",
+    "arguments": "{\"total\":100,\"currency\":\"USD\"}",
+    "canonical_key": "{\"arguments\":{\"currency\":\"USD\",\"total\":100},\"name\":\"order.created\",\"tenant\":\"user_8f2c\",\"url\":\"https://receiver.example.com/mcp-events/abc123\"}",
+    "id": "sub_6501f9921863a3bb19b52e5d2214c616"
+  },
+  {
+    "tenant": "user_8f2c",
+    "url": "https://receiver.example.com/mcp-events/abc123",
+    "name": "order.created",
+    "arguments": "{\"currency\":\"USD\",\"total\":100}",
+    "canonical_key": "{\"arguments\":{\"currency\":\"USD\",\"total\":100},\"name\":\"order.created\",\"tenant\":\"user_8f2c\",\"url\":\"https://receiver.example.com/mcp-events/abc123\"}",
+    "id": "sub_6501f9921863a3bb19b52e5d2214c616"
+  },
+  {
+    "tenant": "user_8f2c",
+    "url": "https://receiver.example.com/mcp-events/abc123",
+    "name": "order.created",
+    "arguments": "{}",
+    "canonical_key": "{\"arguments\":{},\"name\":\"order.created\",\"tenant\":\"user_8f2c\",\"url\":\"https://receiver.example.com/mcp-events/abc123\"}",
+    "id": "sub_a6ce0840ae28172fc5f07f55f50666eb"
+  },
+  {
+    "tenant": "user_8f2c",
+    "url": "https://receiver.example.com/mcp-events/abc123",
+    "name": "order.created",
+    "arguments": "{\"currency\":[\"EUR\",\"USD\"]}",
+    "canonical_key": "{\"arguments\":{\"currency\":[\"EUR\",\"USD\"]},\"name\":\"order.created\",\"tenant\":\"user_8f2c\",\"url\":\"https://receiver.example.com/mcp-events/abc123\"}",
+    "id": "sub_8dec3081449827dcedab417d1507a94a"
+  },
+  {
+    "tenant": "user_8f2c",
+    "url": "https://connectors.example.com/webhook/mcp-events/0123456789abcdef0123456789abcdef",
+    "name": "incident.created",
+    "arguments": "{\"severity\":\"P1\"}",
+    "canonical_key": "{\"arguments\":{\"severity\":\"P1\"},\"name\":\"incident.created\",\"tenant\":\"user_8f2c\",\"url\":\"https://connectors.example.com/webhook/mcp-events/0123456789abcdef0123456789abcdef\"}",
+    "id": "sub_74e5023de2e314d4ab8b5a4ac19077e9"
+  },
+  {
+    "tenant": "auth0|5f7c8ec7c33c6c004bbafe82",
+    "url": "https://hooks.example.com/x?y=1",
+    "name": "order.created",
+    "arguments": "{\"total\":1e21,\"min\":5e-324}",
+    "canonical_key": "{\"arguments\":{\"min\":5e-324,\"total\":1e+21},\"name\":\"order.created\",\"tenant\":\"auth0|5f7c8ec7c33c6c004bbafe82\",\"url\":\"https://hooks.example.com/x?y=1\"}",
+    "id": "sub_e326d55721a01d714f8b76a4720a7f0d"
+  },
+  {
+    "tenant": "pr incipal \"quoted\" \\ é 😀",
+    "url": "https://xn--bcher-kva.de/p%C3%A9",
+    "name": "topic.é",
+    "arguments": "{\"k \":\"v\\u0001\",\"n\":-0}",
+    "canonical_key": "{\"arguments\":{\"k \":\"v\\u0001\",\"n\":0},\"name\":\"topic.é\",\"tenant\":\"pr incipal \\\"quoted\\\" \\\\ é 😀\",\"url\":\"https://xn--bcher-kva.de/p%C3%A9\"}",
+    "id": "sub_1e5b7d9de1ce6cb32af3625c4a7250e3"
+  },
+  {
+    "tenant": "",
+    "url": "https://a.example/",
+    "name": "",
+    "arguments": "{}",
+    "canonical_key": "{\"arguments\":{},\"name\":\"\",\"tenant\":\"\",\"url\":\"https://a.example/\"}",
+    "id": "sub_c704d3279c0306d41dd38125217220bf"
+  },
+  {
+    "tenant": "tenant\u0000other",
+    "url": "http://127.0.0.1:8080/hook",
+    "name": "a.b",
+    "arguments": "{\"x\":[1,2,3],\"y\":{\"z\":0.1}}",
+    "canonical_key": "{\"arguments\":{\"x\":[1,2,3],\"y\":{\"z\":0.1}},\"name\":\"a.b\",\"tenant\":\"tenant\\u0000other\",\"url\":\"http://127.0.0.1:8080/hook\"}",
+    "id": "sub_ecd61b914f361a61cf8c3acb09227886"
+  }
+]

@@ -10,16 +10,20 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
+	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"text/template"
 	"time"
 
-	"github.com/Masterminds/sprig/v3"
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/netguard"
 )
+
+const checkURLTimeout = 5 * time.Second
 
 const (
 	DefaultEncoding             = "hex"
@@ -29,6 +33,19 @@ const (
 	DefaultSignatureHeaderTmpl  = "v0={{.Signatures | join \",\"}}"
 	DefaultSigningSecretTmpl    = "whsec_{{.RandomHex}}"
 )
+
+// Timestamp header formats.
+const (
+	TimestampFormatRFC3339              = "rfc3339"
+	TimestampFormatUnix                 = "unix" // seconds since the epoch, as Standard Webhooks requires
+	TimestampFormatISO8601MilliNoOffset = "iso8601_milli_no_offset"
+)
+
+// TimestampLayoutISO8601MilliNoOffset renders
+// TimestampFormatISO8601MilliNoOffset: UTC with milliseconds and no offset
+// (e.g. 2026-10-05T15:02:25.447), the shape Python's
+// datetime.isoformat(timespec="milliseconds") produces for a naive datetime.
+const TimestampLayoutISO8601MilliNoOffset = "2006-01-02T15:04:05.000"
 
 // Reserved headers that cannot be set via custom_headers
 var reservedHeaders = map[string]bool{
@@ -84,21 +101,59 @@ func ValidateCustomHeaders(headers map[string]string) error {
 	return nil
 }
 
+// headerConfig is the resolved directive for a single system header: an empty
+// name with disabled=false means "use the default '<prefix>' + key".
+type headerConfig struct {
+	name     string
+	disabled bool
+}
+
 type WebhookDestination struct {
 	*destregistry.BaseProvider
+	metadataName             string
 	headerPrefix             string
 	userAgent                string
-	proxyURL                 string
+	proxy                    []*url.URL
+	guard                    *netguard.Guard
 	signatureContentTemplate string
 	signatureHeaderTemplate  string
-	disableEventIDHeader     bool
-	disableSignatureHeader   bool
-	disableTimestampHeader   bool
-	disableTopicHeader       bool
+	eventIDHeader            headerConfig
+	signatureHeader          headerConfig
+	timestampHeader          headerConfig
+	topicHeader              headerConfig
+	timestampFormat          string
 	encoding                 string
 	algorithm                string
+	secretEncoding           string
+	secretPrefix             string
+	compatConfig             *CompatSignatureConfig
+	// Built once in New() and shared by every publisher; parsed templates are
+	// safe for parallel execution. Building them per destination gave each
+	// cached publisher its own copy of two sprig function maps (~44 KB retained
+	// per publisher).
+	scheme  *signatureScheme
+	primary headerSet
+	compat  *compatSignature
+
 	rawSigningSecretTemplate string
 	signingSecretTemplate    *template.Template
+	maxResponseBodyBytes     int
+	followRedirects          bool
+
+	// httpClient is shared by every publisher this provider creates. Nothing
+	// in its configuration varies per destination — user agent, proxy and the
+	// transport wrapper are all provider-level — so a client per destination
+	// would just give each one its own two-connection idle pool. See
+	// destregistry.PoolSizing.
+	//
+	// Only connection-level concerns justify a separate client. Headers, auth,
+	// timeouts and body limits are per-request and belong on the request. If
+	// per-destination proxy settings or client certificates are ever needed,
+	// transports should be keyed by that configuration and shared within a key
+	// — not built per destination.
+	httpClient   *http.Client
+	pool         destregistry.PoolSizing
+	onConnection func(reused bool)
 }
 
 type WebhookDestinationConfig struct {
@@ -139,34 +194,104 @@ func WithUserAgent(userAgent string) Option {
 	}
 }
 
-func WithProxyURL(proxyURL string) Option {
+// WithMetadataName selects the metadata/providers entry (schema and
+// instructions) the provider is described by. Defaults to "webhook".
+func WithMetadataName(name string) Option {
 	return func(w *WebhookDestination) {
-		w.proxyURL = proxyURL
+		w.metadataName = name
 	}
 }
 
-// Add these options after the existing Option definitions
-func WithDisableDefaultEventIDHeader(disable bool) Option {
+// WithProxy routes every request through the given forward proxies,
+// nearest hop first. See proxychain.Parse.
+func WithProxy(hops []*url.URL) Option {
 	return func(w *WebhookDestination) {
-		w.disableEventIDHeader = disable
+		w.proxy = hops
 	}
 }
 
-func WithDisableDefaultSignatureHeader(disable bool) Option {
+// WithAddressGuard limits webhooks to addresses the guard allows: on
+// create/update, and on every delivery made without a forward proxy.
+func WithAddressGuard(g *netguard.Guard) Option {
 	return func(w *WebhookDestination) {
-		w.disableSignatureHeader = disable
+		w.guard = g
 	}
 }
 
-func WithDisableDefaultTimestampHeader(disable bool) Option {
+// WithMaxResponseBodyBytes caps how much of the destination response body is
+// stored on the attempt. 0 (default) disables the cap.
+func WithMaxResponseBodyBytes(maxBytes int) Option {
 	return func(w *WebhookDestination) {
-		w.disableTimestampHeader = disable
+		w.maxResponseBodyBytes = maxBytes
 	}
 }
 
-func WithDisableDefaultTopicHeader(disable bool) Option {
+// WithFollowRedirects makes deliveries follow redirects (up to 10) and judge
+// the attempt on the final response. Off by default: a 3xx fails the attempt.
+func WithFollowRedirects(follow bool) Option {
 	return func(w *WebhookDestination) {
-		w.disableTopicHeader = disable
+		w.followRedirects = follow
+	}
+}
+
+// WithConnectionPool sizes the shared client's idle connection pool. The zero
+// value leaves Go's defaults in place.
+func WithConnectionPool(pool destregistry.PoolSizing) Option {
+	return func(w *WebhookDestination) {
+		w.pool = pool
+	}
+}
+
+// WithConnectionObserver registers a callback invoked once per request with
+// whether the underlying connection was reused.
+func WithConnectionObserver(fn func(reused bool)) Option {
+	return func(w *WebhookDestination) {
+		w.onConnection = fn
+	}
+}
+
+// WithEventIDHeader sets the event ID header directive. A non-empty name pins
+// the exact header name (bypassing "<prefix>event-id"); disabled omits the
+// header. The name is trimmed of whitespace.
+func WithEventIDHeader(name string, disabled bool) Option {
+	return func(w *WebhookDestination) {
+		w.eventIDHeader = headerConfig{name: strings.TrimSpace(name), disabled: disabled}
+	}
+}
+
+// WithSignatureHeader sets the signature header directive. A non-empty name pins
+// the exact header name (bypassing "<prefix>signature"); disabled omits the
+// header. The name is trimmed of whitespace.
+func WithSignatureHeader(name string, disabled bool) Option {
+	return func(w *WebhookDestination) {
+		w.signatureHeader = headerConfig{name: strings.TrimSpace(name), disabled: disabled}
+	}
+}
+
+// WithTimestampHeader sets the timestamp header directive. A non-empty name pins
+// the exact header name (bypassing "<prefix>timestamp"); disabled omits the
+// header. The name is trimmed of whitespace.
+func WithTimestampHeader(name string, disabled bool) Option {
+	return func(w *WebhookDestination) {
+		w.timestampHeader = headerConfig{name: strings.TrimSpace(name), disabled: disabled}
+	}
+}
+
+// WithTopicHeader sets the topic header directive. A non-empty name pins the
+// exact header name (bypassing "<prefix>topic"); disabled omits the header. The
+// name is trimmed of whitespace.
+func WithTopicHeader(name string, disabled bool) Option {
+	return func(w *WebhookDestination) {
+		w.topicHeader = headerConfig{name: strings.TrimSpace(name), disabled: disabled}
+	}
+}
+
+// WithTimestampFormat sets how the timestamp header renders the delivery time:
+// TimestampFormatRFC3339 (the default), TimestampFormatUnix or
+// TimestampFormatISO8601MilliNoOffset.
+func WithTimestampFormat(format string) Option {
+	return func(w *WebhookDestination) {
+		w.timestampFormat = format
 	}
 }
 
@@ -208,42 +333,129 @@ type signingSecretTemplateData struct {
 }
 
 func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption, opts ...Option) (*WebhookDestination, error) {
-	base, err := destregistry.NewBaseProvider(loader, "webhook", basePublisherOpts...)
-	if err != nil {
-		return nil, err
-	}
-	destination := &WebhookDestination{
-		BaseProvider: base,
-	}
+	destination := &WebhookDestination{metadataName: "webhook"}
 	for _, opt := range opts {
 		opt(destination)
 	}
+	base, err := destregistry.NewBaseProvider(loader, destination.metadataName, basePublisherOpts...)
+	if err != nil {
+		return nil, err
+	}
+	destination.BaseProvider = base
 
 	// Validate all required configuration is provided
 	// Config is responsible for setting defaults - provider requires explicit values
 	// Note: headerPrefix may be empty (after trimming) to disable prefix entirely
-	if destination.encoding == "" {
-		return nil, fmt.Errorf("signature encoding is required")
-	}
-	if destination.algorithm == "" {
-		return nil, fmt.Errorf("signature algorithm is required")
-	}
-	if destination.signatureContentTemplate == "" {
-		return nil, fmt.Errorf("signature content template is required")
-	}
-	if destination.signatureHeaderTemplate == "" {
-		return nil, fmt.Errorf("signature header template is required")
-	}
 	if destination.rawSigningSecretTemplate == "" {
 		return nil, fmt.Errorf("signing secret template is required")
 	}
+	switch destination.timestampFormat {
+	case "", TimestampFormatRFC3339, TimestampFormatUnix, TimestampFormatISO8601MilliNoOffset:
+	default:
+		return nil, fmt.Errorf("invalid timestamp format %q: must be one of %s, %s, %s", destination.timestampFormat, TimestampFormatRFC3339, TimestampFormatUnix, TimestampFormatISO8601MilliNoOffset)
+	}
+	destination.scheme, err = newSignatureScheme(signatureSchemeConfig{
+		ContentTemplate: destination.signatureContentTemplate,
+		HeaderTemplate:  destination.signatureHeaderTemplate,
+		Encoding:        destination.encoding,
+		Algorithm:       destination.algorithm,
+		SecretEncoding:  destination.secretEncoding,
+		SecretPrefix:    destination.secretPrefix,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if !destination.signatureHeader.disabled {
+		destination.primary.signatureName = resolveHeaderName(destination.signatureHeader, destination.headerPrefix, "signature")
+	}
+
+	// Validate the four system headers: reject invalid/reserved pinned names, and
+	// reject collisions between the effective names (pinned name, or "<prefix>" +
+	// key) of two enabled headers. A collision would make emission order-dependent
+	// since Format writes headers from a map, so whichever iterated last would
+	// silently win.
+	seenNames := map[string]string{}
+	for _, h := range []struct {
+		label string
+		key   string
+		cfg   headerConfig
+	}{
+		{"event ID", "event-id", destination.eventIDHeader},
+		{"signature", "signature", destination.signatureHeader},
+		{"timestamp", "timestamp", destination.timestampHeader},
+		{"topic", "topic", destination.topicHeader},
+	} {
+		if h.cfg.disabled {
+			continue
+		}
+		if h.cfg.name != "" {
+			if !headerNameRegex.MatchString(h.cfg.name) {
+				return nil, fmt.Errorf("invalid %s header name %q: must match %s", h.label, h.cfg.name, headerNameRegex.String())
+			}
+			if reservedHeaders[strings.ToLower(h.cfg.name)] {
+				return nil, fmt.Errorf("invalid %s header name %q: reserved header", h.label, h.cfg.name)
+			}
+		}
+		// HTTP header names are case-insensitive, so compare lowercased.
+		effective := strings.ToLower(resolveHeaderName(h.cfg, destination.headerPrefix, h.key))
+		if other, ok := seenNames[effective]; ok {
+			return nil, fmt.Errorf("%s and %s headers resolve to the same name %q; pin distinct names or disable one", other, h.label, effective)
+		}
+		seenNames[effective] = h.label
+	}
+
+	if destination.compatConfig != nil {
+		destination.compat, err = newCompatSignature(destination.compatConfig)
+		if err != nil {
+			return nil, err
+		}
+		// Compat headers go on the request before the primary ones, so a compat
+		// name that matches a primary header would be overwritten silently.
+		for _, name := range destination.compat.names() {
+			if other, ok := seenNames[strings.ToLower(name)]; ok {
+				return nil, fmt.Errorf("compat header %q collides with the primary %s header", name, other)
+			}
+		}
+	}
 
 	// Parse signing secret template — fail on invalid syntax
-	tmpl, err := template.New("signing_secret").Funcs(sprig.TxtFuncMap()).Parse(destination.rawSigningSecretTemplate)
+	tmpl, err := template.New("signing_secret").Funcs(templateFuncs).Parse(destination.rawSigningSecretTemplate)
 	if err != nil {
 		return nil, fmt.Errorf("invalid signing secret template %q: %w", destination.rawSigningSecretTemplate, err)
 	}
 	destination.signingSecretTemplate = tmpl
+
+	// A generated secret must be usable as the primary signing key, otherwise
+	// every destination created without an explicit secret fails at delivery.
+	sample, err := destination.renderSigningSecret(sampleSigningSecretData)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := decodeSecretKey(sample, destination.secretEncoding, destination.secretPrefix); err != nil {
+		return nil, fmt.Errorf("signing secret template output %q can't be decoded with signature secret encoding %q: %w",
+			sample, destination.secretEncoding, err)
+	}
+
+	httpClient, err := destregistry.NewHTTPClient(destregistry.HTTPClientConfig{
+		UserAgent:     &destination.userAgent,
+		Proxy:         destination.proxy,
+		Guard:         destination.guard,
+		WrapTransport: WrapTransport,
+		Pool:          destination.pool,
+		OnConnection:  destination.onConnection,
+	})
+	if err != nil {
+		return nil, err
+	}
+	// When following redirects, Go's default policy applies (at most 10).
+	// Without a proxy the guard checks every hop at dial time; with one, the
+	// proxy must refuse private targets.
+	if !destination.followRedirects {
+		httpClient.CheckRedirect = func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+	}
+	destination.httpClient = httpClient
 
 	return destination, nil
 }
@@ -292,8 +504,48 @@ func (d *WebhookDestination) ObfuscateDestination(destination *models.Destinatio
 }
 
 func (d *WebhookDestination) Validate(ctx context.Context, destination *models.Destination) error {
-	if _, _, err := d.resolveConfig(ctx, destination); err != nil {
+	config, creds, err := d.resolveConfig(ctx, destination)
+	if err != nil {
 		return err
+	}
+	for field, secret := range map[string]string{
+		"credentials.secret":          creds.Secret,
+		"credentials.previous_secret": creds.PreviousSecret,
+	} {
+		if secret == "" {
+			continue
+		}
+		if _, err := d.scheme.decodeSecret(secret); err != nil {
+			return destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{
+				Field: field,
+				Type:  "invalid",
+			}})
+		}
+	}
+	return d.checkURL(ctx, config.URL)
+}
+
+// checkURL refuses a URL whose host resolves to an address the guard blocks.
+// Every failure, resolver errors included, gives the same error, so the check
+// can't be used to probe internal DNS.
+func (d *WebhookDestination) checkURL(ctx context.Context, rawURL string) error {
+	if d.guard == nil {
+		return nil
+	}
+	fail := func(errType string) error {
+		return destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{
+			Field: "config.url",
+			Type:  errType,
+		}})
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return fail("invalid")
+	}
+	ctx, cancel := context.WithTimeout(ctx, checkURLTimeout)
+	defer cancel()
+	if err := d.guard.CheckURL(ctx, u); err != nil {
+		return fail("address_not_allowed")
 	}
 	return nil
 }
@@ -329,40 +581,39 @@ func (d *WebhookDestination) CreatePublisher(ctx context.Context, destination *m
 		})
 	}
 
-	sm := NewSignatureManager(
-		secrets,
-		WithSignatureFormatter(NewSignatureFormatter(d.signatureContentTemplate)),
-		WithHeaderFormatter(NewHeaderFormatter(d.signatureHeaderTemplate)),
-		WithEncoder(GetEncoder(d.encoding)),
-		WithAlgorithm(GetAlgorithm(d.algorithm)),
-	)
-
-	var proxyURL *string
-	if d.proxyURL != "" {
-		proxyURL = &d.proxyURL
+	sm, err := d.scheme.manager(secrets)
+	if err != nil {
+		return nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{
+			Field: "credentials.secret",
+			Type:  "invalid",
+		}})
 	}
 
-	httpClient, err := destregistry.NewHTTPClient(destregistry.HTTPClientConfig{
-		UserAgent:     &d.userAgent,
-		ProxyURL:      proxyURL,
-		WrapTransport: WrapTransport,
-	})
-	if err != nil {
-		return nil, err
+	// A secret the compat scheme can't decode is left out of the compat
+	// signature: the primary one still verifies, so delivery shouldn't fail
+	// over it. With no decodable secret the compat set is skipped entirely.
+	var compatSM *SignatureManager
+	if d.compat != nil {
+		compatSM = d.compat.scheme.managerForDecodable(secrets)
 	}
 
 	return &WebhookPublisher{
-		BasePublisher:          d.BaseProvider.NewPublisher(destregistry.WithDeliveryMetadata(destination.DeliveryMetadata)),
-		httpClient:             httpClient,
-		url:                    config.URL,
-		headerPrefix:           d.headerPrefix,
-		secrets:                secrets,
-		sm:                     sm,
-		disableEventIDHeader:   d.disableEventIDHeader,
-		disableSignatureHeader: d.disableSignatureHeader,
-		disableTimestampHeader: d.disableTimestampHeader,
-		disableTopicHeader:     d.disableTopicHeader,
-		customHeaders:          config.CustomHeaders,
+		BasePublisher:        d.BaseProvider.NewPublisher(destregistry.WithDeliveryMetadata(destination.DeliveryMetadata)),
+		httpClient:           d.httpClient,
+		url:                  config.URL,
+		headerPrefix:         d.headerPrefix,
+		eventIDHeader:        d.eventIDHeader,
+		signatureHeader:      d.signatureHeader,
+		timestampHeader:      d.timestampHeader,
+		topicHeader:          d.topicHeader,
+		timestampFormat:      d.timestampFormat,
+		secrets:              secrets,
+		sm:                   sm,
+		primary:              d.primary,
+		compat:               d.compat,
+		compatSM:             compatSM,
+		customHeaders:        config.CustomHeaders,
+		maxResponseBodyBytes: d.maxResponseBodyBytes,
 	}, nil
 }
 
@@ -443,7 +694,7 @@ func (d *WebhookDestination) resolveConfig(ctx context.Context, destination *mod
 }
 
 // rotateSecret handles secret rotation and returns clean credentials
-func (d *WebhookDestination) rotateSecret(newDest, origDest *models.Destination) (map[string]string, error) {
+func (d *WebhookDestination) rotateSecret(origDest *models.Destination, opts *destregistry.PreprocessDestinationOpts) (map[string]string, error) {
 	if origDest == nil {
 		return nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
 			{
@@ -474,9 +725,11 @@ func (d *WebhookDestination) rotateSecret(newDest, origDest *models.Destination)
 	}
 	creds["secret"] = secret
 
-	// Keep custom invalidation time if provided, otherwise set default
-	if newDest.Credentials["previous_secret_invalid_at"] != "" {
-		creds["previous_secret_invalid_at"] = newDest.Credentials["previous_secret_invalid_at"]
+	// Keep custom invalidation time if provided, otherwise set default.
+	// The merged credentials can't tell us whether the caller sent the
+	// field — the raw request credentials can.
+	if invalidAt := opts.Request.Credentials["previous_secret_invalid_at"]; invalidAt != "" {
+		creds["previous_secret_invalid_at"] = invalidAt
 	} else {
 		creds["previous_secret_invalid_at"] = time.Now().Add(24 * time.Hour).Format(time.RFC3339)
 	}
@@ -607,7 +860,7 @@ func (d *WebhookDestination) Preprocess(newDestination *models.Destination, orig
 	var cleanCredentials map[string]string
 	var err error
 	if isTruthy(newDestination.Credentials["rotate_secret"]) {
-		cleanCredentials, err = d.rotateSecret(newDestination, originalDestination)
+		cleanCredentials, err = d.rotateSecret(originalDestination, opts)
 	} else {
 		cleanCredentials, err = d.updateSecret(newDestination, originalDestination, opts)
 		// For new destinations, ensure credentials are initialized if needed
@@ -631,16 +884,21 @@ func (d *WebhookDestination) Preprocess(newDestination *models.Destination, orig
 
 type WebhookPublisher struct {
 	*destregistry.BasePublisher
-	httpClient             *http.Client
-	url                    string
-	headerPrefix           string
-	secrets                []WebhookSecret
-	sm                     *SignatureManager
-	disableEventIDHeader   bool
-	disableSignatureHeader bool
-	disableTimestampHeader bool
-	disableTopicHeader     bool
-	customHeaders          map[string]string
+	httpClient           *http.Client
+	url                  string
+	headerPrefix         string
+	eventIDHeader        headerConfig
+	signatureHeader      headerConfig
+	timestampHeader      headerConfig
+	topicHeader          headerConfig
+	timestampFormat      string
+	secrets              []WebhookSecret
+	sm                   *SignatureManager
+	primary              headerSet
+	compat               *compatSignature
+	compatSM             *SignatureManager
+	customHeaders        map[string]string
+	maxResponseBodyBytes int
 }
 
 func (p *WebhookPublisher) Close() error {
@@ -656,10 +914,10 @@ func (p *WebhookPublisher) Publish(ctx context.Context, event *models.Event) (*d
 
 	httpReq, err := p.Format(ctx, event)
 	if err != nil {
-		return nil, err
+		return destregistry.NewFormatError("webhook", "", err)
 	}
 
-	result := ExecuteHTTPRequest(ctx, p.httpClient, httpReq, "webhook")
+	result := ExecuteHTTPRequest(ctx, p.httpClient, httpReq, "webhook", p.maxResponseBodyBytes)
 	return result.Delivery, result.Error
 }
 
@@ -680,44 +938,80 @@ func (p *WebhookPublisher) Format(ctx context.Context, event *models.Event) (*ht
 		req.Header.Set(key, value)
 	}
 
+	payload := SignaturePayload{
+		EventID:   event.ID,
+		Topic:     event.Topic,
+		Timestamp: now,
+		Body:      string(rawBody),
+	}
+
+	// Compat headers go on before the primary ones so the primary scheme wins
+	// on a name conflict.
+	if p.compatSM != nil {
+		if err := p.compat.apply(req, p.compatSM, payload); err != nil {
+			return nil, err
+		}
+	}
+
 	// Get merged metadata (system + event metadata) using BasePublisher
 	metadata := p.BasePublisher.MakeMetadata(event, now)
 
-	// Add headers from metadata, respecting disable flags
+	// Add headers from metadata. Known system headers respect their configured
+	// directive (disabled -> skip, custom name -> pin, default -> <prefix>+key);
+	// unknown metadata keys always use the prefix.
 	for key, value := range metadata {
-		// Check if this specific system header should be disabled
-		switch key {
-		case "timestamp":
-			if p.disableTimestampHeader {
-				continue
-			}
-		case "event-id":
-			if p.disableEventIDHeader {
-				continue
-			}
-		case "topic":
-			if p.disableTopicHeader {
-				continue
+		name, ok := p.resolveMetadataHeaderName(key)
+		if !ok {
+			continue
+		}
+		// Delivery and event metadata may override the system timestamp; only
+		// the system value is reformatted.
+		if key == "timestamp" && value == now.UTC().Format(time.RFC3339) {
+			switch p.timestampFormat {
+			case TimestampFormatUnix:
+				value = strconv.FormatInt(now.Unix(), 10)
+			case TimestampFormatISO8601MilliNoOffset:
+				value = now.UTC().Format(TimestampLayoutISO8601MilliNoOffset)
 			}
 		}
-		// Add the header with the appropriate prefix
-		req.Header.Set(p.headerPrefix+key, value)
+		req.Header.Set(name, value)
 	}
 
-	// Add signature header if not disabled
-	if !p.disableSignatureHeader {
-		signatureHeader := p.sm.GenerateSignatureHeader(SignaturePayload{
-			EventID:   event.ID,
-			Topic:     event.Topic,
-			Timestamp: now,
-			Body:      string(rawBody),
-		})
-		if signatureHeader != "" {
-			req.Header.Set(p.headerPrefix+"signature", signatureHeader)
-		}
+	if err := p.primary.apply(req, p.sm, payload); err != nil {
+		return nil, err
 	}
 
 	return req, nil
+}
+
+// resolveMetadataHeaderName returns the header name to use for a metadata key
+// and whether it should be emitted. Known system keys (event-id, timestamp,
+// topic) follow their configured directive; unknown keys always use the prefix.
+func (p *WebhookPublisher) resolveMetadataHeaderName(key string) (string, bool) {
+	var cfg headerConfig
+	switch key {
+	case "event-id":
+		cfg = p.eventIDHeader
+	case "timestamp":
+		cfg = p.timestampHeader
+	case "topic":
+		cfg = p.topicHeader
+	default:
+		return p.headerPrefix + key, true
+	}
+	if cfg.disabled {
+		return "", false
+	}
+	return resolveHeaderName(cfg, p.headerPrefix, key), true
+}
+
+// resolveHeaderName returns the pinned custom name when set, otherwise the
+// default "<prefix>" + key.
+func resolveHeaderName(cfg headerConfig, prefix, key string) string {
+	if cfg.name != "" {
+		return cfg.name
+	}
+	return prefix + key
 }
 
 // generateSignatureSecret creates a cryptographically secure random secret using the configured template.
@@ -733,12 +1027,22 @@ func (d *WebhookDestination) generateSignatureSecret() (string, error) {
 		return "", err
 	}
 
-	data := signingSecretTemplateData{
+	return d.renderSigningSecret(signingSecretTemplateData{
 		RandomHex:          hex.EncodeToString(randomBytes),
 		RandomBase64:       base64.StdEncoding.EncodeToString(randomBytes),
 		RandomAlphanumeric: alphanumeric,
-	}
+	})
+}
 
+// sampleSigningSecretData covers the full alphabet of each generated value,
+// so a template rendered with it decodes only if every generated secret would.
+var sampleSigningSecretData = signingSecretTemplateData{
+	RandomHex:          strings.Repeat("0123456789abcdef", 4),
+	RandomBase64:       base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{0xfb, 0xff, 0xbf}, 11)[:32]), // "+/+/…", padded
+	RandomAlphanumeric: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef",
+}
+
+func (d *WebhookDestination) renderSigningSecret(data signingSecretTemplateData) (string, error) {
 	var buf bytes.Buffer
 	if err := d.signingSecretTemplate.Execute(&buf, data); err != nil {
 		return "", fmt.Errorf("failed to execute signing secret template: %w", err)

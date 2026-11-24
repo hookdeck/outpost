@@ -1,62 +1,67 @@
 package portal
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func init() {
 	gin.SetMode(gin.TestMode)
 }
 
-func TestAddRoutes_NoRoute_APIReturnsJSON404(t *testing.T) {
+func TestAddRoutes_NoRoute(t *testing.T) {
 	t.Parallel()
 
-	t.Run("embedded mode returns JSON 404 for unmatched API routes", func(t *testing.T) {
-		t.Parallel()
+	const apiNotFoundBody = "from the API not-found handler"
+	apiNotFound := func(c *gin.Context) {
+		c.String(http.StatusNotFound, apiNotFoundBody)
+	}
 
-		router := gin.New()
-		AddRoutes(router, PortalConfig{})
+	configs := map[string]PortalConfig{
+		"embedded mode": {},
+		"proxy mode":    {ProxyURL: "http://localhost:19999"},
+	}
 
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", "/api/v1/nonexistent", nil)
-		router.ServeHTTP(w, req)
+	for name, config := range configs {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 
-		assert.Equal(t, http.StatusNotFound, w.Code)
+			do := func(method, path string) *httptest.ResponseRecorder {
+				router := gin.New()
+				AddRoutes(router, config, apiNotFound)
 
-		var response map[string]interface{}
-		err := json.Unmarshal(w.Body.Bytes(), &response)
-		require.NoError(t, err)
+				w := httptest.NewRecorder()
+				req, _ := http.NewRequest(method, path, nil)
+				router.ServeHTTP(w, req)
+				return w
+			}
 
-		assert.Equal(t, float64(http.StatusNotFound), response["status"])
-		assert.Equal(t, "not found", response["message"])
-	})
+			apiRequests := []struct{ method, path string }{
+				{http.MethodGet, "/api/v1/nonexistent"},
+				{http.MethodPost, "/api/v1/nonexistent"},
+				{http.MethodGet, "/api"},
+				{http.MethodPost, "/api"},
+			}
+			for _, r := range apiRequests {
+				t.Run(r.method+" "+r.path+" goes to the API not-found handler", func(t *testing.T) {
+					w := do(r.method, r.path)
 
-	t.Run("proxy mode returns JSON 404 for unmatched API routes", func(t *testing.T) {
-		t.Parallel()
+					assert.Equal(t, http.StatusNotFound, w.Code)
+					assert.Equal(t, apiNotFoundBody, w.Body.String())
+				})
+			}
 
-		router := gin.New()
-		AddRoutes(router, PortalConfig{
-			ProxyURL: "http://localhost:19999",
+			for _, path := range []string{"/apidocs", "/destinations/des_1"} {
+				t.Run("POST "+path+" does not go to the API not-found handler", func(t *testing.T) {
+					w := do(http.MethodPost, path)
+
+					assert.NotEqual(t, apiNotFoundBody, w.Body.String())
+				})
+			}
 		})
-
-		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", "/api/v1/nonexistent", nil)
-		router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusNotFound, w.Code)
-
-		var response map[string]interface{}
-		err := json.Unmarshal(w.Body.Bytes(), &response)
-		require.NoError(t, err)
-
-		assert.Equal(t, float64(http.StatusNotFound), response["status"])
-		assert.Equal(t, "not found", response["message"])
-	})
+	}
 }

@@ -23,7 +23,7 @@ Creates a new destination for the tenant. The request body structure depends on 
       client,
       args.tenantId,
       args.body,
-      { fetchOptions: { signal: ctx.signal } },
+      { fetchOptions: { signal: ctx.mcpReq.signal } },
     ).$inspect();
 
     if (!result.ok) {

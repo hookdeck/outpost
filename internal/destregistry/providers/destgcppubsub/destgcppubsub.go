@@ -17,6 +17,7 @@ import (
 
 type GCPPubSubDestination struct {
 	*destregistry.BaseProvider
+	allowCustomEndpoints bool
 }
 
 type GCPPubSubDestinationConfig struct {
@@ -31,15 +32,30 @@ type GCPPubSubDestinationCredentials struct {
 
 var _ destregistry.Provider = (*GCPPubSubDestination)(nil)
 
-func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption) (*GCPPubSubDestination, error) {
+type Option func(*GCPPubSubDestination)
+
+func WithAllowCustomEndpoints(allow bool) Option {
+	return func(p *GCPPubSubDestination) {
+		p.allowCustomEndpoints = allow
+	}
+}
+
+func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption, opts ...Option) (*GCPPubSubDestination, error) {
 	base, err := destregistry.NewBaseProvider(loader, "gcp_pubsub", basePublisherOpts...)
 	if err != nil {
 		return nil, err
 	}
 
-	return &GCPPubSubDestination{
+	provider := &GCPPubSubDestination{
 		BaseProvider: base,
-	}, nil
+	}
+	for _, opt := range opts {
+		opt(provider)
+	}
+	if !provider.allowCustomEndpoints {
+		provider.OmitConfigField(destregistry.ConfigKeyEndpoint)
+	}
+	return provider, nil
 }
 
 func (d *GCPPubSubDestination) Validate(ctx context.Context, destination *models.Destination) error {
@@ -53,14 +69,10 @@ func (d *GCPPubSubDestination) Validate(ctx context.Context, destination *models
 func (d *GCPPubSubDestination) CreatePublisher(ctx context.Context, destination *models.Destination) (destregistry.Publisher, error) {
 	cfg, creds, err := d.resolveMetadata(ctx, destination)
 	if err != nil {
-		return nil, destregistry.NewErrDestinationPublishAttempt(err, "gcp_pubsub", map[string]interface{}{
-			"error":   "validation_failed",
-			"message": err.Error(),
-		})
+		return nil, err
 	}
 
-	// Create Pub/Sub client options
-	var opts []option.ClientOption
+	opts := []option.ClientOption{option.WithTelemetryDisabled()}
 
 	// Check for emulator endpoint (for testing)
 	if cfg.Endpoint != "" {
@@ -99,6 +111,10 @@ func (d *GCPPubSubDestination) resolveMetadata(ctx context.Context, destination 
 		return nil, nil, err
 	}
 
+	if err := destregistry.ValidateCustomEndpointAllowed(d.allowCustomEndpoints, destination); err != nil {
+		return nil, nil, err
+	}
+
 	// Validate service_account_json is valid JSON (if not using emulator endpoint)
 	serviceAccountJSON := destination.Credentials["service_account_json"]
 	endpoint := destination.Config["endpoint"]
@@ -120,6 +136,15 @@ func (d *GCPPubSubDestination) resolveMetadata(ctx context.Context, destination 
 				{
 					Field: "credentials.service_account_json",
 					Type:  "missing_type",
+				},
+			})
+		}
+		// This provider only supports service account keys; reject any other credential type.
+		if credType, _ := jsonCheck["type"].(string); credType != "service_account" {
+			return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
+				{
+					Field: "credentials.service_account_json",
+					Type:  "invalid_type",
 				},
 			})
 		}
@@ -184,7 +209,7 @@ func (pub *GCPPubSubPublisher) Publish(ctx context.Context, event *models.Event)
 	// Format the message
 	msg, err := pub.Format(ctx, event)
 	if err != nil {
-		return nil, err
+		return destregistry.NewFormatError("gcp_pubsub", "", err)
 	}
 
 	// Publish the message

@@ -3,6 +3,7 @@ package memlogstore
 import (
 	"context"
 	"fmt"
+	"math"
 	"slices"
 	"time"
 
@@ -202,6 +203,7 @@ func (s *memLogStore) QueryAttemptMetrics(ctx context.Context, req driver.Metric
 	var data []driver.AttemptMetricsDataPoint
 	for key, attempts := range groups {
 		dp := driver.AttemptMetricsDataPoint{}
+		var latencies []float64 // built on first latency measure
 
 		if key.timeBucket != "" {
 			tb, _ := time.Parse(time.RFC3339, key.timeBucket)
@@ -292,6 +294,20 @@ func (s *memLogStore) QueryAttemptMetrics(ctx context.Context, req driver.Metric
 					avg = float64(total) / float64(len(attempts))
 				}
 				dp.AvgAttemptNumber = &avg
+			case "avg_latency", "p50_latency", "p95_latency", "p99_latency":
+				if latencies == nil {
+					latencies = sortedLatencies(attempts)
+				}
+				switch measure {
+				case "avg_latency":
+					dp.AvgLatency = meanLatency(latencies)
+				case "p50_latency":
+					dp.P50Latency = percentileLatency(latencies, 0.5)
+				case "p95_latency":
+					dp.P95Latency = percentileLatency(latencies, 0.95)
+				case "p99_latency":
+					dp.P99Latency = percentileLatency(latencies, 0.99)
+				}
 			}
 		}
 
@@ -422,4 +438,47 @@ func countByStatus(attempts []attemptWithEvent, status string) int {
 type attemptWithEvent struct {
 	attempt *models.Attempt
 	event   *models.Event
+}
+
+// sortedLatencies returns the group's recorded latencies in ascending order,
+// skipping attempts without one.
+func sortedLatencies(attempts []attemptWithEvent) []float64 {
+	out := make([]float64, 0, len(attempts))
+	for _, ae := range attempts {
+		if ae.attempt.LatencyMs != nil {
+			out = append(out, float64(*ae.attempt.LatencyMs))
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
+// meanLatency returns nil when no attempt recorded a latency.
+func meanLatency(sorted []float64) *float64 {
+	if len(sorted) == 0 {
+		return nil
+	}
+	sum := 0.0
+	for _, v := range sorted {
+		sum += v
+	}
+	mean := sum / float64(len(sorted))
+	return &mean
+}
+
+// percentileLatency interpolates between closest ranks, like percentile_cont.
+// Returns nil for an empty input.
+func percentileLatency(sorted []float64, p float64) *float64 {
+	n := len(sorted)
+	if n == 0 {
+		return nil
+	}
+	rank := p * float64(n-1)
+	lo := int(math.Floor(rank))
+	hi := int(math.Ceil(rank))
+	v := sorted[lo]
+	if hi != lo {
+		v += (rank - float64(lo)) * (sorted[hi] - sorted[lo])
+	}
+	return &v
 }

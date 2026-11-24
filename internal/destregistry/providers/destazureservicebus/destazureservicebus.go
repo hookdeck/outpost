@@ -149,7 +149,7 @@ func (p *AzureServiceBusPublisher) Publish(ctx context.Context, event *models.Ev
 
 	message, err := p.Format(ctx, event)
 	if err != nil {
-		return nil, err
+		return destregistry.NewFormatError("azure_servicebus", "", err)
 	}
 
 	sender, err := p.ensureSender()

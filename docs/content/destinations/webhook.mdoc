@@ -29,7 +29,7 @@ curl '{% $OUTPOST_API_BASE_URL %}/tenants/<TENANT_ID>/destinations' \
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `config.url` | string | Yes | The URL to send events to |
+| `config.url` | string | Yes | The URL to send events to. Outpost doesn't follow redirects; a 3xx response fails the attempt and its `Location` is recorded in the response data. Use the endpoint's final URL. Self-hosted deployments can follow redirects with [`DESTINATIONS_WEBHOOK_FOLLOW_REDIRECTS`](/docs/outpost/self-hosting/configuration) |
 | `config.custom_headers` | string | No | JSON object of custom HTTP headers to include |
 
 ### Credentials
@@ -74,7 +74,7 @@ The request body contains the event's `data` field as JSON. The `metadata` field
 
 Webhook delivery is **at-least-once** (see [Event delivery & retries](/docs/outpost/features/event-delivery)). Your handler should deduplicate using the **event id** — the same stable `id` you set when [publishing](/docs/outpost/publishing/events) (Outpost may redeliver on retries).
 
-In **default** mode, that id is sent as the system **`event-id`** metadata field. The HTTP header name is **`{header_prefix}{metadata-key}`** with **no extra separator** — the prefix and key are concatenated as-is. So the default prefix `x-outpost-` plus `event-id` yields **`X-Outpost-Event-Id`**; a prefix without a trailing separator (for example `x-acme`) would produce `x-acme` + `event-id` → **`X-Acmeevent-Id`** (Go canonicalizes the wire name). Include a trailing hyphen in the prefix when you want a conventional shape like **`X-Acme-Event-Id`**. Change the prefix with **`DESTINATIONS_WEBHOOK_HEADER_PREFIX`**, or omit this header with **`DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER`**.
+In **default** mode, that id is sent as the system **`event-id`** metadata field. The HTTP header name is **`{header_prefix}{metadata-key}`** with **no extra separator** — the prefix and key are concatenated as-is. So the default prefix `x-outpost-` plus `event-id` yields **`X-Outpost-Event-Id`**; a prefix without a trailing separator (for example `x-acme`) would produce `x-acme` + `event-id` → **`X-Acmeevent-Id`** (Go canonicalizes the wire name). Include a trailing hyphen in the prefix when you want a conventional shape like **`X-Acme-Event-Id`**. Change the prefix with **`DESTINATIONS_WEBHOOK_HEADER_PREFIX`**, pin the full header name with **`DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME`**, or omit this header by setting that variable to an empty string.
 
 In **Standard Webhooks** mode, the same value is sent as the **`webhook-id`** header (default prefix `webhook-`, so typically **`Webhook-Id`**) per the [Standard Webhooks](https://www.standardwebhooks.com/) specification.
 
@@ -82,7 +82,7 @@ In **Standard Webhooks** mode, the same value is sent as the **`webhook-id`** he
 
 ### Default Mode
 
-The signature is computed over the timestamp and request body:
+The signature is computed over the request body:
 
 ```
 HMAC-SHA256(secret, "${body}")
@@ -90,11 +90,103 @@ HMAC-SHA256(secret, "${body}")
 
 The `x-outpost-signature` header value follows the format: `v0=${signature}`
 
+If the destination has an unexpired `previous_secret` during secret rotation, Outpost includes one signature for each valid secret in the same header. The current secret's signature is first, followed by the previous secret's signature:
+`v0=<signature-from-current-secret>,<signature-from-previous-secret>`
+
 To verify:
-1. Extract the timestamp and signature from the header
-2. Compute the expected signature using your secret
-3. Compare signatures using a constant-time comparison
-4. Optionally reject requests with old timestamps to prevent replay attacks
+1. Extract the signature header
+2. Split the `v0=` value on commas
+3. Compute the expected signature using each active secret you accept
+4. Accept the request if any signature matches using a constant-time comparison
+
+For a full walkthrough with code examples in Node.js, Python, and Go, see [Verify Webhook Signatures](/docs/outpost/guides/verify-webhook-signatures).
+
+#### Custom signature templates
+
+In default mode, operators can customize both the signed content and the signature header value:
+
+- `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE` controls the string passed to HMAC.
+- `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE` controls the value written to the signature header.
+
+These use the same configuration key names in both deployment models, but they are applied differently: Managed Outpost stores them through the Config API or Hookdeck dashboard, while self-hosted Outpost reads them from environment variables or YAML configuration.
+
+Templates use [Go template syntax](https://pkg.go.dev/text/template). Besides Go's built-in functions (such as `index`, `slice`, `printf` and `len`), templates can use these functions from [Sprig](https://masterminds.github.io/sprig/): `join`, `upper`, `lower`, `trim`, `trimPrefix`, `trimSuffix`, `replace`, `b64enc` and `default`. The same set applies to every webhook template, including `DESTINATIONS_WEBHOOK_SIGNING_SECRET_TEMPLATE` and the compat signature templates.
+
+The two templates accept different fields:
+
+| Field | Description | Content template | Header template |
+|-------|-------------|------------------|-----------------|
+| `.EventID` | Event id used for the delivery | yes | yes |
+| `.Topic` | Event topic | yes | yes |
+| `.Timestamp` | Delivery timestamp | yes | yes |
+| `.Body` | Raw request body | yes | — |
+| `.Signatures` | List of generated signatures for all valid secrets | — | yes |
+
+A field marked `—` is not available in that template. Using it does not render as an empty value — the template still parses, but the configuration is rejected at startup.
+
+During secret rotation, `.Signatures` contains the current secret's signature first and the previous secret's signature second.
+
+For example, to include a Unix timestamp in the signed content and header, use these template values:
+
+```
+{{.Timestamp.Unix}}.{{.Body}}
+t={{.Timestamp.Unix}},v0={{.Signatures | join ","}}
+```
+
+These are the literal template values. If the format carrying them requires escaping — the inner quotes in a JSON string, or in a double-quoted shell string — apply that format's own escaping; a JSON library or the dashboard does this for you.
+
+{% tabs tabGroup="deployment" %}
+{% tab label="Managed" %}
+Set the values in the [Config API](/docs/outpost/api#configuration) or in [Hookdeck Destinations settings](https://dashboard.hookdeck.com/settings/project/destinations). For the Config API, send the configuration keys in the JSON body:
+
+```json
+{
+  "DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE": "{{.Timestamp.Unix}}.{{.Body}}",
+  "DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE": "t={{.Timestamp.Unix}},v0={{.Signatures | join \",\"}}"
+}
+```
+{% /tab %}
+{% tab label="Self-Hosted" %}
+Set the values as environment variables. In a double-quoted shell string the inner quotes are escaped:
+
+```sh
+DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE="{{.Timestamp.Unix}}.{{.Body}}"
+DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE="t={{.Timestamp.Unix}},v0={{.Signatures | join \",\"}}"
+```
+
+In a `.env` file or a Compose `environment:` entry, write the value unquoted:
+
+```sh
+DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE={{.Timestamp.Unix}}.{{.Body}}
+DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE=t={{.Timestamp.Unix}},v0={{.Signatures | join ","}}
+```
+
+You can also set `signature_content_template` and `signature_header_template` in YAML under `destinations.webhook`. Use single quotes — YAML takes a single-quoted scalar as-is, while a value starting with `{{` cannot be written unquoted, and a double-quoted one needs the inner quotes escaped as `\"`:
+
+```yaml
+destinations:
+  webhook:
+    signature_content_template: '{{.Timestamp.Unix}}.{{.Body}}'
+    signature_header_template: 't={{.Timestamp.Unix}},v0={{.Signatures | join ","}}'
+```
+{% /tab %}
+{% /tabs %}
+
+With one secret, the header looks like:
+
+```
+x-outpost-signature: t=1717249416,v0=<signature-from-current-secret>
+```
+
+During rotation, the same template preserves both signatures:
+
+```
+x-outpost-signature: t=1717249416,v0=<signature-from-current-secret>,<signature-from-previous-secret>
+```
+
+If you customize `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE`, keep `.Signatures` in the output so receivers can verify requests during secret rotation.
+
+Changing the signature scheme breaks verification for existing receivers. To give them a transition window, send the old signature alongside the new one. See [Change Webhook Signature Scheme](/docs/outpost/guides/change-webhook-signature-scheme).
 
 ### Standard Webhooks Mode
 
@@ -105,6 +197,12 @@ base64(HMAC-SHA256(secret, "${webhook-id}.${timestamp}.${body}"))
 ```
 
 Use the official [Standard Webhooks SDK](https://github.com/standard-webhooks/standard-webhooks/tree/main/libraries) to verify signatures. Secrets use the `whsec_<base64>` format.
+
+During secret rotation, Outpost includes one Standard Webhooks signature entry per valid secret in the `webhook-signature` header. The current secret's signature is first, followed by the previous secret's signature:
+
+```
+webhook-signature: v1,<signature-from-current-secret> v1,<signature-from-previous-secret>
+```
 
 {% tabs tabGroup="deployment" %}
 {% tab label="Managed" %}
@@ -140,7 +238,17 @@ When rotation is triggered:
 1. The current secret becomes `previous_secret`
 2. A new secret is generated
 3. The previous secret remains valid until `previous_secret_invalid_at` (default: 24 hours)
-4. Both secrets appear in the signature header during the rotation window
+4. During the rotation window, the signature header contains signatures generated with both valid secrets
+5. After `previous_secret_invalid_at`, the previous secret is no longer included and the signature header returns to a single signature
+
+Signature header format depends on the webhook mode. With the default header prefix:
+
+| Mode | Header | During rotation |
+|------|--------|-----------------|
+| Default | `x-outpost-signature` | `v0=<signature-from-current-secret>,<signature-from-previous-secret>` |
+| Standard Webhooks | `webhook-signature` | `v1,<signature-from-current-secret> v1,<signature-from-previous-secret>` |
+
+Receivers should treat rotation as an allow-list period: verify the request against the current secret and the previous secret, and accept the request if any signature in the header matches one of those secrets. Outpost signs with the current secret first.
 
 ## Custom Headers
 
@@ -175,11 +283,24 @@ PORTAL_ENABLE_WEBHOOK_CUSTOM_HEADERS=true
 {% /tab %}
 {% /tabs %}
 
+## Forward Proxy
+
+Webhook deliveries can be routed through an HTTP forward proxy — useful for static-IP egress, network isolation, or centralized egress policy.
+
+{% tabs tabGroup="deployment" %}
+{% tab label="Managed" %}
+Set the proxy URL (basic auth supported) in [Hookdeck Destinations settings](https://dashboard.hookdeck.com/settings/project/destinations), or via the [Config API](/docs/outpost/api#configuration) using `DESTINATIONS_PROXY_URL`; it also covers RabbitMQ and Kafka destinations. `DESTINATIONS_WEBHOOK_PROXY_URL` still works but is deprecated.
+{% /tab %}
+{% tab label="Self-Hosted" %}
+Set `DESTINATIONS_PROXY_URL` to your proxy URL (basic auth supported); it also covers RabbitMQ and Kafka destinations. `DESTINATIONS_WEBHOOK_PROXY_URL` still works for webhooks but is deprecated. See [Webhook Forward Proxy](/docs/outpost/self-hosting/guides/webhook-proxy) for failure attribution, Envoy support, and a reference Envoy config.
+{% /tab %}
+{% /tabs %}
+
 ## Operator Configuration
 
 {% tabs tabGroup="deployment" %}
 {% tab label="Managed" %}
-Configure webhook operator behavior using these keys in the Config API or in [Hookdeck Destinations settings](https://dashboard.hookdeck.com/settings/project/destinations): `DESTINATIONS_WEBHOOK_HEADER_PREFIX`, `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER`, `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TIMESTAMP_HEADER`, `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER`, `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER`, `DESTINATIONS_WEBHOOK_MODE`, `DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM`, `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING`, `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE`, and `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE`.
+Configure webhook operator behavior using these keys in the Config API or in [Hookdeck Destinations settings](https://dashboard.hookdeck.com/settings/project/destinations): `DESTINATIONS_WEBHOOK_HEADER_PREFIX`, `DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME`, `DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME`, `DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME`, `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME`, `DESTINATIONS_WEBHOOK_TIMESTAMP_FORMAT`, `DESTINATIONS_WEBHOOK_MODE`, `DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM`, `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING`, `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE`, `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE`, and `DESTINATIONS_WEBHOOK_MAX_RESPONSE_BODY_BYTES`.
 {% /tab %}
 {% tab label="Self-Hosted" %}
 ### Header Settings
@@ -187,19 +308,42 @@ Configure webhook operator behavior using these keys in the Config API or in [Ho
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DESTINATIONS_WEBHOOK_HEADER_PREFIX` | `x-outpost-` / `webhook-` | Prefix for system webhook headers (event id, topic, timestamp, signature). Unless overridden, defaults to **`x-outpost-`** when `DESTINATIONS_WEBHOOK_MODE` is `default` and **`webhook-`** when `standard`. |
-| `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER` | `false` | Disable the event ID header |
-| `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TIMESTAMP_HEADER` | `false` | Disable the timestamp header |
-| `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER` | `false` | Disable the topic header |
-| `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER` | `false` | Disable the signature header |
+| `DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME` | — | Complete name of the event ID header. Unset uses the default `<prefix>event-id`; an explicit value pins that exact name; an empty string disables the header. Only applies to `default` mode. |
+| `DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME` | — | Complete name of the timestamp header. Unset uses the default `<prefix>timestamp`; an explicit value pins that exact name; an empty string disables the header. Only applies to `default` mode. |
+| `DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME` | — | Complete name of the topic header. Unset uses the default `<prefix>topic`; an explicit value pins that exact name; an empty string disables the header. |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME` | — | Complete name of the signature header. Unset uses the default `<prefix>signature`; an explicit value pins that exact name; an empty string disables the header. Only applies to `default` mode. |
+| `DESTINATIONS_WEBHOOK_TIMESTAMP_FORMAT` | `rfc3339` / `unix` | Format of the timestamp header: `rfc3339`, `unix` (seconds since the epoch) or `iso8601_milli_no_offset` (UTC with milliseconds and no offset, e.g. `2026-10-05T15:02:25.447`). Only applies to `default` mode. |
+
+{% callout type="warning" %}
+The `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_*_HEADER` flags are deprecated and will be removed in a future version. Disable a header by setting its corresponding `*_HEADER_NAME` variable to an empty string instead.
+{% /callout %}
+
+{% callout type="info" %}
+Header names are matched case-insensitively. Outpost rejects a configuration where two system headers resolve to the same name (for example pinning both event id and topic to `x-acme`). Also avoid pinning a system header to a name you also set via per-destination `custom_headers` — the last write wins and the result is not guaranteed.
+{% /callout %}
 
 ### Signature Settings
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DESTINATIONS_WEBHOOK_MODE` | `default` | Set to `standard` for Standard Webhooks compliance |
-| `DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM` | `hmac-sha256` | Signature algorithm |
-| `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING` | `hex` | Encoding: `hex` or `base64` |
-| `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE` | `{{.Body}}` | Template for signed content |
-| `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE` | `v0={{.Signatures \| join ","}}` | Template for signature header value |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM` | `hmac-sha256` | Signature algorithm. Only applies to `default` mode. |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING` | `hex` | Encoding: `hex` or `base64`. Only applies to `default` mode. |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_CONTENT_TEMPLATE` | `{{.Body}}` | Template for signed content. Only applies to `default` mode. |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_TEMPLATE` | `v0={{.Signatures \| join ","}}` | Template for signature header value. Only applies to `default` mode. |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING` | `raw` | How the HMAC key is derived from the destination secret: `raw` uses the secret string as-is, `base64` and `hex` decode it. Only applies to `default` mode. |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_PREFIX` | — | Prefix stripped from the destination secret before decoding, e.g. `whsec_`. Ignored when the secret encoding is `raw`. Only applies to `default` mode. |
+
+### Compat Signature
+
+A second signature in your previous format, sent alongside the primary one while receivers migrate. Enabled by setting `DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_NAME`; the other options mirror the signature settings above under `DESTINATIONS_WEBHOOK_COMPAT_*`. See [Change Webhook Signature Scheme](/docs/outpost/guides/change-webhook-signature-scheme) for the full option list and migration flows.
+
+### Response Handling
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DESTINATIONS_WEBHOOK_MAX_RESPONSE_BODY_BYTES` | `131072` (128 KiB) | Max bytes of the destination's response body stored on the delivery attempt. Set to `0` to disable the cap. |
+
+Outpost stores the destination's response body on each delivery attempt so it's visible in the event log. A very large response can make the attempt log exceed the event queue's per-message size limit — that delivery then fails to record and is retried indefinitely. `DESTINATIONS_WEBHOOK_MAX_RESPONSE_BODY_BYTES` bounds the stored body; it defaults to `131072` (128 KiB), sized against the strictest per-message limits of supported queues (256 KiB for SQS and Azure Service Bus standard tier) while leaving room for the event payload. Responses larger than the limit are replaced with a placeholder (`Response body exceeded <N> bytes and was not stored`) rather than truncated, so the rest of the attempt is logged normally. Tune it to your queue's per-message limit minus your typical event payload size, or set `0` to store the full body with no limit.
 {% /tab %}
 {% /tabs %}

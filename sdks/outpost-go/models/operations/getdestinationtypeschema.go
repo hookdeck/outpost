@@ -12,15 +12,17 @@ import (
 type Type string
 
 const (
-	TypeWebhook         Type = "webhook"
-	TypeAwsSqs          Type = "aws_sqs"
-	TypeRabbitmq        Type = "rabbitmq"
-	TypeHookdeck        Type = "hookdeck"
-	TypeAwsKinesis      Type = "aws_kinesis"
-	TypeAzureServicebus Type = "azure_servicebus"
-	TypeAwsS3           Type = "aws_s3"
-	TypeGcpPubsub       Type = "gcp_pubsub"
-	TypeKafka           Type = "kafka"
+	TypeWebhook          Type = "webhook"
+	TypeAwsSqs           Type = "aws_sqs"
+	TypeRabbitmq         Type = "rabbitmq"
+	TypeHookdeck         Type = "hookdeck"
+	TypeAwsKinesis       Type = "aws_kinesis"
+	TypeAzureServicebus  Type = "azure_servicebus"
+	TypeAwsS3            Type = "aws_s3"
+	TypeGcpPubsub        Type = "gcp_pubsub"
+	TypeKafka            Type = "kafka"
+	TypeCloudflareQueues Type = "cloudflare_queues"
+	TypeAwsEventbridge   Type = "aws_eventbridge"
 )
 
 func (e Type) ToPointer() *Type {
@@ -49,6 +51,10 @@ func (e *Type) UnmarshalJSON(data []byte) error {
 	case "gcp_pubsub":
 		fallthrough
 	case "kafka":
+		fallthrough
+	case "cloudflare_queues":
+		fallthrough
+	case "aws_eventbridge":
 		*e = Type(v)
 		return nil
 	default:

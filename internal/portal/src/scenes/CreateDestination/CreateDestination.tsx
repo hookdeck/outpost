@@ -10,7 +10,14 @@ import {
   useNavigate,
   useSearchParams,
 } from "react-router-dom";
-import { useState, useMemo, useCallback, useEffect, createContext, useContext } from "react";
+import {
+  useState,
+  useMemo,
+  useCallback,
+  useEffect,
+  createContext,
+  useContext,
+} from "react";
 import type { DestinationTypeReference } from "../../typings/Destination";
 import { useDestinationTypes } from "../../destination-types";
 import CONFIGS from "../../config";
@@ -73,8 +80,9 @@ export default function CreateDestination() {
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const destinationTypes = useDestinationTypes();
-  const hasDestinationTypes = Object.keys(destinationTypes).length > 0;
+  const loadedDestinationTypes = useDestinationTypes();
+  const hasDestinationTypes = loadedDestinationTypes !== undefined;
+  const destinationTypes = loadedDestinationTypes ?? {};
 
   // Hydrate stepValues from URL search params on mount (supports page refresh)
   const [stepValues, setStepValues] = useState<Record<string, any>>(() => {
@@ -145,7 +153,15 @@ export default function CreateDestination() {
       steps,
       buildSearchParams,
     }),
-    [stepValues, setStepValues, destinationTypes, hasDestinationTypes, nextPath, steps, buildSearchParams],
+    [
+      stepValues,
+      setStepValues,
+      destinationTypes,
+      hasDestinationTypes,
+      nextPath,
+      steps,
+      buildSearchParams,
+    ],
   );
 
   return (

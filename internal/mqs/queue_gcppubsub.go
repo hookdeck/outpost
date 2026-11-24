@@ -23,7 +23,8 @@ type GCPPubSubConfig struct {
 }
 
 type GCPPubSubQueue struct {
-	once              *sync.Once
+	mu                sync.Mutex
+	initialized       bool
 	base              *wrappedBaseQueue
 	config            *GCPPubSubConfig
 	visibilityTimeout time.Duration
@@ -34,23 +35,26 @@ type GCPPubSubQueue struct {
 var _ Queue = &GCPPubSubQueue{}
 
 func NewGCPPubSubQueue(config *GCPPubSubConfig, visibilityTimeout time.Duration) *GCPPubSubQueue {
-	var once sync.Once
 	return &GCPPubSubQueue{
 		config:            config,
 		visibilityTimeout: visibilityTimeout,
-		once:              &once,
 		base:              newWrappedBaseQueue(),
 		cleanupFns:        []func(){},
 	}
 }
 
 func (q *GCPPubSubQueue) Init(ctx context.Context) (func(), error) {
-	var err error
-	q.once.Do(func() {
-		err = q.initTopic(ctx)
-	})
-	if err != nil {
-		return nil, err
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if !q.initialized {
+		if err := q.initTopic(ctx); err != nil {
+			for _, fn := range q.cleanupFns {
+				fn()
+			}
+			q.cleanupFns = nil
+			return nil, err
+		}
+		q.initialized = true
 	}
 	return func() {
 		for _, fn := range q.cleanupFns {
@@ -184,6 +188,7 @@ func (q *GCPPubSubQueue) Subscribe(ctx context.Context, opts ...SubscribeOption)
 			m := &Message{
 				QueueMessage: &gcpNativeAcker{msg: msg},
 				LoggableID:   msg.ID,
+				ID:           msg.ID,
 				Body:         msg.Data,
 			}
 			select {

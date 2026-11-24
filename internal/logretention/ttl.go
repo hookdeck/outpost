@@ -49,7 +49,7 @@ func sync(ctx context.Context, ps policyStore, ls logStoreTTL, desiredTTLDays in
 		return nil
 	}
 
-	logger.Info("applying log retention TTL",
+	logger.Debug("applying log retention TTL",
 		zap.Int("old_ttl_days", persistedTTL),
 		zap.Int("new_ttl_days", desiredTTLDays))
 
@@ -61,7 +61,7 @@ func sync(ctx context.Context, ps policyStore, ls logStoreTTL, desiredTTLDays in
 		return fmt.Errorf("failed to persist TTL: %w", err)
 	}
 
-	logger.Info("log retention TTL applied successfully",
+	logger.Debug("log retention TTL applied successfully",
 		zap.Int("ttl_days", desiredTTLDays))
 
 	return nil

@@ -39,7 +39,7 @@ const (
 	TopicsTypeArrayOfStr TopicsType = "arrayOfStr"
 )
 
-// Topics - "*" or an array of enabled topics.
+// Topics - "*" or an array of enabled topics. Topic strings can include "*" as a wildcard matching any run of characters. When available topics are configured, wildcard patterns must match at least one available topic.
 type Topics struct {
 	TopicsEnum *TopicsEnum `queryParam:"inline" union:"member"`
 	ArrayOfStr []string    `queryParam:"inline" union:"member"`
@@ -65,7 +65,14 @@ func CreateTopicsArrayOfStr(arrayOfStr []string) Topics {
 	}
 }
 
-func (u *Topics) UnmarshalJSON(data []byte) error {
+func (u *Topics) UnmarshalJSON(data []byte) (err error) {
+	previous := *u
+	*u = Topics{}
+	defer func() {
+		if err != nil {
+			*u = previous
+		}
+	}()
 
 	var topicsEnum TopicsEnum = TopicsEnum("")
 	if err := utils.UnmarshalJSON(data, &topicsEnum, "", true, nil); err == nil {

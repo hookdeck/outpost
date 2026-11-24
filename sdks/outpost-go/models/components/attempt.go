@@ -38,6 +38,81 @@ func (e *Status) UnmarshalJSON(data []byte) error {
 	}
 }
 
+// EventSummary - Event object without data (returned when include=event).
+type EventSummary struct {
+	ID *string `json:"id,omitempty"`
+	// The tenant this event belongs to.
+	TenantID *string `json:"tenant_id,omitempty"`
+	// The destination this event was delivered to.
+	DestinationID *string `json:"destination_id,omitempty"`
+	Topic         *string `json:"topic,omitempty"`
+	// Time the event was received.
+	Time *time.Time `json:"time,omitempty"`
+	// Whether this event can be retried.
+	EligibleForRetry *bool                                                `json:"eligible_for_retry,omitempty"`
+	Metadata         optionalnullable.OptionalNullable[map[string]string] `json:"metadata,omitempty"`
+}
+
+func (e EventSummary) MarshalJSON() ([]byte, error) {
+	return utils.MarshalJSON(e, "", false)
+}
+
+func (e *EventSummary) UnmarshalJSON(data []byte) error {
+	if err := utils.UnmarshalJSON(data, &e, "", false, nil); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (e *EventSummary) GetID() *string {
+	if e == nil {
+		return nil
+	}
+	return e.ID
+}
+
+func (e *EventSummary) GetTenantID() *string {
+	if e == nil {
+		return nil
+	}
+	return e.TenantID
+}
+
+func (e *EventSummary) GetDestinationID() *string {
+	if e == nil {
+		return nil
+	}
+	return e.DestinationID
+}
+
+func (e *EventSummary) GetTopic() *string {
+	if e == nil {
+		return nil
+	}
+	return e.Topic
+}
+
+func (e *EventSummary) GetTime() *time.Time {
+	if e == nil {
+		return nil
+	}
+	return e.Time
+}
+
+func (e *EventSummary) GetEligibleForRetry() *bool {
+	if e == nil {
+		return nil
+	}
+	return e.EligibleForRetry
+}
+
+func (e *EventSummary) GetMetadata() optionalnullable.OptionalNullable[map[string]string] {
+	if e == nil {
+		return nil
+	}
+	return e.Metadata
+}
+
 // EventFull - Full event object with data (returned when include=event.data).
 type EventFull struct {
 	ID *string `json:"id,omitempty"`
@@ -122,103 +197,19 @@ func (e *EventFull) GetData() map[string]any {
 	return e.Data
 }
 
-// EventSummary - Event object without data (returned when include=event).
-type EventSummary struct {
-	ID *string `json:"id,omitempty"`
-	// The tenant this event belongs to.
-	TenantID *string `json:"tenant_id,omitempty"`
-	// The destination this event was delivered to.
-	DestinationID *string `json:"destination_id,omitempty"`
-	Topic         *string `json:"topic,omitempty"`
-	// Time the event was received.
-	Time *time.Time `json:"time,omitempty"`
-	// Whether this event can be retried.
-	EligibleForRetry *bool                                                `json:"eligible_for_retry,omitempty"`
-	Metadata         optionalnullable.OptionalNullable[map[string]string] `json:"metadata,omitempty"`
-}
-
-func (e EventSummary) MarshalJSON() ([]byte, error) {
-	return utils.MarshalJSON(e, "", false)
-}
-
-func (e *EventSummary) UnmarshalJSON(data []byte) error {
-	if err := utils.UnmarshalJSON(data, &e, "", false, nil); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (e *EventSummary) GetID() *string {
-	if e == nil {
-		return nil
-	}
-	return e.ID
-}
-
-func (e *EventSummary) GetTenantID() *string {
-	if e == nil {
-		return nil
-	}
-	return e.TenantID
-}
-
-func (e *EventSummary) GetDestinationID() *string {
-	if e == nil {
-		return nil
-	}
-	return e.DestinationID
-}
-
-func (e *EventSummary) GetTopic() *string {
-	if e == nil {
-		return nil
-	}
-	return e.Topic
-}
-
-func (e *EventSummary) GetTime() *time.Time {
-	if e == nil {
-		return nil
-	}
-	return e.Time
-}
-
-func (e *EventSummary) GetEligibleForRetry() *bool {
-	if e == nil {
-		return nil
-	}
-	return e.EligibleForRetry
-}
-
-func (e *EventSummary) GetMetadata() optionalnullable.OptionalNullable[map[string]string] {
-	if e == nil {
-		return nil
-	}
-	return e.Metadata
-}
-
 type EventUnionType string
 
 const (
-	EventUnionTypeEventSummary EventUnionType = "EventSummary"
 	EventUnionTypeEventFull    EventUnionType = "EventFull"
+	EventUnionTypeEventSummary EventUnionType = "EventSummary"
 )
 
 // EventUnion - The associated event object. Only present when include=event or include=event.data.
 type EventUnion struct {
-	EventSummary *EventSummary `queryParam:"inline" union:"member"`
 	EventFull    *EventFull    `queryParam:"inline" union:"member"`
+	EventSummary *EventSummary `queryParam:"inline" union:"member"`
 
 	Type EventUnionType
-}
-
-func CreateEventUnionEventSummary(eventSummary EventSummary) EventUnion {
-	typ := EventUnionTypeEventSummary
-
-	return EventUnion{
-		EventSummary: &eventSummary,
-		Type:         typ,
-	}
 }
 
 func CreateEventUnionEventFull(eventFull EventFull) EventUnion {
@@ -230,14 +221,23 @@ func CreateEventUnionEventFull(eventFull EventFull) EventUnion {
 	}
 }
 
-func (u *EventUnion) UnmarshalJSON(data []byte) error {
+func CreateEventUnionEventSummary(eventSummary EventSummary) EventUnion {
+	typ := EventUnionTypeEventSummary
 
-	var eventSummary EventSummary = EventSummary{}
-	if err := utils.UnmarshalJSON(data, &eventSummary, "", true, nil); err == nil {
-		u.EventSummary = &eventSummary
-		u.Type = EventUnionTypeEventSummary
-		return nil
+	return EventUnion{
+		EventSummary: &eventSummary,
+		Type:         typ,
 	}
+}
+
+func (u *EventUnion) UnmarshalJSON(data []byte) (err error) {
+	previous := *u
+	*u = EventUnion{}
+	defer func() {
+		if err != nil {
+			*u = previous
+		}
+	}()
 
 	var eventFull EventFull = EventFull{}
 	if err := utils.UnmarshalJSON(data, &eventFull, "", true, nil); err == nil {
@@ -246,16 +246,23 @@ func (u *EventUnion) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 
+	var eventSummary EventSummary = EventSummary{}
+	if err := utils.UnmarshalJSON(data, &eventSummary, "", true, nil); err == nil {
+		u.EventSummary = &eventSummary
+		u.Type = EventUnionTypeEventSummary
+		return nil
+	}
+
 	return fmt.Errorf("could not unmarshal `%s` into any supported union types for EventUnion", string(data))
 }
 
 func (u EventUnion) MarshalJSON() ([]byte, error) {
-	if u.EventSummary != nil {
-		return utils.MarshalJSON(u.EventSummary, "", true)
-	}
-
 	if u.EventFull != nil {
 		return utils.MarshalJSON(u.EventFull, "", true)
+	}
+
+	if u.EventSummary != nil {
+		return utils.MarshalJSON(u.EventSummary, "", true)
 	}
 
 	return nil, errors.New("could not marshal union type EventUnion: all fields are null")
@@ -279,13 +286,16 @@ type Attempt struct {
 	AttemptNumber *int64 `json:"attempt_number,omitempty"`
 	// Whether this attempt was manually triggered (e.g., a retry initiated by a user).
 	Manual *bool `json:"manual,omitempty"`
+	// Time in milliseconds from sending the attempt to receiving the destination's response (or the error), measured around the provider's publish call. Null for attempts that never reached the provider and for attempts recorded before latency was tracked.
+	LatencyMs optionalnullable.OptionalNullable[int64] `json:"latency_ms,omitempty"`
 	// The ID of the associated event.
 	EventID *string `json:"event_id,omitempty"`
 	// The destination ID this attempt was sent to.
 	DestinationID *string `json:"destination_id,omitempty"`
 	// The associated event object. Only present when include=event or include=event.data.
-	Event       optionalnullable.OptionalNullable[EventUnion] `json:"event,omitempty"`
-	Destination *Destination                                  `json:"destination,omitempty"`
+	Event optionalnullable.OptionalNullable[EventUnion] `json:"event,omitempty"`
+	// The destination an attempt was sent to, without credentials. Use the destination endpoints to retrieve credentials.
+	Destination *AttemptDestination `json:"destination,omitempty"`
 }
 
 func (a Attempt) MarshalJSON() ([]byte, error) {
@@ -355,6 +365,13 @@ func (a *Attempt) GetManual() *bool {
 	return a.Manual
 }
 
+func (a *Attempt) GetLatencyMs() optionalnullable.OptionalNullable[int64] {
+	if a == nil {
+		return nil
+	}
+	return a.LatencyMs
+}
+
 func (a *Attempt) GetEventID() *string {
 	if a == nil {
 		return nil
@@ -376,72 +393,9 @@ func (a *Attempt) GetEvent() optionalnullable.OptionalNullable[EventUnion] {
 	return a.Event
 }
 
-func (a *Attempt) GetDestination() *Destination {
+func (a *Attempt) GetDestination() *AttemptDestination {
 	if a == nil {
 		return nil
 	}
 	return a.Destination
-}
-
-func (a *Attempt) GetDestinationWebhook() *DestinationWebhook {
-	if v := a.GetDestination(); v != nil {
-		return v.DestinationWebhook
-	}
-	return nil
-}
-
-func (a *Attempt) GetDestinationAwsSqs() *DestinationAWSSQS {
-	if v := a.GetDestination(); v != nil {
-		return v.DestinationAWSSQS
-	}
-	return nil
-}
-
-func (a *Attempt) GetDestinationRabbitmq() *DestinationRabbitMQ {
-	if v := a.GetDestination(); v != nil {
-		return v.DestinationRabbitMQ
-	}
-	return nil
-}
-
-func (a *Attempt) GetDestinationHookdeck() *DestinationHookdeck {
-	if v := a.GetDestination(); v != nil {
-		return v.DestinationHookdeck
-	}
-	return nil
-}
-
-func (a *Attempt) GetDestinationAwsKinesis() *DestinationAWSKinesis {
-	if v := a.GetDestination(); v != nil {
-		return v.DestinationAWSKinesis
-	}
-	return nil
-}
-
-func (a *Attempt) GetDestinationAzureServicebus() *DestinationAzureServiceBus {
-	if v := a.GetDestination(); v != nil {
-		return v.DestinationAzureServiceBus
-	}
-	return nil
-}
-
-func (a *Attempt) GetDestinationAwsS3() *DestinationAwss3 {
-	if v := a.GetDestination(); v != nil {
-		return v.DestinationAwss3
-	}
-	return nil
-}
-
-func (a *Attempt) GetDestinationGcpPubsub() *DestinationGCPPubSub {
-	if v := a.GetDestination(); v != nil {
-		return v.DestinationGCPPubSub
-	}
-	return nil
-}
-
-func (a *Attempt) GetDestinationKafka() *DestinationKafka {
-	if v := a.GetDestination(); v != nil {
-		return v.DestinationKafka
-	}
-	return nil
 }

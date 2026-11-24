@@ -3,6 +3,7 @@
 package components
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/hookdeck/outpost/sdks/outpost-go/internal/utils"
@@ -11,174 +12,284 @@ import (
 type DestinationUpdateType string
 
 const (
-	DestinationUpdateTypeDestinationUpdateWebhook         DestinationUpdateType = "DestinationUpdateWebhook"
-	DestinationUpdateTypeDestinationUpdateHookdeck        DestinationUpdateType = "DestinationUpdateHookdeck"
-	DestinationUpdateTypeDestinationUpdateAWSSQS          DestinationUpdateType = "DestinationUpdateAWSSQS"
-	DestinationUpdateTypeDestinationUpdateAWSKinesis      DestinationUpdateType = "DestinationUpdateAWSKinesis"
-	DestinationUpdateTypeDestinationUpdateAwss3           DestinationUpdateType = "DestinationUpdateAWSS3"
-	DestinationUpdateTypeDestinationUpdateAzureServiceBus DestinationUpdateType = "DestinationUpdateAzureServiceBus"
-	DestinationUpdateTypeDestinationUpdateGCPPubSub       DestinationUpdateType = "DestinationUpdateGCPPubSub"
-	DestinationUpdateTypeDestinationUpdateRabbitMQ        DestinationUpdateType = "DestinationUpdateRabbitMQ"
-	DestinationUpdateTypeDestinationUpdateKafka           DestinationUpdateType = "DestinationUpdateKafka"
+	DestinationUpdateTypeWebhook          DestinationUpdateType = "webhook"
+	DestinationUpdateTypeAwsSqs           DestinationUpdateType = "aws_sqs"
+	DestinationUpdateTypeRabbitmq         DestinationUpdateType = "rabbitmq"
+	DestinationUpdateTypeHookdeck         DestinationUpdateType = "hookdeck"
+	DestinationUpdateTypeAwsKinesis       DestinationUpdateType = "aws_kinesis"
+	DestinationUpdateTypeAzureServicebus  DestinationUpdateType = "azure_servicebus"
+	DestinationUpdateTypeAwsS3            DestinationUpdateType = "aws_s3"
+	DestinationUpdateTypeGcpPubsub        DestinationUpdateType = "gcp_pubsub"
+	DestinationUpdateTypeKafka            DestinationUpdateType = "kafka"
+	DestinationUpdateTypeCloudflareQueues DestinationUpdateType = "cloudflare_queues"
+	DestinationUpdateTypeAwsEventbridge   DestinationUpdateType = "aws_eventbridge"
 )
 
 type DestinationUpdate struct {
-	DestinationUpdateWebhook         *DestinationUpdateWebhook         `queryParam:"inline" union:"member"`
-	DestinationUpdateHookdeck        *DestinationUpdateHookdeck        `queryParam:"inline" union:"member"`
-	DestinationUpdateAWSSQS          *DestinationUpdateAWSSQS          `queryParam:"inline" union:"member"`
-	DestinationUpdateAWSKinesis      *DestinationUpdateAWSKinesis      `queryParam:"inline" union:"member"`
-	DestinationUpdateAwss3           *DestinationUpdateAwss3           `queryParam:"inline" union:"member"`
-	DestinationUpdateAzureServiceBus *DestinationUpdateAzureServiceBus `queryParam:"inline" union:"member"`
-	DestinationUpdateGCPPubSub       *DestinationUpdateGCPPubSub       `queryParam:"inline" union:"member"`
-	DestinationUpdateRabbitMQ        *DestinationUpdateRabbitMQ        `queryParam:"inline" union:"member"`
-	DestinationUpdateKafka           *DestinationUpdateKafka           `queryParam:"inline" union:"member"`
+	DestinationUpdateWebhook          *DestinationUpdateWebhook          `queryParam:"inline" union:"member"`
+	DestinationUpdateHookdeck         *DestinationUpdateHookdeck         `queryParam:"inline" union:"member"`
+	DestinationUpdateAWSSQS           *DestinationUpdateAWSSQS           `queryParam:"inline" union:"member"`
+	DestinationUpdateAWSKinesis       *DestinationUpdateAWSKinesis       `queryParam:"inline" union:"member"`
+	DestinationUpdateAwss3            *DestinationUpdateAwss3            `queryParam:"inline" union:"member"`
+	DestinationUpdateAzureServiceBus  *DestinationUpdateAzureServiceBus  `queryParam:"inline" union:"member"`
+	DestinationUpdateGCPPubSub        *DestinationUpdateGCPPubSub        `queryParam:"inline" union:"member"`
+	DestinationUpdateRabbitMQ         *DestinationUpdateRabbitMQ         `queryParam:"inline" union:"member"`
+	DestinationUpdateKafka            *DestinationUpdateKafka            `queryParam:"inline" union:"member"`
+	DestinationUpdateCloudflareQueues *DestinationUpdateCloudflareQueues `queryParam:"inline" union:"member"`
+	DestinationUpdateAWSEventBridge   *DestinationUpdateAWSEventBridge   `queryParam:"inline" union:"member"`
 
 	Type DestinationUpdateType
 }
 
-func CreateDestinationUpdateDestinationUpdateWebhook(destinationUpdateWebhook DestinationUpdateWebhook) DestinationUpdate {
-	typ := DestinationUpdateTypeDestinationUpdateWebhook
+func CreateDestinationUpdateWebhook(webhook DestinationUpdateWebhook) DestinationUpdate {
+	typ := DestinationUpdateTypeWebhook
+
+	typStr := DestinationUpdateWebhookType(typ)
+	webhook.Type = typStr
 
 	return DestinationUpdate{
-		DestinationUpdateWebhook: &destinationUpdateWebhook,
+		DestinationUpdateWebhook: &webhook,
 		Type:                     typ,
 	}
 }
 
-func CreateDestinationUpdateDestinationUpdateHookdeck(destinationUpdateHookdeck DestinationUpdateHookdeck) DestinationUpdate {
-	typ := DestinationUpdateTypeDestinationUpdateHookdeck
+func CreateDestinationUpdateAwsSqs(awsSqs DestinationUpdateAWSSQS) DestinationUpdate {
+	typ := DestinationUpdateTypeAwsSqs
+
+	typStr := DestinationUpdateAWSSQSType(typ)
+	awsSqs.Type = typStr
 
 	return DestinationUpdate{
-		DestinationUpdateHookdeck: &destinationUpdateHookdeck,
-		Type:                      typ,
-	}
-}
-
-func CreateDestinationUpdateDestinationUpdateAWSSQS(destinationUpdateAWSSQS DestinationUpdateAWSSQS) DestinationUpdate {
-	typ := DestinationUpdateTypeDestinationUpdateAWSSQS
-
-	return DestinationUpdate{
-		DestinationUpdateAWSSQS: &destinationUpdateAWSSQS,
+		DestinationUpdateAWSSQS: &awsSqs,
 		Type:                    typ,
 	}
 }
 
-func CreateDestinationUpdateDestinationUpdateAWSKinesis(destinationUpdateAWSKinesis DestinationUpdateAWSKinesis) DestinationUpdate {
-	typ := DestinationUpdateTypeDestinationUpdateAWSKinesis
+func CreateDestinationUpdateRabbitmq(rabbitmq DestinationUpdateRabbitMQ) DestinationUpdate {
+	typ := DestinationUpdateTypeRabbitmq
+
+	typStr := DestinationUpdateRabbitMQType(typ)
+	rabbitmq.Type = typStr
 
 	return DestinationUpdate{
-		DestinationUpdateAWSKinesis: &destinationUpdateAWSKinesis,
-		Type:                        typ,
-	}
-}
-
-func CreateDestinationUpdateDestinationUpdateAwss3(destinationUpdateAwss3 DestinationUpdateAwss3) DestinationUpdate {
-	typ := DestinationUpdateTypeDestinationUpdateAwss3
-
-	return DestinationUpdate{
-		DestinationUpdateAwss3: &destinationUpdateAwss3,
-		Type:                   typ,
-	}
-}
-
-func CreateDestinationUpdateDestinationUpdateAzureServiceBus(destinationUpdateAzureServiceBus DestinationUpdateAzureServiceBus) DestinationUpdate {
-	typ := DestinationUpdateTypeDestinationUpdateAzureServiceBus
-
-	return DestinationUpdate{
-		DestinationUpdateAzureServiceBus: &destinationUpdateAzureServiceBus,
-		Type:                             typ,
-	}
-}
-
-func CreateDestinationUpdateDestinationUpdateGCPPubSub(destinationUpdateGCPPubSub DestinationUpdateGCPPubSub) DestinationUpdate {
-	typ := DestinationUpdateTypeDestinationUpdateGCPPubSub
-
-	return DestinationUpdate{
-		DestinationUpdateGCPPubSub: &destinationUpdateGCPPubSub,
-		Type:                       typ,
-	}
-}
-
-func CreateDestinationUpdateDestinationUpdateRabbitMQ(destinationUpdateRabbitMQ DestinationUpdateRabbitMQ) DestinationUpdate {
-	typ := DestinationUpdateTypeDestinationUpdateRabbitMQ
-
-	return DestinationUpdate{
-		DestinationUpdateRabbitMQ: &destinationUpdateRabbitMQ,
+		DestinationUpdateRabbitMQ: &rabbitmq,
 		Type:                      typ,
 	}
 }
 
-func CreateDestinationUpdateDestinationUpdateKafka(destinationUpdateKafka DestinationUpdateKafka) DestinationUpdate {
-	typ := DestinationUpdateTypeDestinationUpdateKafka
+func CreateDestinationUpdateHookdeck(hookdeck DestinationUpdateHookdeck) DestinationUpdate {
+	typ := DestinationUpdateTypeHookdeck
+
+	typStr := DestinationUpdateHookdeckType(typ)
+	hookdeck.Type = typStr
 
 	return DestinationUpdate{
-		DestinationUpdateKafka: &destinationUpdateKafka,
+		DestinationUpdateHookdeck: &hookdeck,
+		Type:                      typ,
+	}
+}
+
+func CreateDestinationUpdateAwsKinesis(awsKinesis DestinationUpdateAWSKinesis) DestinationUpdate {
+	typ := DestinationUpdateTypeAwsKinesis
+
+	typStr := DestinationUpdateAWSKinesisType(typ)
+	awsKinesis.Type = typStr
+
+	return DestinationUpdate{
+		DestinationUpdateAWSKinesis: &awsKinesis,
+		Type:                        typ,
+	}
+}
+
+func CreateDestinationUpdateAzureServicebus(azureServicebus DestinationUpdateAzureServiceBus) DestinationUpdate {
+	typ := DestinationUpdateTypeAzureServicebus
+
+	typStr := DestinationUpdateAzureServiceBusType(typ)
+	azureServicebus.Type = typStr
+
+	return DestinationUpdate{
+		DestinationUpdateAzureServiceBus: &azureServicebus,
+		Type:                             typ,
+	}
+}
+
+func CreateDestinationUpdateAwsS3(awsS3 DestinationUpdateAwss3) DestinationUpdate {
+	typ := DestinationUpdateTypeAwsS3
+
+	typStr := DestinationUpdateAwss3Type(typ)
+	awsS3.Type = typStr
+
+	return DestinationUpdate{
+		DestinationUpdateAwss3: &awsS3,
 		Type:                   typ,
 	}
 }
 
-func (u *DestinationUpdate) UnmarshalJSON(data []byte) error {
+func CreateDestinationUpdateGcpPubsub(gcpPubsub DestinationUpdateGCPPubSub) DestinationUpdate {
+	typ := DestinationUpdateTypeGcpPubsub
 
-	var destinationUpdateWebhook DestinationUpdateWebhook = DestinationUpdateWebhook{}
-	if err := utils.UnmarshalJSON(data, &destinationUpdateWebhook, "", true, nil); err == nil {
-		u.DestinationUpdateWebhook = &destinationUpdateWebhook
-		u.Type = DestinationUpdateTypeDestinationUpdateWebhook
-		return nil
+	typStr := DestinationUpdateGCPPubSubType(typ)
+	gcpPubsub.Type = typStr
+
+	return DestinationUpdate{
+		DestinationUpdateGCPPubSub: &gcpPubsub,
+		Type:                       typ,
+	}
+}
+
+func CreateDestinationUpdateKafka(kafka DestinationUpdateKafka) DestinationUpdate {
+	typ := DestinationUpdateTypeKafka
+
+	typStr := DestinationUpdateKafkaType(typ)
+	kafka.Type = typStr
+
+	return DestinationUpdate{
+		DestinationUpdateKafka: &kafka,
+		Type:                   typ,
+	}
+}
+
+func CreateDestinationUpdateCloudflareQueues(cloudflareQueues DestinationUpdateCloudflareQueues) DestinationUpdate {
+	typ := DestinationUpdateTypeCloudflareQueues
+
+	typStr := DestinationUpdateCloudflareQueuesType(typ)
+	cloudflareQueues.Type = typStr
+
+	return DestinationUpdate{
+		DestinationUpdateCloudflareQueues: &cloudflareQueues,
+		Type:                              typ,
+	}
+}
+
+func CreateDestinationUpdateAwsEventbridge(awsEventbridge DestinationUpdateAWSEventBridge) DestinationUpdate {
+	typ := DestinationUpdateTypeAwsEventbridge
+
+	typStr := DestinationUpdateAWSEventBridgeType(typ)
+	awsEventbridge.Type = typStr
+
+	return DestinationUpdate{
+		DestinationUpdateAWSEventBridge: &awsEventbridge,
+		Type:                            typ,
+	}
+}
+
+func (u *DestinationUpdate) UnmarshalJSON(data []byte) (err error) {
+	previous := *u
+	*u = DestinationUpdate{}
+	defer func() {
+		if err != nil {
+			*u = previous
+		}
+	}()
+
+	type discriminator struct {
+		Type string `json:"type"`
 	}
 
-	var destinationUpdateHookdeck DestinationUpdateHookdeck = DestinationUpdateHookdeck{}
-	if err := utils.UnmarshalJSON(data, &destinationUpdateHookdeck, "", true, nil); err == nil {
-		u.DestinationUpdateHookdeck = &destinationUpdateHookdeck
-		u.Type = DestinationUpdateTypeDestinationUpdateHookdeck
-		return nil
+	dis := new(discriminator)
+	if err := json.Unmarshal(data, &dis); err != nil {
+		return fmt.Errorf("could not unmarshal discriminator: %w", err)
 	}
 
-	var destinationUpdateAWSSQS DestinationUpdateAWSSQS = DestinationUpdateAWSSQS{}
-	if err := utils.UnmarshalJSON(data, &destinationUpdateAWSSQS, "", true, nil); err == nil {
-		u.DestinationUpdateAWSSQS = &destinationUpdateAWSSQS
-		u.Type = DestinationUpdateTypeDestinationUpdateAWSSQS
-		return nil
-	}
+	switch dis.Type {
+	case "webhook":
+		destinationUpdateWebhook := new(DestinationUpdateWebhook)
+		if err := utils.UnmarshalJSON(data, &destinationUpdateWebhook, "", true, nil); err != nil {
+			return fmt.Errorf("could not unmarshal `%s` into expected (Type == webhook) type DestinationUpdateWebhook within DestinationUpdate: %w", string(data), err)
+		}
 
-	var destinationUpdateAWSKinesis DestinationUpdateAWSKinesis = DestinationUpdateAWSKinesis{}
-	if err := utils.UnmarshalJSON(data, &destinationUpdateAWSKinesis, "", true, nil); err == nil {
-		u.DestinationUpdateAWSKinesis = &destinationUpdateAWSKinesis
-		u.Type = DestinationUpdateTypeDestinationUpdateAWSKinesis
+		u.DestinationUpdateWebhook = destinationUpdateWebhook
+		u.Type = DestinationUpdateTypeWebhook
 		return nil
-	}
+	case "aws_sqs":
+		destinationUpdateAWSSQS := new(DestinationUpdateAWSSQS)
+		if err := utils.UnmarshalJSON(data, &destinationUpdateAWSSQS, "", true, nil); err != nil {
+			return fmt.Errorf("could not unmarshal `%s` into expected (Type == aws_sqs) type DestinationUpdateAWSSQS within DestinationUpdate: %w", string(data), err)
+		}
 
-	var destinationUpdateAwss3 DestinationUpdateAwss3 = DestinationUpdateAwss3{}
-	if err := utils.UnmarshalJSON(data, &destinationUpdateAwss3, "", true, nil); err == nil {
-		u.DestinationUpdateAwss3 = &destinationUpdateAwss3
-		u.Type = DestinationUpdateTypeDestinationUpdateAwss3
+		u.DestinationUpdateAWSSQS = destinationUpdateAWSSQS
+		u.Type = DestinationUpdateTypeAwsSqs
 		return nil
-	}
+	case "rabbitmq":
+		destinationUpdateRabbitMQ := new(DestinationUpdateRabbitMQ)
+		if err := utils.UnmarshalJSON(data, &destinationUpdateRabbitMQ, "", true, nil); err != nil {
+			return fmt.Errorf("could not unmarshal `%s` into expected (Type == rabbitmq) type DestinationUpdateRabbitMQ within DestinationUpdate: %w", string(data), err)
+		}
 
-	var destinationUpdateAzureServiceBus DestinationUpdateAzureServiceBus = DestinationUpdateAzureServiceBus{}
-	if err := utils.UnmarshalJSON(data, &destinationUpdateAzureServiceBus, "", true, nil); err == nil {
-		u.DestinationUpdateAzureServiceBus = &destinationUpdateAzureServiceBus
-		u.Type = DestinationUpdateTypeDestinationUpdateAzureServiceBus
+		u.DestinationUpdateRabbitMQ = destinationUpdateRabbitMQ
+		u.Type = DestinationUpdateTypeRabbitmq
 		return nil
-	}
+	case "hookdeck":
+		destinationUpdateHookdeck := new(DestinationUpdateHookdeck)
+		if err := utils.UnmarshalJSON(data, &destinationUpdateHookdeck, "", true, nil); err != nil {
+			return fmt.Errorf("could not unmarshal `%s` into expected (Type == hookdeck) type DestinationUpdateHookdeck within DestinationUpdate: %w", string(data), err)
+		}
 
-	var destinationUpdateGCPPubSub DestinationUpdateGCPPubSub = DestinationUpdateGCPPubSub{}
-	if err := utils.UnmarshalJSON(data, &destinationUpdateGCPPubSub, "", true, nil); err == nil {
-		u.DestinationUpdateGCPPubSub = &destinationUpdateGCPPubSub
-		u.Type = DestinationUpdateTypeDestinationUpdateGCPPubSub
+		u.DestinationUpdateHookdeck = destinationUpdateHookdeck
+		u.Type = DestinationUpdateTypeHookdeck
 		return nil
-	}
+	case "aws_kinesis":
+		destinationUpdateAWSKinesis := new(DestinationUpdateAWSKinesis)
+		if err := utils.UnmarshalJSON(data, &destinationUpdateAWSKinesis, "", true, nil); err != nil {
+			return fmt.Errorf("could not unmarshal `%s` into expected (Type == aws_kinesis) type DestinationUpdateAWSKinesis within DestinationUpdate: %w", string(data), err)
+		}
 
-	var destinationUpdateRabbitMQ DestinationUpdateRabbitMQ = DestinationUpdateRabbitMQ{}
-	if err := utils.UnmarshalJSON(data, &destinationUpdateRabbitMQ, "", true, nil); err == nil {
-		u.DestinationUpdateRabbitMQ = &destinationUpdateRabbitMQ
-		u.Type = DestinationUpdateTypeDestinationUpdateRabbitMQ
+		u.DestinationUpdateAWSKinesis = destinationUpdateAWSKinesis
+		u.Type = DestinationUpdateTypeAwsKinesis
 		return nil
-	}
+	case "azure_servicebus":
+		destinationUpdateAzureServiceBus := new(DestinationUpdateAzureServiceBus)
+		if err := utils.UnmarshalJSON(data, &destinationUpdateAzureServiceBus, "", true, nil); err != nil {
+			return fmt.Errorf("could not unmarshal `%s` into expected (Type == azure_servicebus) type DestinationUpdateAzureServiceBus within DestinationUpdate: %w", string(data), err)
+		}
 
-	var destinationUpdateKafka DestinationUpdateKafka = DestinationUpdateKafka{}
-	if err := utils.UnmarshalJSON(data, &destinationUpdateKafka, "", true, nil); err == nil {
-		u.DestinationUpdateKafka = &destinationUpdateKafka
-		u.Type = DestinationUpdateTypeDestinationUpdateKafka
+		u.DestinationUpdateAzureServiceBus = destinationUpdateAzureServiceBus
+		u.Type = DestinationUpdateTypeAzureServicebus
+		return nil
+	case "aws_s3":
+		destinationUpdateAwss3 := new(DestinationUpdateAwss3)
+		if err := utils.UnmarshalJSON(data, &destinationUpdateAwss3, "", true, nil); err != nil {
+			return fmt.Errorf("could not unmarshal `%s` into expected (Type == aws_s3) type DestinationUpdateAwss3 within DestinationUpdate: %w", string(data), err)
+		}
+
+		u.DestinationUpdateAwss3 = destinationUpdateAwss3
+		u.Type = DestinationUpdateTypeAwsS3
+		return nil
+	case "gcp_pubsub":
+		destinationUpdateGCPPubSub := new(DestinationUpdateGCPPubSub)
+		if err := utils.UnmarshalJSON(data, &destinationUpdateGCPPubSub, "", true, nil); err != nil {
+			return fmt.Errorf("could not unmarshal `%s` into expected (Type == gcp_pubsub) type DestinationUpdateGCPPubSub within DestinationUpdate: %w", string(data), err)
+		}
+
+		u.DestinationUpdateGCPPubSub = destinationUpdateGCPPubSub
+		u.Type = DestinationUpdateTypeGcpPubsub
+		return nil
+	case "kafka":
+		destinationUpdateKafka := new(DestinationUpdateKafka)
+		if err := utils.UnmarshalJSON(data, &destinationUpdateKafka, "", true, nil); err != nil {
+			return fmt.Errorf("could not unmarshal `%s` into expected (Type == kafka) type DestinationUpdateKafka within DestinationUpdate: %w", string(data), err)
+		}
+
+		u.DestinationUpdateKafka = destinationUpdateKafka
+		u.Type = DestinationUpdateTypeKafka
+		return nil
+	case "cloudflare_queues":
+		destinationUpdateCloudflareQueues := new(DestinationUpdateCloudflareQueues)
+		if err := utils.UnmarshalJSON(data, &destinationUpdateCloudflareQueues, "", true, nil); err != nil {
+			return fmt.Errorf("could not unmarshal `%s` into expected (Type == cloudflare_queues) type DestinationUpdateCloudflareQueues within DestinationUpdate: %w", string(data), err)
+		}
+
+		u.DestinationUpdateCloudflareQueues = destinationUpdateCloudflareQueues
+		u.Type = DestinationUpdateTypeCloudflareQueues
+		return nil
+	case "aws_eventbridge":
+		destinationUpdateAWSEventBridge := new(DestinationUpdateAWSEventBridge)
+		if err := utils.UnmarshalJSON(data, &destinationUpdateAWSEventBridge, "", true, nil); err != nil {
+			return fmt.Errorf("could not unmarshal `%s` into expected (Type == aws_eventbridge) type DestinationUpdateAWSEventBridge within DestinationUpdate: %w", string(data), err)
+		}
+
+		u.DestinationUpdateAWSEventBridge = destinationUpdateAWSEventBridge
+		u.Type = DestinationUpdateTypeAwsEventbridge
 		return nil
 	}
 
@@ -220,6 +331,14 @@ func (u DestinationUpdate) MarshalJSON() ([]byte, error) {
 
 	if u.DestinationUpdateKafka != nil {
 		return utils.MarshalJSON(u.DestinationUpdateKafka, "", true)
+	}
+
+	if u.DestinationUpdateCloudflareQueues != nil {
+		return utils.MarshalJSON(u.DestinationUpdateCloudflareQueues, "", true)
+	}
+
+	if u.DestinationUpdateAWSEventBridge != nil {
+		return utils.MarshalJSON(u.DestinationUpdateAWSEventBridge, "", true)
 	}
 
 	return nil, errors.New("could not marshal union type DestinationUpdate: all fields are null")

@@ -3,6 +3,7 @@ package models
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"time"
@@ -13,6 +14,7 @@ import (
 var (
 	ErrInvalidTopics       = errors.New("validation failed: invalid topics")
 	ErrInvalidTopicsFormat = errors.New("validation failed: invalid topics format")
+	ErrFilterTooDeep       = fmt.Errorf("validation failed: filter is nested more than %d levels deep", MaxFilterDepth)
 )
 
 type Tenant struct {
@@ -22,6 +24,21 @@ type Tenant struct {
 	Metadata          Metadata  `json:"metadata,omitempty" redis:"-"`
 	CreatedAt         time.Time `json:"created_at" redis:"created_at"`
 	UpdatedAt         time.Time `json:"updated_at" redis:"updated_at"`
+}
+
+// DestinationTypeMCP is the experimental MCP Events destination type.
+const DestinationTypeMCP = "mcp"
+
+// InternalDestinationTypes lists the destination types that Outpost manages
+// itself, not tenants.
+func InternalDestinationTypes() []string {
+	return []string{DestinationTypeMCP}
+}
+
+// IsInternalDestinationType reports whether destinations of the type are
+// managed by Outpost itself, not by tenants.
+func IsInternalDestinationType(destinationType string) bool {
+	return slices.Contains(InternalDestinationTypes(), destinationType)
 }
 
 type Destination struct {
@@ -37,22 +54,35 @@ type Destination struct {
 	CreatedAt        time.Time        `json:"created_at" redis:"created_at"`
 	UpdatedAt        time.Time        `json:"updated_at" redis:"updated_at"`
 	DisabledAt       *time.Time       `json:"disabled_at" redis:"disabled_at"`
+
+	// Version is the store's write counter at the time of the read. It is not
+	// part of the API; UpdateDestination uses it to detect concurrent writes.
+	Version int64 `json:"-" redis:"-"`
+
+	// ExpiresAt is not exposed in the API. Once past, the destination receives no events.
+	ExpiresAt *time.Time `json:"-" redis:"expires_at"`
 }
 
-func (d *Destination) Validate(topics []string) error {
-	if err := d.Topics.Validate(topics); err != nil {
+func (d *Destination) IsExpired(now time.Time) bool {
+	return d.ExpiresAt != nil && !now.Before(*d.ExpiresAt)
+}
+
+func (d *Destination) Validate(topics []string, allowWildcards bool) error {
+	if err := d.Topics.Validate(topics, allowWildcards); err != nil {
 		return err
 	}
-	return nil
+	return d.Filter.Validate()
 }
 
 // MatchEvent checks if the destination matches the given event.
-// Returns true if the destination is enabled, topic matches, and filter matches.
-func (d *Destination) MatchEvent(event Event) bool {
-	if d.DisabledAt != nil {
+// Returns true if the destination is enabled and not expired, topic matches,
+// and filter matches.
+// Embedded wildcard topic patterns are ignored when allowWildcards is false.
+func (d *Destination) MatchEvent(event Event, allowWildcards bool) bool {
+	if d.DisabledAt != nil || d.IsExpired(time.Now()) {
 		return false
 	}
-	if !d.Topics.MatchTopic(event.Topic) {
+	if !d.Topics.MatchTopic(event.Topic, allowWildcards) {
 		return false
 	}
 	return MatchFilter(d.Filter, event)
@@ -99,8 +129,10 @@ type Event struct {
 	Topic                 string    `json:"topic"`
 	EligibleForRetry      bool      `json:"eligible_for_retry"`
 	Time                  time.Time `json:"time"`
-	Metadata              Metadata  `json:"metadata"`
-	Data                  Data      `json:"data"`
+	// Nil when read from the log store without it (see logstore.ListAttemptRequest.Include).
+	Metadata Metadata `json:"metadata"`
+	// Empty when read from the log store without it (see logstore.ListAttemptRequest.Include).
+	Data Data `json:"data"`
 
 	// Telemetry data, must exist to properly trace events between publish receiver & delivery handler
 	Telemetry *EventTelemetry `json:"telemetry,omitempty"`
@@ -126,51 +158,197 @@ const (
 )
 
 type Attempt struct {
-	ID              string                 `json:"id"`
-	TenantID        string                 `json:"tenant_id"`
-	EventID         string                 `json:"event_id"`
-	DestinationID   string                 `json:"destination_id"`
-	DestinationType string                 `json:"destination_type"`
-	AttemptNumber   int                    `json:"attempt_number"`
-	Manual          bool                   `json:"manual"`
-	Status          string                 `json:"status"`
-	Time            time.Time              `json:"time"`
-	Code            string                 `json:"code"`
-	ResponseData    map[string]interface{} `json:"response_data"`
+	ID              string    `json:"id"`
+	TenantID        string    `json:"tenant_id"`
+	EventID         string    `json:"event_id"`
+	DestinationID   string    `json:"destination_id"`
+	DestinationType string    `json:"destination_type"`
+	AttemptNumber   int       `json:"attempt_number"`
+	Manual          bool      `json:"manual"`
+	Status          string    `json:"status"`
+	Time            time.Time `json:"time"`
+	Code            string    `json:"code"`
+	// Nil when read from the log store without it (see logstore.ListAttemptRequest.Include).
+	ResponseData map[string]interface{} `json:"response_data"`
+	// Provider response time in ms, measured around Publish. Nil when the
+	// attempt never reached the provider or predates latency tracking.
+	LatencyMs *int64 `json:"latency_ms"`
 }
 
 // ============================== Types ==============================
 
 type Topics []string
 
+// isWildcardPattern reports whether topic embeds a wildcard, such as "user.*".
+// The standalone "*" is not a pattern.
+func isWildcardPattern(topic string) bool {
+	return topic != "*" && strings.Contains(topic, "*")
+}
+
 func (t *Topics) MatchesAll() bool {
 	return len(*t) == 1 && (*t)[0] == "*"
 }
 
-func (t *Topics) MatchTopic(eventTopic string) bool {
-	return eventTopic == "" || eventTopic == "*" || t.MatchesAll() || slices.Contains(*t, eventTopic)
+// MatchTopic reports whether an event topic matches this subscription.
+// The standalone "*" keeps its subscribe-to-all meaning when allowWildcards is
+// false, while embedded wildcard patterns such as "user.*" are ignored.
+func (t *Topics) MatchTopic(eventTopic string, allowWildcards bool) bool {
+	if eventTopic == "" || eventTopic == "*" || t.MatchesAll() {
+		return true
+	}
+	for _, topic := range *t {
+		if !allowWildcards && isWildcardPattern(topic) {
+			continue
+		}
+		if matchTopicPattern(topic, eventTopic) {
+			return true
+		}
+	}
+	return false
 }
 
-func (t *Topics) Validate(availableTopics []string) error {
+// WithoutWildcardPatterns returns the topics with embedded wildcard patterns
+// such as "user.*" removed. The standalone "*" is kept.
+func (t Topics) WithoutWildcardPatterns() Topics {
+	if t == nil {
+		return nil
+	}
+	result := make(Topics, 0, len(t))
+	for _, topic := range t {
+		if !isWildcardPattern(topic) {
+			result = append(result, topic)
+		}
+	}
+	return result
+}
+
+func (t *Topics) Validate(availableTopics []string, allowWildcards bool) error {
 	if len(*t) == 0 {
 		return ErrInvalidTopics
 	}
 	if t.MatchesAll() {
 		return nil
 	}
-	// If no available topics are configured, allow any topics
+	// If no available topics are configured, allow any exact topic.
 	if len(availableTopics) == 0 {
+		if !allowWildcards {
+			for _, topic := range *t {
+				if strings.Contains(topic, "*") {
+					return ErrInvalidTopics
+				}
+			}
+		}
 		return nil
 	}
 	for _, topic := range *t {
 		if topic == "*" {
 			return ErrInvalidTopics
 		}
+		if isWildcardPattern(topic) {
+			if !allowWildcards {
+				return ErrInvalidTopics
+			}
+			if !topicPatternMatchesAny(topic, availableTopics) {
+				return ErrInvalidTopics
+			}
+			continue
+		}
 		if !slices.Contains(availableTopics, topic) {
 			return ErrInvalidTopics
 		}
 	}
 	return nil
+}
+
+// Normalize returns a topic set with redundant entries removed, preserving
+// first-seen order. It performs two reductions:
+//
+//   - exact duplicates are collapsed to their first occurrence
+//     (["user.created","user.created"] -> ["user.created"]).
+//   - an entry is folded away when a sibling wildcard pattern covers it and the
+//     entry does not itself cover that sibling
+//     (["user.*","user.created"] -> ["user.*"]).
+//
+// Two mutually-non-covering patterns are both kept
+// (["*.created","user.*"] is unchanged), and ["*"] is returned as-is.
+// Normalization never changes MatchTopic results: it only drops entries that
+// are already covered by a retained entry.
+func (t Topics) Normalize() Topics {
+	if t.MatchesAll() || len(t) <= 1 {
+		return t
+	}
+	result := make(Topics, 0, len(t))
+	for _, e := range t {
+		if slices.Contains(result, e) {
+			continue // exact duplicate of an already-kept entry
+		}
+		if coveredByOther(e, t) {
+			continue // folded into a strictly-more-general sibling pattern
+		}
+		result = append(result, e)
+	}
+	return result
+}
+
+// coveredByOther reports whether entry e is covered by some other entry p in
+// topics such that p covers e but e does not cover p (p is strictly more
+// general). This keeps mutually-covering entries and pattern pairs that neither
+// covers, so only strictly-redundant entries are folded.
+func coveredByOther(e string, topics Topics) bool {
+	for _, p := range topics {
+		if p == e {
+			continue
+		}
+		if matchTopicPattern(p, e) && !matchTopicPattern(e, p) {
+			return true
+		}
+	}
+	return false
+}
+
+func topicPatternMatchesAny(pattern string, topics []string) bool {
+	for _, topic := range topics {
+		if matchTopicPattern(pattern, topic) {
+			return true
+		}
+	}
+	return false
+}
+
+func matchTopicPattern(pattern, topic string) bool {
+	if pattern == topic {
+		return true
+	}
+	if !strings.Contains(pattern, "*") {
+		return false
+	}
+
+	patternIndex, topicIndex := 0, 0
+	starIndex, starTopicIndex := -1, 0
+	for topicIndex < len(topic) {
+		if patternIndex < len(pattern) && pattern[patternIndex] == topic[topicIndex] {
+			patternIndex++
+			topicIndex++
+			continue
+		}
+		if patternIndex < len(pattern) && pattern[patternIndex] == '*' {
+			starIndex = patternIndex
+			starTopicIndex = topicIndex
+			patternIndex++
+			continue
+		}
+		if starIndex != -1 {
+			patternIndex = starIndex + 1
+			starTopicIndex++
+			topicIndex = starTopicIndex
+			continue
+		}
+		return false
+	}
+	for patternIndex < len(pattern) && pattern[patternIndex] == '*' {
+		patternIndex++
+	}
+	return patternIndex == len(pattern)
 }
 
 func TopicsFromString(s string) Topics {

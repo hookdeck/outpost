@@ -8,9 +8,12 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
-    env:
-      # https://goreleaser.com/customization/docker_manifest/
-      DOCKER_CLI_EXPERIMENTAL: "enabled"
+    # Declaring permissions replaces the defaults entirely, so contents: write
+    # has to be listed for the GitHub release. id-token: write mints the OIDC
+    # token cosign exchanges for a short-lived signing certificate.
+    permissions:
+      contents: write
+      id-token: write
     steps:
       - name: Code checkout
         uses: actions/checkout@v5
@@ -38,11 +41,16 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.23.0
+          go-version: 1.27.4
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v4
+        uses: goreleaser/goreleaser-action@v6
         with:
-          version: latest
+          # Pinned deliberately: an unpinned "latest" means every tag push builds
+          # with whatever GoReleaser shipped that morning, and a breaking change
+          # surfaces mid-release, after the tag exists.
+          version: "v2.17.1"
           args: release -f build/.goreleaser.yaml --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

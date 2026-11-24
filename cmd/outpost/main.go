@@ -25,6 +25,7 @@ func main() {
 				},
 			},
 			newMigrateCommand(),
+			newConfigCommand(),
 		},
 		Action: func(ctx context.Context, c *cli.Command) error {
 			// Default action - show help
@@ -32,7 +33,11 @@ func main() {
 		},
 	}
 
+	// Print the error before exiting. Without this a failed `outpost migrate`
+	// — a bad config path, an unreachable database — reports nothing but a
+	// status of 1, during the one step an upgrade depends on.
 	if err := app.Run(context.Background(), os.Args); err != nil {
+		fmt.Fprintln(os.Stderr, "Error:", err)
 		os.Exit(1)
 	}
 }
@@ -48,13 +53,7 @@ func delegateToBinary(binaryName string, c *cli.Command) error {
 	// Build arguments
 	args := buildArgs(c)
 
-	// Execute the binary
-	cmd := exec.Command(binary, args...)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	return cmd.Run()
+	return execBinary(binary, args)
 }
 
 func runWithGo(binaryName string, c *cli.Command) error {

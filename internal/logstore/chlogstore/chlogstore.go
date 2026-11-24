@@ -6,27 +6,30 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
+	"math"
+	"slices"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/clickhouse"
-	"github.com/hookdeck/outpost/internal/cursor"
 	"github.com/hookdeck/outpost/internal/logstore/driver"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/pagination"
 )
 
-const (
-	cursorResourceEvent   = "evt"
-	cursorResourceAttempt = "att"
-	cursorVersion         = 1
+// The lists order by DateTime64(3) columns, which keep milliseconds.
+var (
+	eventCursor   = driver.NewCursor("evt", driver.CursorFormatTimeIDMillis)
+	attemptCursor = driver.NewCursor("att", driver.CursorFormatTimeIDMillis)
 )
 
 type logStoreImpl struct {
 	chDB          clickhouse.DB
 	eventsTable   string
 	attemptsTable string
+	// noLazySetting is set once the server rejected the lazy materialization setting.
+	noLazySetting atomic.Bool
 }
 
 var _ driver.LogStore = (*logStoreImpl)(nil)
@@ -58,7 +61,7 @@ func fetchAndDedup[T any](
 	ctx context.Context,
 	chDB clickhouse.DB,
 	q pagination.QueryInput,
-	buildQuery func(pagination.QueryInput) (string, []any),
+	buildQuery func(pagination.QueryInput) (string, []any, error),
 	scan func(clickhouse.Rows) ([]T, error),
 	getID func(T) string,
 	getCursorPos func(T) string,
@@ -74,7 +77,10 @@ func fetchAndDedup[T any](
 			SortDir:   q.SortDir,
 			CursorPos: cursorPos,
 		}
-		query, args := buildQuery(qi)
+		query, args, err := buildQuery(qi)
+		if err != nil {
+			return nil, err
+		}
 		rows, err := chDB.Query(ctx, query, args...)
 		if err != nil {
 			return nil, fmt.Errorf("query failed: %w", err)
@@ -118,7 +124,7 @@ type eventWithPosition struct {
 }
 
 func (e eventWithPosition) cursorPosition() string {
-	return fmt.Sprintf("%d::%s", e.eventTime.UnixMilli(), e.Event.ID)
+	return driver.CursorPosition(e.eventTime, e.Event.ID)
 }
 
 func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventRequest) (driver.ListEventResponse, error) {
@@ -138,7 +144,7 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventReques
 		Next:  req.Next,
 		Prev:  req.Prev,
 		Fetch: func(ctx context.Context, q pagination.QueryInput) ([]eventWithPosition, error) {
-			return fetchAndDedup(ctx, s.chDB, q, func(qi pagination.QueryInput) (string, []any) {
+			return fetchAndDedup(ctx, s.chDB, q, func(qi pagination.QueryInput) (string, []any, error) {
 				return buildEventQuery(s.eventsTable, req, qi)
 			}, scanEvents, func(e eventWithPosition) string {
 				return e.Event.ID
@@ -146,10 +152,10 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventReques
 		},
 		Cursor: pagination.Cursor[eventWithPosition]{
 			Encode: func(e eventWithPosition) string {
-				return cursor.Encode(cursorResourceEvent, cursorVersion, e.cursorPosition())
+				return eventCursor.Encode(e.eventTime, e.Event.ID)
 			},
 			Decode: func(c string) (string, error) {
-				return cursor.Decode(c, cursorResourceEvent, cursorVersion)
+				return eventCursor.Decode(c)
 			},
 		},
 	})
@@ -170,7 +176,7 @@ func (s *logStoreImpl) ListEvent(ctx context.Context, req driver.ListEventReques
 	}, nil
 }
 
-func buildEventQuery(table string, req driver.ListEventRequest, q pagination.QueryInput) (string, []any) {
+func buildEventQuery(table string, req driver.ListEventRequest, q pagination.QueryInput) (string, []any, error) {
 	var conditions []string
 	var args []any
 
@@ -212,7 +218,10 @@ func buildEventQuery(table string, req driver.ListEventRequest, q pagination.Que
 	}
 
 	if q.CursorPos != "" {
-		cursorCond, cursorArgs := buildEventCursorCondition(q.Compare, q.CursorPos)
+		cursorCond, cursorArgs, err := buildEventCursorCondition(q.Compare, q.CursorPos)
+		if err != nil {
+			return "", nil, err
+		}
 		conditions = append(conditions, cursorCond)
 		args = append(args, cursorArgs...)
 	}
@@ -241,7 +250,7 @@ func buildEventQuery(table string, req driver.ListEventRequest, q pagination.Que
 		LIMIT %d
 	`, table, whereClause, orderByClause, q.Limit)
 
-	return query, args
+	return query, args, nil
 }
 
 func scanEvents(rows clickhouse.Rows) ([]eventWithPosition, error) {
@@ -306,33 +315,35 @@ func scanEvents(rows clickhouse.Rows) ([]eventWithPosition, error) {
 	return results, nil
 }
 
-func buildEventCursorCondition(compare, position string) (string, []any) {
-	parts := strings.SplitN(position, "::", 2)
-	if len(parts) != 2 {
-		return "1=1", nil // invalid cursor, return always true
-	}
-	eventTimeMs, err := parseTimestampMs(parts[0])
+func buildEventCursorCondition(compare, position string) (string, []any, error) {
+	eventTime, eventID, err := driver.ParseCursorPosition(position)
 	if err != nil {
-		return "1=1", nil // invalid timestamp, return always true
+		return "", nil, err
 	}
-	eventID := parts[1]
 
 	condition := fmt.Sprintf(`(
 		event_time %s fromUnixTimestamp64Milli(?)
 		OR (event_time = fromUnixTimestamp64Milli(?) AND event_id %s ?)
 	)`, compare, compare)
 
-	return condition, []any{eventTimeMs, eventTimeMs, eventID}
+	return condition, []any{eventTime.UnixMilli(), eventTime.UnixMilli(), eventID}, nil
 }
 
 // attemptRecordWithPosition wraps an attempt record with its cursor position data.
 type attemptRecordWithPosition struct {
 	*driver.AttemptRecord
 	attemptTime time.Time
+	err         error // row couldn't be decoded; only the attempt's key fields and time are set
 }
 
+// decodeError is a row that was read but couldn't be decoded.
+type decodeError struct{ err error }
+
+func (e *decodeError) Error() string { return e.err.Error() }
+func (e *decodeError) Unwrap() error { return e.err }
+
 func (ar attemptRecordWithPosition) cursorPosition() string {
-	return fmt.Sprintf("%d::%s", ar.attemptTime.UnixMilli(), ar.Attempt.ID)
+	return driver.CursorPosition(ar.attemptTime, ar.Attempt.ID)
 }
 
 func (s *logStoreImpl) ListAttempt(ctx context.Context, req driver.ListAttemptRequest) (driver.ListAttemptResponse, error) {
@@ -352,18 +363,18 @@ func (s *logStoreImpl) ListAttempt(ctx context.Context, req driver.ListAttemptRe
 		Next:  req.Next,
 		Prev:  req.Prev,
 		Fetch: func(ctx context.Context, q pagination.QueryInput) ([]attemptRecordWithPosition, error) {
-			return fetchAndDedup(ctx, s.chDB, q, func(qi pagination.QueryInput) (string, []any) {
+			return fetchAndDedup(ctx, s.chDB, q, func(qi pagination.QueryInput) (string, []any, error) {
 				return buildAttemptQuery(s.attemptsTable, req, qi)
-			}, scanAttemptRecords, func(ar attemptRecordWithPosition) string {
+			}, scanListedAttemptRecords, func(ar attemptRecordWithPosition) string {
 				return ar.Attempt.ID
 			}, attemptRecordWithPosition.cursorPosition)
 		},
 		Cursor: pagination.Cursor[attemptRecordWithPosition]{
 			Encode: func(ar attemptRecordWithPosition) string {
-				return cursor.Encode(cursorResourceAttempt, cursorVersion, ar.cursorPosition())
+				return attemptCursor.Encode(ar.attemptTime, ar.Attempt.ID)
 			},
 			Decode: func(c string) (string, error) {
-				return cursor.Decode(c, cursorResourceAttempt, cursorVersion)
+				return attemptCursor.Decode(c)
 			},
 		},
 	})
@@ -384,7 +395,7 @@ func (s *logStoreImpl) ListAttempt(ctx context.Context, req driver.ListAttemptRe
 	}, nil
 }
 
-func buildAttemptQuery(table string, req driver.ListAttemptRequest, q pagination.QueryInput) (string, []any) {
+func buildAttemptQuery(table string, req driver.ListAttemptRequest, q pagination.QueryInput) (string, []any, error) {
 	var conditions []string
 	var args []any
 
@@ -436,7 +447,10 @@ func buildAttemptQuery(table string, req driver.ListAttemptRequest, q pagination
 	}
 
 	if q.CursorPos != "" {
-		cursorCond, cursorArgs := buildAttemptCursorCondition(q.Compare, q.CursorPos)
+		cursorCond, cursorArgs, err := buildAttemptCursorCondition(q.Compare, q.CursorPos)
+		if err != nil {
+			return "", nil, err
+		}
 		conditions = append(conditions, cursorCond)
 		args = append(args, cursorArgs...)
 	}
@@ -449,6 +463,14 @@ func buildAttemptQuery(table string, req driver.ListAttemptRequest, q pagination
 	orderByClause := fmt.Sprintf("ORDER BY attempt_time %s, attempt_id %s",
 		strings.ToUpper(q.SortDir), strings.ToUpper(q.SortDir))
 
+	// Unaliased: a ClickHouse alias is visible in WHERE and would shadow the column.
+	payloadColumn := func(column string, field driver.Field) string {
+		if !slices.Contains(req.Include, field) {
+			return "''"
+		}
+		return column
+	}
+
 	query := fmt.Sprintf(`
 		SELECT
 			event_id,
@@ -458,22 +480,41 @@ func buildAttemptQuery(table string, req driver.ListAttemptRequest, q pagination
 			topic,
 			eligible_for_retry,
 			event_time,
-			metadata,
-			data,
+			%s,
+			%s,
 			attempt_id,
 			status,
 			attempt_time,
 			code,
-			response_data,
+			%s,
 			manual,
-			attempt_number
+			attempt_number,
+			latency_ms
 		FROM %s
 		WHERE %s
 		%s
 		LIMIT %d
-	`, table, whereClause, orderByClause, q.Limit)
+	`,
+		payloadColumn("metadata", driver.FieldEventMetadata),
+		payloadColumn("data", driver.FieldEventData),
+		payloadColumn("response_data", driver.FieldResponseData),
+		table, whereClause, orderByClause, q.Limit)
 
-	return query, args
+	return query, args, nil
+}
+
+// scanListedAttemptRecords fails on the first row that can't be decoded.
+func scanListedAttemptRecords(rows clickhouse.Rows) ([]attemptRecordWithPosition, error) {
+	records, err := scanAttemptRecords(rows)
+	if err != nil {
+		return nil, err
+	}
+	for _, r := range records {
+		if r.err != nil {
+			return nil, r.err
+		}
+	}
+	return records, nil
 }
 
 func scanAttemptRecords(rows clickhouse.Rows) ([]attemptRecordWithPosition, error) {
@@ -496,6 +537,7 @@ func scanAttemptRecords(rows clickhouse.Rows) ([]attemptRecordWithPosition, erro
 			responseDataStr  string
 			manual           bool
 			attemptNumber    uint32
+			latencyMs        *uint32
 		)
 
 		err := rows.Scan(
@@ -515,6 +557,7 @@ func scanAttemptRecords(rows clickhouse.Rows) ([]attemptRecordWithPosition, erro
 			&responseDataStr,
 			&manual,
 			&attemptNumber,
+			&latencyMs,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
@@ -522,16 +565,33 @@ func scanAttemptRecords(rows clickhouse.Rows) ([]attemptRecordWithPosition, erro
 
 		var metadata map[string]string
 		var responseData map[string]any
+		var decodeErr error
 
 		if metadataStr != "" {
 			if err := json.Unmarshal([]byte(metadataStr), &metadata); err != nil {
-				return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
+				decodeErr = &decodeError{fmt.Errorf("failed to unmarshal metadata: %w", err)}
 			}
 		}
-		if responseDataStr != "" {
+		if decodeErr == nil && responseDataStr != "" {
 			if err := json.Unmarshal([]byte(responseDataStr), &responseData); err != nil {
-				return nil, fmt.Errorf("failed to unmarshal response_data: %w", err)
+				decodeErr = &decodeError{fmt.Errorf("failed to unmarshal response_data: %w", err)}
 			}
+		}
+		if decodeErr != nil {
+			results = append(results, attemptRecordWithPosition{
+				AttemptRecord: &driver.AttemptRecord{
+					Attempt: &models.Attempt{
+						ID:            attemptID,
+						TenantID:      tenantID,
+						EventID:       eventID,
+						DestinationID: destinationID,
+						Time:          attemptTime,
+					},
+				},
+				attemptTime: attemptTime,
+				err:         decodeErr,
+			})
+			continue
 		}
 
 		results = append(results, attemptRecordWithPosition{
@@ -548,6 +608,7 @@ func scanAttemptRecords(rows clickhouse.Rows) ([]attemptRecordWithPosition, erro
 					Time:            attemptTime,
 					Code:            code,
 					ResponseData:    responseData,
+					LatencyMs:       latencyFromCH(latencyMs),
 				},
 				Event: &models.Event{
 					ID:               eventID,
@@ -669,7 +730,8 @@ func (s *logStoreImpl) RetrieveAttempt(ctx context.Context, req driver.RetrieveA
 			code,
 			response_data,
 			manual,
-			attempt_number
+			attempt_number,
+			latency_ms
 		FROM %s
 		WHERE %s
 		LIMIT 1`, s.attemptsTable, whereClause)
@@ -693,6 +755,7 @@ func (s *logStoreImpl) RetrieveAttempt(ctx context.Context, req driver.RetrieveA
 		responseDataStr  string
 		manual           bool
 		attemptNumber    uint32
+		latencyMs        *uint32
 	)
 
 	err := row.Scan(
@@ -712,6 +775,7 @@ func (s *logStoreImpl) RetrieveAttempt(ctx context.Context, req driver.RetrieveA
 		&responseDataStr,
 		&manual,
 		&attemptNumber,
+		&latencyMs,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -747,6 +811,7 @@ func (s *logStoreImpl) RetrieveAttempt(ctx context.Context, req driver.RetrieveA
 			Time:            attemptTime,
 			Code:            code,
 			ResponseData:    responseData,
+			LatencyMs:       latencyFromCH(latencyMs),
 		},
 		Event: &models.Event{
 			ID:               eventID,
@@ -765,6 +830,11 @@ func (s *logStoreImpl) InsertMany(ctx context.Context, entries []*models.LogEntr
 	if len(entries) == 0 {
 		return nil
 	}
+
+	// Collapse intra-batch duplicates. ReplacingMergeTree would eventually
+	// merge them away, but redundant rows cost merge overhead and surface as
+	// transient duplicate reads until compaction runs.
+	entries = driver.DedupeEntriesByAttemptID(entries)
 
 	// Extract and dedupe events by ID, skipping retry attempts.
 	// Retries (AttemptNumber > 1) carry identical event data — the event row
@@ -785,9 +855,16 @@ func (s *logStoreImpl) InsertMany(ctx context.Context, entries []*models.LogEntr
 		if err != nil {
 			return fmt.Errorf("prepare events batch failed: %w", err)
 		}
+		defer eventBatch.Close()
 
 		for _, e := range eventMap {
-			metadataJSON, err := json.Marshal(e.Metadata)
+			// Normalize nil metadata to an empty object so it round-trips as
+			// a non-nil empty map, consistent with the Postgres backend.
+			metadata := e.Metadata
+			if metadata == nil {
+				metadata = map[string]string{}
+			}
+			metadataJSON, err := json.Marshal(metadata)
 			if err != nil {
 				return fmt.Errorf("failed to marshal metadata: %w", err)
 			}
@@ -818,18 +895,24 @@ func (s *logStoreImpl) InsertMany(ctx context.Context, entries []*models.LogEntr
 	attemptBatch, err := s.chDB.PrepareBatch(ctx,
 		fmt.Sprintf(`INSERT INTO %s (
 			event_id, tenant_id, destination_id, destination_type, topic, eligible_for_retry, event_time, metadata, data,
-			attempt_id, status, attempt_time, code, response_data, manual, attempt_number
+			attempt_id, status, attempt_time, code, response_data, manual, attempt_number, latency_ms
 		)`, s.attemptsTable),
 	)
 	if err != nil {
 		return fmt.Errorf("prepare attempts batch failed: %w", err)
 	}
+	defer attemptBatch.Close()
 
 	for _, entry := range entries {
 		event := entry.Event
 		a := entry.Attempt
 
-		metadataJSON, err := json.Marshal(event.Metadata)
+		// See event insert above: keep nil metadata as an empty object.
+		eventMetadata := event.Metadata
+		if eventMetadata == nil {
+			eventMetadata = map[string]string{}
+		}
+		metadataJSON, err := json.Marshal(eventMetadata)
 		if err != nil {
 			return fmt.Errorf("failed to marshal metadata: %w", err)
 		}
@@ -855,6 +938,7 @@ func (s *logStoreImpl) InsertMany(ctx context.Context, entries []*models.LogEntr
 			string(responseDataJSON),
 			a.Manual,
 			uint32(a.AttemptNumber),
+			latencyToCH(a.LatencyMs),
 		); err != nil {
 			return fmt.Errorf("attempts batch append failed: %w", err)
 		}
@@ -867,25 +951,41 @@ func (s *logStoreImpl) InsertMany(ctx context.Context, entries []*models.LogEntr
 	return nil
 }
 
-func parseTimestampMs(s string) (int64, error) {
-	return strconv.ParseInt(s, 10, 64)
-}
-
-func buildAttemptCursorCondition(compare, position string) (string, []any) {
-	parts := strings.SplitN(position, "::", 2)
-	if len(parts) != 2 {
-		return "1=1", nil
-	}
-	attemptTimeMs, err := parseTimestampMs(parts[0])
+func buildAttemptCursorCondition(compare, position string) (string, []any, error) {
+	attemptTime, attemptID, err := driver.ParseCursorPosition(position)
 	if err != nil {
-		return "1=1", nil // invalid timestamp, return always true
+		return "", nil, err
 	}
-	attemptID := parts[1]
 
 	condition := fmt.Sprintf(`(
 		attempt_time %s fromUnixTimestamp64Milli(?)
 		OR (attempt_time = fromUnixTimestamp64Milli(?) AND attempt_id %s ?)
 	)`, compare, compare)
 
-	return condition, []any{attemptTimeMs, attemptTimeMs, attemptID}
+	return condition, []any{attemptTime.UnixMilli(), attemptTime.UnixMilli(), attemptID}, nil
+}
+
+// latencyToCH maps the model's *int64 to the Nullable(UInt32) column, clamping
+// out-of-range values.
+func latencyToCH(ms *int64) *uint32 {
+	if ms == nil {
+		return nil
+	}
+	v := *ms
+	if v < 0 {
+		v = 0
+	}
+	if v > math.MaxUint32 {
+		v = math.MaxUint32
+	}
+	u := uint32(v)
+	return &u
+}
+
+func latencyFromCH(ms *uint32) *int64 {
+	if ms == nil {
+		return nil
+	}
+	v := int64(*ms)
+	return &v
 }

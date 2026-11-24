@@ -140,6 +140,7 @@ Each scenario run uses one directory:
   - **`<stamp>-scenario-NN.eval-aborted.json`** — **SIGTERM** / **SIGINT** before completion (not **SIGKILL**)
     If **`transcript.json`** is missing, check these files next to **`…/runs/<stamp>-scenario-NN/`** (same directory as the run folder, not inside it).
 - **`heuristic-score.json`** / **`llm-score.json`** — by default (unless disabled above)
+- **`llm-judge-failure.json`** — when the LLM judge returns unparseable JSON after retries: full raw model text per attempt plus `stop_reason` and token usage (for CI triage)
 - **Agent-written files** — the SDK **`cwd`** is this directory. Defaults include **`Write`**, **`Edit`**, and **`Bash`** for clones, installs, and generated code.
 
 Re-score a finished run without re-invoking the agent — uses **today's** [`src/score-transcript.ts`](src/score-transcript.ts) and **scenario markdown on disk** (so LLM criteria update when you edit **`## Success criteria`**):
@@ -161,9 +162,9 @@ npm run viz:trajectory -- --run results/runs/<stamp>-scenario-01/transcript.json
 
 By default the HTML is written beside **`transcript.json`** (or **`--out`** on the viz CLI). Open the file in a browser: click a row to highlight it and set **`#s=<step>`** in the URL for a quick bookmark. The page can **filter by tool kind**, **narrow Read rows to documentation vs code paths** (by extension), and **require doc heuristics** (reference, OpenAPI, quickstart, published URL, etc.) so you can focus on documentation-looking steps.
 
-**Privacy:** transcripts and tool results may contain secrets; the generator applies light redaction to previews, but **treat HTML output as sensitive** and do not commit real run artifacts.
+**Privacy:** transcripts and tool results may contain secrets. The runner **redacts best-effort** when writing `transcript.json`, `llm-score.json`, `llm-judge-failure.json`, and eval failure sidecars (`src/redact-secrets.ts` — API keys and test webhook URLs from env); CI runs **`scripts/redact-eval-artifacts.ts`** with the same env before uploading `results/runs` artifacts. Trajectory HTML applies light redaction to previews only. **Treat all run outputs as sensitive** — redaction is not a guarantee — and do not commit real run artifacts.
 
-**Regression check:** `npm run test:trajectory` — asserts step extraction and turn indexing against a tiny fixture.
+**Regression checks:** `npm run test` (or individually: `npm run test:trajectory`, `npm run test:redact-secrets`) — trajectory step extraction and secret redaction for eval artifacts.
 
 Legacy flat files `*-scenario-NN.json` next to `runs/` are still accepted by **`npm run score`** for older runs.
 
@@ -199,7 +200,7 @@ For **fast** automated signal in CI, use **`eval:ci`** (**01** + **02** only)—
 
 ### CI (recommended slice)
 
-For **pull-request or main-branch** automation, run **two** scenarios only:
+For **main-branch** automation, run **two** scenarios only:
 
 | Scenario          | Why                                                                    |
 | ----------------- | ---------------------------------------------------------------------- |
@@ -210,19 +211,19 @@ For **pull-request or main-branch** automation, run **two** scenarios only:
 
 ```sh
 cd docs/agent-evaluation && npm ci && npm run eval:ci
-# or: ./scripts/ci-eval.sh   # requires ANTHROPIC_API_KEY + EVAL_TEST_DESTINATION_URL in the environment
-# after a successful eval:ci, live Outpost smoke: OUTPOST_API_KEY + OUTPOST_TEST_WEBHOOK_URL ./scripts/execute-ci-artifacts.sh
+# or: ./scripts/ci-eval.sh   # requires ANTHROPIC_API_KEY, EVAL_TEST_DESTINATION_URL, OUTPOST_API_KEY
+# after a successful eval:ci, CI step 2 re-runs artifacts: ./scripts/execute-ci-artifacts.sh
 ```
 
 `eval:ci` is **`npm run eval -- --scenarios 01,02`**: both **heuristic** checks and the **LLM judge** (grounded in each scenario's **`## Success criteria`**). Skipping the judge would leave you with regex-only signal, which does not encode the product checklist.
 
-**GitHub Actions:** add repository secrets **`ANTHROPIC_API_KEY`**, **`EVAL_TEST_DESTINATION_URL`**, and **`OUTPOST_API_KEY`**. Workflow **`.github/workflows/docs-agent-eval-ci.yml`** runs **`./scripts/ci-eval.sh`** with **`EVAL_LOCAL_DOCS=1`** (agent **reads docs from the repo**), then **`./scripts/execute-ci-artifacts.sh`**: picks the **newest** **`*-scenario-01`** / **`*-scenario-02`** pair from **`results/runs/`**, runs the generated **`.sh`** then **`npx tsx`** on the TypeScript artifact (**`npm install`** in the **02** run dir when **`package.json`** exists). **`OUTPOST_TEST_WEBHOOK_URL`** in CI is set from the same secret as **`EVAL_TEST_DESTINATION_URL`**. Triggers on **`workflow_dispatch`** (manual: Actions → **Docs agent eval (CI slice)** → **Run workflow**, pick branch), pushes to **`main`**, and **pull requests** when **`docs/content/**`**, **`docs/apis/**`**, **`sdks/outpost-typescript/**`**, root **`docs/README.md`** / **`docs/AGENTS.md`**, or **`docs/agent-evaluation/**`** change (GitHub does not allow **`paths`** + **`paths-ignore`** together on the same event, so edits under e.g. **`docs/agent-evaluation/README.md`** also match **`docs/agent-evaluation/**`** and can trigger a run). Uses **`ubuntu-latest`** (Claude Agent SDK needs normal filesystem access — avoid tight sandboxes; see **Permissions / failures** above). **Fork PRs** skip this job (secrets are not available).
+**GitHub Actions:** add repository secrets **`ANTHROPIC_API_KEY`**, **`EVAL_TEST_DESTINATION_URL`**, and **`OUTPOST_API_KEY`**. Workflow **`.github/workflows/docs-agent-eval-ci.yml`** scopes env **per step** (no job-wide secret blast radius): step 1 **`./scripts/ci-eval.sh`** gets Anthropic + eval + Outpost creds so the agent can **read repo docs** (`EVAL_LOCAL_DOCS=1`) and **run live smoke tests**; step 2 **`./scripts/execute-ci-artifacts.sh`** gets only Outpost execution vars (including tenant cleanup). Step 2 re-runs the newest **`*-scenario-01`** / **`*-scenario-02`** pair deterministically (generated **`.sh`** then **`npx tsx`** on the TypeScript artifact; **`npm install`** in the **02** run dir when **`package.json`** exists). **`OUTPOST_TEST_WEBHOOK_URL`** in CI is set from the same secret as **`EVAL_TEST_DESTINATION_URL`**. Triggers on pushes to **`main`** when **`docs/content/**`**, **`docs/apis/**`**, **`sdks/outpost-typescript/**`**, or root **`docs/README.md`** / **`docs/AGENTS.md`** change, and on **`workflow_dispatch`**. It does **not** run on pull requests: each run costs roughly $3 in Anthropic usage, and running on every PR commit plus again on merge multiplied that for the same signal. The check is post-merge, so a failure on **`main`** means fixing forward; the **`eval-alert`** job opens (or comments on) an issue labelled **`agent-eval-failure`** so the failure does not sit unnoticed. To check a branch before merge (for example harness changes under **`docs/agent-evaluation/`**, which no longer trigger a run), dispatch it manually: Actions → **Docs agent eval (CI slice)** → **Run workflow**, or **`gh workflow run docs-agent-eval-ci.yml --ref <branch>`**. Scheduled drift monitoring lives in [hookdeck/evals](https://github.com/hookdeck/evals), not here. Uses **`ubuntu-latest`** (Claude Agent SDK needs normal filesystem access — avoid tight sandboxes; see **Permissions / failures** above).
 
 The workflow uses **`concurrency: { group: outpost-docs-agent-eval-live-outpost, cancel-in-progress: false }`** so only one run at a time talks to the shared CI Outpost project for execution, and sets **`OUTPOST_CI_CLEANUP_TENANT=customer_acme_001`** so **`execute-ci-artifacts.sh`** **DELETE**s that tenant before the curl script and again on **EXIT** (clears destinations from prior runs and avoids parallel deletes). Override the tenant id only if your Turn 0 fixtures consistently use another id.
 
 - **`ANTHROPIC_API_KEY`** — required for the agent and for the **LLM judge** (Success criteria) after each scenario you run.
 - **`EVAL_TEST_DESTINATION_URL`** — required for Turn 0; same Source URL as `{{TEST_DESTINATION_URL}}` (and, in CI, reused as **`OUTPOST_TEST_WEBHOOK_URL`** for execution).
-- **`OUTPOST_API_KEY`** — required for **`execute-ci-artifacts.sh`** and for **GitHub Actions** execution after **`eval:ci`**. For **local** transcript-only runs you can omit it. Put the key in **`docs/agent-evaluation/.env`** (or export); never paste it into chat.
+- **`OUTPOST_API_KEY`** — required for **`ci-eval.sh`**, **`execute-ci-artifacts.sh`**, and **GitHub Actions**. The eval runner forwards it (with **`OUTPOST_TEST_WEBHOOK_URL`** / **`OUTPOST_API_BASE_URL`**) into the agent sandbox when set so the model can run live smoke tests; the LLM judge scores execution strictly in that mode. For **local transcript-only** runs you can omit it (the judge applies a missing-env exception). Put the key in **`docs/agent-evaluation/.env`** (or export); never paste it into chat.
 - **`EVAL_LOCAL_DOCS=1`** — Turn 0 replaces public doc URLs with **absolute paths to repo docs** (primarily **`.mdoc`** under **`docs/content/`**, plus OpenAPI under **`docs/apis/`**; the Turn 0 template itself is **[`hookdeck-outpost-agent-prompt.md`](hookdeck-outpost-agent-prompt.md)**). The agent uses **Read** on **`docs/`** instead of **WebFetch** to production. Use locally when validating unpublished docs; **GitHub Actions** sets this for **`docs-agent-eval-ci.yml`**.
 - **`EVAL_SKIP_HARNESS_PRE_STEPS=1`** — skip **`git_clone`** (and any future **`preSteps`**) declared in a scenario's **`## Eval harness`** JSON block; useful offline or when the baseline folder is already present.
 
@@ -250,7 +251,9 @@ Changing **`EVAL_PERMISSION_MODE`** is usually unnecessary; widening **`EVAL_TOO
 
 ### Transcript vs execution (full pass)
 
-`npm run eval` only captures **what the model produced**; by itself it does **not** call Outpost (transcript review). **`./scripts/execute-ci-artifacts.sh`** (and the **GitHub Actions** workflow's second step) runs the **01** shell + **02** TypeScript outputs against **live** Outpost when **`OUTPOST_API_KEY`** and **`OUTPOST_TEST_WEBHOOK_URL`** are set.
+When **`OUTPOST_API_KEY`** is set, `npm run eval` forwards it to the agent sandbox; transcripts can show **live** curl/SDK smoke tests and the **LLM judge** scores execution-style Success criteria from that evidence (no missing-env exception). **`./scripts/execute-ci-artifacts.sh`** (and the **GitHub Actions** workflow's second step) still **re-runs** the saved **01** shell + **02** TypeScript outputs deterministically — a separate gate from the agent session.
+
+Without **`OUTPOST_API_KEY`**, eval is **transcript-only** for execution: heuristics + LLM still run, but the judge may pass execution rows when failure was solely due to missing env (see [`src/llm-judge.ts`](src/llm-judge.ts)).
 
 **Local smoke (no agent):** to verify secrets and the managed API the same way CI does—without depending on a fresh eval transcript—run from **`docs/agent-evaluation/`** with **`OUTPOST_API_KEY`** and **`OUTPOST_TEST_WEBHOOK_URL`** set (e.g. **`source .env`**):
 

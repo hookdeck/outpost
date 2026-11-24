@@ -2,28 +2,40 @@
 
 from __future__ import annotations
 from .topics_union import TopicsUnion, TopicsUnionTypedDict
-from .webhookconfig import WebhookConfig, WebhookConfigTypedDict
+from .webhookconfigupdate import WebhookConfigUpdate, WebhookConfigUpdateTypedDict
 from .webhookcredentialsupdate import (
     WebhookCredentialsUpdate,
     WebhookCredentialsUpdateTypedDict,
 )
 from datetime import datetime
+from enum import Enum
 from outpost_sdk.types import (
     BaseModel,
     Nullable,
     OptionalNullable,
     UNSET,
     UNSET_SENTINEL,
+    current_exclude_none,
+    serialize_with_info,
 )
+from outpost_sdk.types.basemodel import current_filtered_dump
 import pydantic
 from pydantic import model_serializer
 from typing import Any, Dict, Optional
 from typing_extensions import Annotated, NotRequired, TypedDict
 
 
+class DestinationUpdateWebhookType(str, Enum):
+    r"""Destination type discriminator. Must equal the existing destination's type — type itself cannot be changed via PATCH."""
+
+    WEBHOOK = "webhook"
+
+
 class DestinationUpdateWebhookTypedDict(TypedDict):
+    type: DestinationUpdateWebhookType
+    r"""Destination type discriminator. Must equal the existing destination's type — type itself cannot be changed via PATCH."""
     topics: NotRequired[TopicsUnionTypedDict]
-    r"""\"*\" or an array of enabled topics."""
+    r"""\"*\" or an array of enabled topics. Topic strings can include \"*\" as a wildcard matching any run of characters. When available topics are configured, wildcard patterns must match at least one available topic."""
     filter_: NotRequired[Nullable[Dict[str, Any]]]
     r"""Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
     Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
@@ -31,8 +43,10 @@ class DestinationUpdateWebhookTypedDict(TypedDict):
     Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
 
     """
-    config: NotRequired[WebhookConfigTypedDict]
+    config: NotRequired[WebhookConfigUpdateTypedDict]
+    r"""Partial Webhook config for PATCH updates (RFC 7396 merge-patch)."""
     credentials: NotRequired[WebhookCredentialsUpdateTypedDict]
+    r"""Partial Webhook credentials for PATCH updates (RFC 7396 merge-patch)."""
     delivery_metadata: NotRequired[Nullable[Dict[str, Nullable[str]]]]
     r"""Static key-value pairs merged into event metadata on every attempt. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change."""
     metadata: NotRequired[Nullable[Dict[str, Nullable[str]]]]
@@ -42,8 +56,11 @@ class DestinationUpdateWebhookTypedDict(TypedDict):
 
 
 class DestinationUpdateWebhook(BaseModel):
+    type: DestinationUpdateWebhookType
+    r"""Destination type discriminator. Must equal the existing destination's type — type itself cannot be changed via PATCH."""
+
     topics: Optional[TopicsUnion] = None
-    r"""\"*\" or an array of enabled topics."""
+    r"""\"*\" or an array of enabled topics. Topic strings can include \"*\" as a wildcard matching any run of characters. When available topics are configured, wildcard patterns must match at least one available topic."""
 
     filter_: Annotated[
         OptionalNullable[Dict[str, Any]], pydantic.Field(alias="filter")
@@ -55,9 +72,11 @@ class DestinationUpdateWebhook(BaseModel):
 
     """
 
-    config: Optional[WebhookConfig] = None
+    config: Optional[WebhookConfigUpdate] = None
+    r"""Partial Webhook config for PATCH updates (RFC 7396 merge-patch)."""
 
     credentials: Optional[WebhookCredentialsUpdate] = None
+    r"""Partial Webhook credentials for PATCH updates (RFC 7396 merge-patch)."""
 
     delivery_metadata: OptionalNullable[Dict[str, Nullable[str]]] = UNSET
     r"""Static key-value pairs merged into event metadata on every attempt. Uses JSON merge-patch semantics (RFC 7396): send keys to add/update, null values to delete keys, null for entire field to clear all. Omit or send {} for no change."""
@@ -69,6 +88,9 @@ class DestinationUpdateWebhook(BaseModel):
     r"""Update the disabled state of the destination. Send a timestamp (must not be in the future) to disable, null to enable, or omit to leave unchanged."""
 
     @model_serializer(mode="wrap")
+    def _serialize_model_with_info(self, handler, info):
+        return serialize_with_info(self.serialize_model, handler, info)
+
     def serialize_model(self, handler):
         optional_fields = set(
             [
@@ -84,11 +106,15 @@ class DestinationUpdateWebhook(BaseModel):
         nullable_fields = set(
             ["filter", "delivery_metadata", "metadata", "disabled_at"]
         )
+        exclude_none = current_exclude_none()
+        skip_filtered = exclude_none is False or current_filtered_dump()
         serialized = handler(self)
         m = {}
 
         for n, f in type(self).model_fields.items():
-            k = f.alias or n
+            k = f.alias if f.alias is not None else n
+            if k not in serialized and n not in serialized and skip_filtered:
+                continue
             val = serialized.get(k, serialized.get(n))
             is_nullable_and_explicitly_set = (
                 k in nullable_fields

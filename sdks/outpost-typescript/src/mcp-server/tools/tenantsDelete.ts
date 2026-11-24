@@ -20,7 +20,7 @@ Deletes the tenant and all associated destinations.`,
     const [result, apiCall] = await tenantsDelete(
       client,
       args.tenantId,
-      { fetchOptions: { signal: ctx.signal } },
+      { fetchOptions: { signal: ctx.mcpReq.signal } },
     ).$inspect();
 
     if (!result.ok) {

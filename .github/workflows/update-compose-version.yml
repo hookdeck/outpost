@@ -61,6 +61,17 @@ jobs:
           echo "compose.yml updated."
           cat examples/docker-compose/compose.yml
 
+      # The org doesn't let GITHUB_TOKEN create pull requests, so the PR is opened
+      # with a short-lived token from the hookdeck-ci GitHub App.
+      - name: Create GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.CI_APP_CLIENT_ID }}
+          private-key: ${{ secrets.CI_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
       - name: Create Pull Request
         run: |
           git config --global user.name 'github-actions[bot]'
@@ -90,4 +101,4 @@ jobs:
             echo "Pull request created."
           fi
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}

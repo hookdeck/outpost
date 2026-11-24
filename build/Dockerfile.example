@@ -12,15 +12,15 @@
 
 # Stage 0
 # Build the binaries
-FROM golang:1.26-alpine
+FROM golang:1.27-alpine
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 
 # Build all binaries
-RUN go build -o ./bin/outpost ./cmd/outpost && \
-    go build -o ./bin/outpost-server ./cmd/outpost-server
+RUN go build -tags nomsgpack -o ./bin/outpost ./cmd/outpost && \
+    go build -tags nomsgpack -o ./bin/outpost-server ./cmd/outpost-server
 
 # Stage 1
 # Get busybox shell for entrypoint script
@@ -28,7 +28,7 @@ FROM busybox:1.36-musl AS busybox
 
 # Stage 2
 # Copy binaries to a new image
-FROM gcr.io/distroless/base-debian12:nonroot
+FROM gcr.io/distroless/base-debian13:nonroot
 
 # Copy statically linked shell from busybox for entrypoint script
 COPY --from=busybox /bin/sh /bin/sh

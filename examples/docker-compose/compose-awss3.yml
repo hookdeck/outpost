@@ -1,6 +1,6 @@
 services:
   aws:
-    image: localstack/localstack:latest
+    image: localstack/localstack:3.8.1
     environment:
       - SERVICES=s3
     ports:

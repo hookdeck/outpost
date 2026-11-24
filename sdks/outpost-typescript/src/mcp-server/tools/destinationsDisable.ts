@@ -22,7 +22,7 @@ Disables a previously enabled destination.`,
       client,
       args.tenantId,
       args.destinationId,
-      { fetchOptions: { signal: ctx.signal } },
+      { fetchOptions: { signal: ctx.mcpReq.signal } },
     ).$inspect();
 
     if (!result.ok) {

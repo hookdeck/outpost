@@ -15,14 +15,16 @@ value := operations.TypeWebhook
 
 ## Values
 
-| Name                  | Value                 |
-| --------------------- | --------------------- |
-| `TypeWebhook`         | webhook               |
-| `TypeAwsSqs`          | aws_sqs               |
-| `TypeRabbitmq`        | rabbitmq              |
-| `TypeHookdeck`        | hookdeck              |
-| `TypeAwsKinesis`      | aws_kinesis           |
-| `TypeAzureServicebus` | azure_servicebus      |
-| `TypeAwsS3`           | aws_s3                |
-| `TypeGcpPubsub`       | gcp_pubsub            |
-| `TypeKafka`           | kafka                 |
+| Name                   | Value                  |
+| ---------------------- | ---------------------- |
+| `TypeWebhook`          | webhook                |
+| `TypeAwsSqs`           | aws_sqs                |
+| `TypeRabbitmq`         | rabbitmq               |
+| `TypeHookdeck`         | hookdeck               |
+| `TypeAwsKinesis`       | aws_kinesis            |
+| `TypeAzureServicebus`  | azure_servicebus       |
+| `TypeAwsS3`            | aws_s3                 |
+| `TypeGcpPubsub`        | gcp_pubsub             |
+| `TypeKafka`            | kafka                  |
+| `TypeCloudflareQueues` | cloudflare_queues      |
+| `TypeAwsEventbridge`   | aws_eventbridge        |

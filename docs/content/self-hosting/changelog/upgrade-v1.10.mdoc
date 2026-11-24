@@ -1,0 +1,50 @@
+---
+title: "Upgrade to v1.10"
+description: "Breaking changes and behavior changes when upgrading Outpost from v1.9 to v1.10."
+---
+
+This guide covers what changes when upgrading from v1.9 to v1.10. There is one breaking change to review before upgrading, and a few stricter checks on destination configuration.
+
+There are no new PostgreSQL or ClickHouse migrations. Upgrade by replacing the image in place. Retries scheduled by v1.9 run normally on v1.10.
+
+| Change | Impact | Action Required |
+| --- | --- | --- |
+| [Events have a size limit](#events-have-a-size-limit) | Publishing events larger than 1 MiB | Set `MAX_EVENT_SIZE_BYTES` |
+
+For new features and fixes, see the [v1.10.0 release notes](https://github.com/hookdeck/outpost/releases/tag/v1.10.0).
+
+## Breaking Changes
+
+### Events have a size limit
+
+Publishing now enforces `MAX_EVENT_SIZE_BYTES` (`max_event_size_bytes` in YAML), 1 MiB by default. v1.9 had no limit.
+
+- A publish API request over the limit gets a `413`.
+- A larger message on the publish queue is never redelivered: RabbitMQ and Azure Service Bus reject it, so it is dead-lettered if the queue has dead-lettering configured, and other brokers acknowledge it and it is deleted.
+
+If you publish events larger than 1 MiB, raise `MAX_EVENT_SIZE_BYTES` before upgrading, or set it to `0` for no limit. Keep it well under your message queue's per-message size limit. See the [configuration reference](/docs/outpost/self-hosting/configuration#destinations).
+
+## Behavior Changes
+
+Destination configuration is checked more strictly. A destination that no longer passes is rejected with a `422` on create and update, and an existing one fails each attempt with a validation error that lists the field until it is changed.
+
+- A custom `config.endpoint` on `aws_eventbridge`, `aws_kinesis`, `aws_s3`, `aws_sqs` and `gcp_pubsub` destinations, and an `aws_sqs` `queue_url` that is not an AWS SQS host, need `DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true`. It is off by default. Set it if you use LocalStack, the Pub/Sub emulator, S3-compatible storage or VPC endpoints. See [Outbound Network Access](/docs/outpost/self-hosting/deployment#outbound-network-access).
+- `key_template` on [`aws_s3`](/docs/outpost/destinations/aws-s3#object-key) and `partition_key_template` on [`kafka`](/docs/outpost/destinations/kafka#partition-key) and [`aws_kinesis`](/docs/outpost/destinations/aws-kinesis#partition-key) accept field paths, literals, `join`, `to_string`, `not_null` and `||`, up to 1024 bytes. Other JMESPath features, such as pipes, filters and `[*]`, are rejected. The default S3 template is accepted. A `kafka` or `aws_kinesis` template that is not valid JMESPath keeps using the event ID as the key, as before.
+- [`gcp_pubsub`](/docs/outpost/destinations/gcp-pubsub) destinations accept only a service account key in `credentials.service_account_json`.
+- A `kafka` destination whose `brokers` value is malformed, for example a port outside 1 to 65535, is rejected. The Kafka client changed, so brokers now see the client ID `outpost` and error messages differ. Error codes are unchanged.
+- [Destination filters](/docs/outpost/features/filter) can be nested up to 16 levels. A deeper filter is rejected on create and update; existing filters keep working.
+
+Other changes:
+
+- On the PostgreSQL log store, event and attempt lists no longer repeat or skip records at page boundaries. Cursors issued before the upgrade still work. During a rolling upgrade, a node still on v1.9 answers a cursor issued by a v1.10 node with `400 invalid cursor`.
+- The `timestamp` of an [MCP](/docs/outpost/destinations/mcp) event is now truncated to milliseconds, and a retry sends the same body as the first attempt.
+- Log records exported over OTLP name the caller attributes `code.function.name`, `code.file.path` and `code.line.number`. v1.9 used `code.function`, `code.filepath` and `code.lineno`. Update any queries or dashboards that use the old names.
+- A panic while handling a queue message no longer stops Outpost. The message is nacked and the queue redelivers it up to its redelivery limit.
+
+## New Configuration
+
+See the [configuration reference](/docs/outpost/self-hosting/configuration) for defaults and details.
+
+- [`MAX_EVENT_SIZE_BYTES`](/docs/outpost/self-hosting/configuration#destinations): maximum event size. Default 1 MiB.
+- [`DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS`](/docs/outpost/self-hosting/configuration#destinations): allow custom endpoints on AWS and Pub/Sub destinations. Off by default.
+- [`DESTINATIONS_WEBHOOK_FOLLOW_REDIRECTS`](/docs/outpost/self-hosting/configuration#webhook-behavior): follow up to 10 redirects on webhook deliveries again, for destinations that still answer with a redirect. Off by default, so a 3xx stays a failed attempt as in v1.8.

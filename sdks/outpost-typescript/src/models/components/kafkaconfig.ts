@@ -12,7 +12,7 @@ import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 /**
  * SASL authentication mechanism.
  */
-export const SaslMechanism = {
+export const KafkaConfigSaslMechanism = {
   Plain: "plain",
   ScramSha256: "scram-sha-256",
   ScramSha512: "scram-sha-512",
@@ -20,7 +20,9 @@ export const SaslMechanism = {
 /**
  * SASL authentication mechanism.
  */
-export type SaslMechanism = ClosedEnum<typeof SaslMechanism>;
+export type KafkaConfigSaslMechanism = ClosedEnum<
+  typeof KafkaConfigSaslMechanism
+>;
 
 /**
  * Whether to enable TLS for the connection.
@@ -46,7 +48,7 @@ export type KafkaConfig = {
   /**
    * SASL authentication mechanism.
    */
-  saslMechanism: SaslMechanism;
+  saslMechanism: KafkaConfigSaslMechanism;
   /**
    * Whether to enable TLS for the connection.
    */
@@ -58,13 +60,13 @@ export type KafkaConfig = {
 };
 
 /** @internal */
-export const SaslMechanism$inboundSchema: z.ZodNativeEnum<
-  typeof SaslMechanism
-> = z.nativeEnum(SaslMechanism);
+export const KafkaConfigSaslMechanism$inboundSchema: z.ZodNativeEnum<
+  typeof KafkaConfigSaslMechanism
+> = z.nativeEnum(KafkaConfigSaslMechanism);
 /** @internal */
-export const SaslMechanism$outboundSchema: z.ZodNativeEnum<
-  typeof SaslMechanism
-> = SaslMechanism$inboundSchema;
+export const KafkaConfigSaslMechanism$outboundSchema: z.ZodNativeEnum<
+  typeof KafkaConfigSaslMechanism
+> = KafkaConfigSaslMechanism$inboundSchema;
 
 /** @internal */
 export const KafkaConfigTls$inboundSchema: z.ZodNativeEnum<
@@ -83,7 +85,7 @@ export const KafkaConfig$inboundSchema: z.ZodType<
 > = z.object({
   brokers: z.string(),
   topic: z.string(),
-  sasl_mechanism: SaslMechanism$inboundSchema,
+  sasl_mechanism: KafkaConfigSaslMechanism$inboundSchema,
   tls: KafkaConfigTls$inboundSchema.default("true"),
   partition_key_template: z.string().optional(),
 }).transform((v) => {
@@ -109,7 +111,7 @@ export const KafkaConfig$outboundSchema: z.ZodType<
 > = z.object({
   brokers: z.string(),
   topic: z.string(),
-  saslMechanism: SaslMechanism$outboundSchema,
+  saslMechanism: KafkaConfigSaslMechanism$outboundSchema,
   tls: KafkaConfigTls$outboundSchema.default("true"),
   partitionKeyTemplate: z.string().optional(),
 }).transform((v) => {

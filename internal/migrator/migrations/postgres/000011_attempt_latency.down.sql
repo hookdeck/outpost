@@ -1,0 +1,5 @@
+BEGIN;
+
+ALTER TABLE attempts DROP COLUMN IF EXISTS latency_ms;
+
+COMMIT;

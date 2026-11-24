@@ -13,7 +13,7 @@ import (
 // DeclareTestNATSInfrastructure creates the JetStream stream + durable
 // consumer named in cfg.Accounts[*] so the NATS queue driver can connect.
 // Each account is set up with a single subject "<stream>.events".
-func DeclareTestNATSInfrastructure(ctx context.Context, cfg *mqs.NATSConfig) error {
+func DeclareTestNATSInfrastructure(ctx context.Context, cfg *mqs.NATSPublishConfig) error {
 	servers := strings.Join(cfg.Servers, ",")
 	nc, err := nats.Connect(servers)
 	if err != nil {
@@ -49,7 +49,7 @@ func DeclareTestNATSInfrastructure(ctx context.Context, cfg *mqs.NATSConfig) err
 }
 
 // TeardownTestNATSInfrastructure removes the streams created by Declare.
-func TeardownTestNATSInfrastructure(ctx context.Context, cfg *mqs.NATSConfig) error {
+func TeardownTestNATSInfrastructure(ctx context.Context, cfg *mqs.NATSPublishConfig) error {
 	servers := strings.Join(cfg.Servers, ",")
 	nc, err := nats.Connect(servers)
 	if err != nil {

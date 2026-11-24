@@ -3,18 +3,38 @@ package destkafka
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
+	"hash/fnv"
+	"net"
+	"net/url"
+	"strconv"
 	"strings"
+	"sync"
+	"syscall"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
 	"github.com/hookdeck/outpost/internal/destregistry/partitionkey"
 	"github.com/hookdeck/outpost/internal/models"
-	"github.com/segmentio/kafka-go"
-	"github.com/segmentio/kafka-go/sasl"
-	"github.com/segmentio/kafka-go/sasl/plain"
-	"github.com/segmentio/kafka-go/sasl/scram"
+	"github.com/hookdeck/outpost/internal/proxychain"
+	"github.com/twmb/franz-go/pkg/kerr"
+	"github.com/twmb/franz-go/pkg/kgo"
+	"github.com/twmb/franz-go/pkg/sasl"
+	"github.com/twmb/franz-go/pkg/sasl/plain"
+	"github.com/twmb/franz-go/pkg/sasl/scram"
+)
+
+const (
+	// The read cap keeps a misbehaving or non-Kafka endpoint from making the
+	// client allocate unbounded memory. A producer only reads ApiVersions,
+	// SASL and single-topic Metadata responses, all far below it.
+	maxBrokerReadBytes = 1 << 20
+	// The broker default message.max.bytes. With acks off the broker drops a
+	// larger batch without replying, so the client has to reject it.
+	maxBatchBytes = 1048588
+	dialTimeout   = 10 * time.Second
 )
 
 // Configuration types
@@ -36,19 +56,41 @@ type KafkaCredentials struct {
 
 type KafkaDestination struct {
 	*destregistry.BaseProvider
+	proxyDial proxychain.DialFunc
 }
 
 var _ destregistry.Provider = (*KafkaDestination)(nil)
 
-func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption) (*KafkaDestination, error) {
+type Option func(*KafkaDestination)
+
+// WithProxy connects to brokers through the given forward proxies, nearest
+// hop first. TLS runs end to end through the tunnel.
+func WithProxy(hops []*url.URL) Option {
+	return func(d *KafkaDestination) {
+		d.proxyDial = destregistry.ProxyDialFunc(hops)
+	}
+}
+
+func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption, opts ...Option) (*KafkaDestination, error) {
 	base, err := destregistry.NewBaseProvider(loader, "kafka", basePublisherOpts...)
 	if err != nil {
 		return nil, err
 	}
-	return &KafkaDestination{BaseProvider: base}, nil
+	d := &KafkaDestination{BaseProvider: base}
+	for _, opt := range opts {
+		opt(d)
+	}
+	return d, nil
 }
 
 func (d *KafkaDestination) Validate(ctx context.Context, destination *models.Destination) error {
+	if err := d.validateConfig(ctx, destination); err != nil {
+		return err
+	}
+	return partitionkey.Validate(destination.Config["partition_key_template"])
+}
+
+func (d *KafkaDestination) validateConfig(ctx context.Context, destination *models.Destination) error {
 	if err := d.BaseProvider.Validate(ctx, destination); err != nil {
 		return err
 	}
@@ -67,6 +109,18 @@ func (d *KafkaDestination) Validate(ctx context.Context, destination *models.Des
 		})
 	}
 
+	// At least one broker. A broker without a port defaults to 9092; one with
+	// a port needs a valid one.
+	brokers := parseBrokers(destination.Config["brokers"])
+	if len(brokers) == 0 {
+		return errInvalidBrokers()
+	}
+	for _, broker := range brokers {
+		if !validBrokerAddr(broker) {
+			return errInvalidBrokers()
+		}
+	}
+
 	// Validate TLS config if provided — empty string is treated as "not configured"
 	if tlsStr, ok := destination.Config["tls"]; ok && tlsStr != "" {
 		if tlsStr != "on" && tlsStr != "true" && tlsStr != "false" {
@@ -82,8 +136,49 @@ func (d *KafkaDestination) Validate(ctx context.Context, destination *models.Des
 	return nil
 }
 
+func errInvalidBrokers() error {
+	return destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
+		{
+			Field: "config.brokers",
+			Type:  "invalid",
+		},
+	})
+}
+
+// validBrokerAddr accepts what kgo can parse, with a port in 1-65535 when
+// one is given.
+func validBrokerAddr(addr string) bool {
+	var port string
+	if strings.HasPrefix(addr, "[") {
+		parts := strings.Split(addr[1:], "]")
+		if len(parts) != 2 {
+			return false
+		}
+		if parts[1] == "" {
+			return true
+		}
+		if parts[1][0] != ':' {
+			return false
+		}
+		port = parts[1][1:]
+	} else {
+		_, p, err := net.SplitHostPort(addr)
+		if err != nil {
+			return true
+		}
+		port = p
+	}
+	n, err := strconv.Atoi(port)
+	return err == nil && n >= 1 && n <= 65535
+}
+
 func (d *KafkaDestination) CreatePublisher(ctx context.Context, destination *models.Destination) (destregistry.Publisher, error) {
 	config, credentials, err := d.resolveConfig(ctx, destination)
+	if err != nil {
+		return nil, err
+	}
+
+	partitionKeyTemplate, err := partitionkey.New(config.PartitionKeyTemplate)
 	if err != nil {
 		return nil, err
 	}
@@ -97,34 +192,113 @@ func (d *KafkaDestination) CreatePublisher(ctx context.Context, destination *mod
 		}
 	}
 
-	// Build transport
-	transport := &kafka.Transport{}
+	dials := &dialErrs{}
+	opts := []kgo.Opt{
+		kgo.SeedBrokers(config.Brokers...),
+		kgo.DefaultProduceTopic(config.Topic),
+		kgo.ClientID("outpost"),
+		kgo.Dialer(brokerDialer(d.proxyDial, config.UseTLS, dials)),
+		kgo.BrokerMaxReadBytes(maxBrokerReadBytes),
+		// kgo rejects a fetch limit above the read cap; the producer never fetches.
+		kgo.FetchMaxBytes(maxBrokerReadBytes),
+		kgo.RecordPartitioner(newPartitioner()),
+		// No broker acks; kgo requires idempotent writes off for that.
+		kgo.RequiredAcks(kgo.NoAck()),
+		kgo.DisableIdempotentWrite(),
+		kgo.ProducerBatchCompression(kgo.NoCompression()),
+		kgo.ProducerBatchMaxBytes(maxBatchBytes),
+		kgo.ProducerLinger(0),
+		// Few retries and quick metadata refreshes, so a failing broker
+		// returns its error before the delivery times out.
+		kgo.RecordRetries(2),
+		kgo.MetadataMinAge(250 * time.Millisecond),
+	}
 	if mechanism != nil {
-		transport.SASL = mechanism
+		opts = append(opts, kgo.SASL(mechanism))
 	}
-	if config.UseTLS {
-		transport.TLS = &tls.Config{}
-	}
-
-	// Create writer with hash balancer for consistent partition key routing.
-	// No WriteTimeout — the caller's context deadline (registry DeliveryTimeout)
-	// controls the timeout, consistent with how other providers work.
-	writer := &kafka.Writer{
-		Addr:      kafka.TCP(config.Brokers...),
-		Topic:     config.Topic,
-		Balancer:  &kafka.Hash{},
-		Transport: transport,
+	client, err := kgo.NewClient(opts...)
+	if err != nil {
+		// A validation error records a failed attempt; a plain error would
+		// requeue the event without one.
+		return nil, errInvalidBrokers()
 	}
 
 	return &KafkaPublisher{
 		BasePublisher:        d.BaseProvider.NewPublisher(destregistry.WithDeliveryMetadata(destination.DeliveryMetadata)),
-		writer:               writer,
-		partitionKeyTemplate: config.PartitionKeyTemplate,
+		client:               client,
+		dials:                dials,
+		partitionKeyTemplate: partitionKeyTemplate,
+		proxied:              d.proxyDial != nil,
+		brokerHosts:          brokerHosts(config.Brokers),
 	}, nil
 }
 
+// newPartitioner places keyed records by FNV-1a modulo the partition count.
+// Keep it stable: a change moves existing keys to other partitions.
+func newPartitioner() kgo.Partitioner {
+	return kgo.StickyKeyPartitioner(kgo.SaramaCompatHasher(func(b []byte) uint32 {
+		h := fnv.New32a()
+		_, _ = h.Write(b)
+		return h.Sum32()
+	}))
+}
+
+// dialErrs remembers the latest dial error, for Publish to attach to
+// ErrRecordRetries.
+type dialErrs struct {
+	mu  sync.Mutex
+	err error
+	at  time.Time
+}
+
+func (d *dialErrs) record(err error) {
+	d.mu.Lock()
+	d.err, d.at = err, time.Now()
+	d.mu.Unlock()
+}
+
+func (d *dialErrs) since(t time.Time) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.err != nil && !d.at.Before(t) {
+		return d.err
+	}
+	return nil
+}
+
+// brokerDialer dials through the proxy chain when set, and runs TLS end to
+// end over the connection.
+func brokerDialer(proxyDial proxychain.DialFunc, useTLS bool, rec *dialErrs) func(ctx context.Context, network, addr string) (net.Conn, error) {
+	var base proxychain.DialFunc = (&net.Dialer{}).DialContext
+	if proxyDial != nil {
+		base = proxyDial
+	}
+	return func(ctx context.Context, network, addr string) (net.Conn, error) {
+		ctx, cancel := context.WithTimeout(ctx, dialTimeout)
+		defer cancel()
+		conn, err := base(ctx, network, addr)
+		if err == nil && useTLS {
+			host, _, splitErr := net.SplitHostPort(addr)
+			if splitErr != nil {
+				host = addr
+			}
+			tlsConn := tls.Client(conn, &tls.Config{ServerName: host})
+			if err = tlsConn.HandshakeContext(ctx); err != nil {
+				_ = conn.Close()
+			} else {
+				conn = tlsConn
+			}
+		}
+		if err != nil {
+			rec.record(err)
+			return nil, err
+		}
+		return conn, nil
+	}
+}
+
 func (d *KafkaDestination) resolveConfig(ctx context.Context, destination *models.Destination) (*KafkaConfig, *KafkaCredentials, error) {
-	if err := d.Validate(ctx, destination); err != nil {
+	if err := d.validateConfig(ctx, destination); err != nil {
 		return nil, nil, err
 	}
 
@@ -197,13 +371,17 @@ func (d *KafkaDestination) ComputeTarget(destination *models.Destination) destre
 
 type KafkaPublisher struct {
 	*destregistry.BasePublisher
-	writer               *kafka.Writer
-	partitionKeyTemplate string
+	client               *kgo.Client
+	dials                *dialErrs
+	partitionKeyTemplate *partitionkey.Template
+	proxied              bool
+	brokerHosts          string
 }
 
 func (p *KafkaPublisher) Close() error {
 	p.BasePublisher.StartClose()
-	return p.writer.Close()
+	p.client.Close()
+	return nil
 }
 
 func (p *KafkaPublisher) Publish(ctx context.Context, event *models.Event) (*destregistry.Delivery, error) {
@@ -222,12 +400,7 @@ func (p *KafkaPublisher) Publish(ctx context.Context, event *models.Event) (*des
 	// Build parsed payload for partition key JMESPath evaluation
 	dataMap, err := event.ParsedData()
 	if err != nil {
-		return nil, destregistry.NewErrDestinationPublishAttempt(
-			err, "kafka", map[string]interface{}{
-				"error":   "format_failed",
-				"message": err.Error(),
-			},
-		)
+		return destregistry.NewFormatError("kafka", "", err)
 	}
 	if dataMap == nil {
 		dataMap = make(map[string]interface{})
@@ -238,31 +411,42 @@ func (p *KafkaPublisher) Publish(ctx context.Context, event *models.Event) (*des
 	}
 
 	// Evaluate partition key
-	key, err := partitionkey.Evaluate(p.partitionKeyTemplate, payload, event.ID)
+	key, err := p.partitionKeyTemplate.Evaluate(payload, event.ID)
 	if err != nil {
 		key = event.ID
 	}
 
 	// Build Kafka headers from metadata
-	headers := make([]kafka.Header, 0, len(meta)+1)
-	headers = append(headers, kafka.Header{Key: "content-type", Value: []byte("application/json")})
+	headers := make([]kgo.RecordHeader, 0, len(meta)+1)
+	headers = append(headers, kgo.RecordHeader{Key: "content-type", Value: []byte("application/json")})
 	for k, v := range meta {
-		headers = append(headers, kafka.Header{Key: k, Value: []byte(v)})
+		headers = append(headers, kgo.RecordHeader{Key: k, Value: []byte(v)})
 	}
 
 	// Write message — send raw event data as value, metadata in headers only
-	msg := kafka.Message{
+	record := &kgo.Record{
 		Key:     []byte(key),
 		Value:   []byte(event.Data),
 		Headers: headers,
 	}
 
-	if err := p.writer.WriteMessages(ctx, msg); err != nil {
+	start := time.Now()
+	if err := p.client.ProduceSync(ctx, record).FirstErr(); err != nil {
+		// kgo reports a failed leader dial as ErrRecordRetries alone;
+		// attach the dial error.
+		if errors.Is(err, kgo.ErrRecordRetries) {
+			if dialErr := p.dials.since(start); dialErr != nil {
+				err = fmt.Errorf("%w: %w", err, dialErr)
+			}
+		}
+		if destregistry.IsProxyError(err) {
+			return destregistry.ProxyPublishResult(err, "kafka")
+		}
 		return &destregistry.Delivery{
 				Status: "failed",
 				Code:   ClassifyKafkaError(err),
 				Response: map[string]interface{}{
-					"error": err.Error(),
+					"error": p.responseError(err),
 				},
 			}, destregistry.NewErrDestinationPublishAttempt(err, "kafka", map[string]interface{}{
 				"error":   ClassifyKafkaError(err),
@@ -277,6 +461,21 @@ func (p *KafkaPublisher) Publish(ctx context.Context, event *models.Event) (*des
 	}, nil
 }
 
+// responseError is the user-visible error. Through a proxy, network
+// errors name the proxy's address, so only broker and TLS errors are kept
+// verbatim.
+func (p *KafkaPublisher) responseError(err error) string {
+	var kafkaErr *kerr.Error
+	if !p.proxied || errors.As(err, &kafkaErr) {
+		return err.Error()
+	}
+	code := ClassifyKafkaError(err)
+	if code == "tls_error" {
+		return err.Error()
+	}
+	return fmt.Sprintf("%s connecting to %s", code, p.brokerHosts)
+}
+
 // ClassifyKafkaError returns a descriptive error code based on the error type.
 func ClassifyKafkaError(err error) string {
 	if err == nil {
@@ -285,18 +484,24 @@ func ClassifyKafkaError(err error) string {
 
 	errStr := err.Error()
 
+	var netErr net.Error
+	var dnsErr *net.DNSError
+
 	switch {
-	case strings.Contains(errStr, "SASL") || strings.Contains(errStr, "authentication") || strings.Contains(errStr, "Authentication"):
+	case errors.Is(err, kerr.SaslAuthenticationFailed) || errors.Is(err, kerr.UnsupportedSaslMechanism) || errors.Is(err, kerr.IllegalSaslState) ||
+		strings.Contains(errStr, "SASL") || strings.Contains(errStr, "authentication") || strings.Contains(errStr, "Authentication"):
 		return "auth_failed"
-	case strings.Contains(errStr, "connection refused"):
+	case errors.Is(err, syscall.ECONNREFUSED) || strings.Contains(errStr, "connection refused"):
 		return "connection_refused"
-	case strings.Contains(errStr, "no such host"):
+	case errors.As(err, &dnsErr) || strings.Contains(errStr, "no such host"):
 		return "dns_error"
-	case strings.Contains(errStr, "Unknown Topic") || strings.Contains(errStr, "UNKNOWN_TOPIC"):
+	case errors.Is(err, kerr.UnknownTopicOrPartition) || strings.Contains(errStr, "UNKNOWN_TOPIC"):
 		return "topic_not_found"
-	case strings.Contains(errStr, "Message Size Too Large") || strings.Contains(errStr, "MESSAGE_TOO_LARGE"):
+	case errors.Is(err, kerr.MessageTooLarge) || strings.Contains(errStr, "MESSAGE_TOO_LARGE"):
 		return "message_too_large"
-	case strings.Contains(errStr, "i/o timeout") || strings.Contains(errStr, "context deadline exceeded") || strings.Contains(errStr, "Timed Out"):
+	case errors.Is(err, context.DeadlineExceeded) || errors.Is(err, kgo.ErrRecordTimeout) || errors.Is(err, kerr.RequestTimedOut) ||
+		(errors.As(err, &netErr) && netErr.Timeout()) ||
+		strings.Contains(errStr, "i/o timeout") || strings.Contains(errStr, "context deadline exceeded") || strings.Contains(errStr, "TIMED_OUT"):
 		return "timeout"
 	case strings.Contains(errStr, "tls:") || strings.Contains(errStr, "x509:"):
 		return "tls_error"
@@ -306,6 +511,23 @@ func ClassifyKafkaError(err error) string {
 }
 
 // Helper functions
+
+// brokerHosts lists the distinct broker hosts, without ports.
+func brokerHosts(brokers []string) string {
+	hosts := make([]string, 0, len(brokers))
+	seen := make(map[string]bool, len(brokers))
+	for _, b := range brokers {
+		host := b
+		if h, _, err := net.SplitHostPort(b); err == nil {
+			host = h
+		}
+		if !seen[host] {
+			seen[host] = true
+			hosts = append(hosts, host)
+		}
+	}
+	return strings.Join(hosts, ",")
+}
 
 func parseBrokers(brokersStr string) []string {
 	if brokersStr == "" {
@@ -325,14 +547,11 @@ func parseBrokers(brokersStr string) []string {
 func buildSASLMechanism(mechanism string, creds *KafkaCredentials) (sasl.Mechanism, error) {
 	switch mechanism {
 	case "plain":
-		return &plain.Mechanism{
-			Username: creds.Username,
-			Password: creds.Password,
-		}, nil
+		return plain.Auth{User: creds.Username, Pass: creds.Password}.AsMechanism(), nil
 	case "scram-sha-256":
-		return scram.Mechanism(scram.SHA256, creds.Username, creds.Password)
+		return scram.Auth{User: creds.Username, Pass: creds.Password}.AsSha256Mechanism(), nil
 	case "scram-sha-512":
-		return scram.Mechanism(scram.SHA512, creds.Username, creds.Password)
+		return scram.Auth{User: creds.Username, Pass: creds.Password}.AsSha512Mechanism(), nil
 	default:
 		return nil, fmt.Errorf("unsupported SASL mechanism: %s", mechanism)
 	}

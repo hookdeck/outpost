@@ -5,15 +5,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	awssdk "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
 	"github.com/hookdeck/outpost/internal/models"
@@ -21,6 +22,7 @@ import (
 
 type AWSSQSDestination struct {
 	*destregistry.BaseProvider
+	allowCustomEndpoints bool
 }
 
 type AWSSQSDestinationConfig struct {
@@ -36,15 +38,27 @@ type AWSSQSDestinationCredentials struct {
 
 var _ destregistry.Provider = (*AWSSQSDestination)(nil)
 
-func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption) (*AWSSQSDestination, error) {
+type Option func(*AWSSQSDestination)
+
+func WithAllowCustomEndpoints(allow bool) Option {
+	return func(p *AWSSQSDestination) {
+		p.allowCustomEndpoints = allow
+	}
+}
+
+func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption, opts ...Option) (*AWSSQSDestination, error) {
 	base, err := destregistry.NewBaseProvider(loader, "aws_sqs", basePublisherOpts...)
 	if err != nil {
 		return nil, err
 	}
 
-	return &AWSSQSDestination{
+	provider := &AWSSQSDestination{
 		BaseProvider: base,
-	}, nil
+	}
+	for _, opt := range opts {
+		opt(provider)
+	}
+	return provider, nil
 }
 
 func (d *AWSSQSDestination) Validate(ctx context.Context, destination *models.Destination) error {
@@ -99,6 +113,17 @@ func (p *AWSSQSDestination) CreatePublisher(ctx context.Context, destination *mo
 func (d *AWSSQSDestination) resolveMetadata(ctx context.Context, destination *models.Destination) (*AWSSQSDestinationConfig, *AWSSQSDestinationCredentials, error) {
 	if err := d.BaseProvider.Validate(ctx, destination); err != nil {
 		return nil, nil, err
+	}
+
+	if err := destregistry.ValidateCustomEndpointAllowed(d.allowCustomEndpoints, destination); err != nil {
+		return nil, nil, err
+	}
+
+	if !d.allowCustomEndpoints && !IsAWSQueueURL(destination.Config["queue_url"]) {
+		return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{{
+			Field: "config.queue_url",
+			Type:  "forbidden",
+		}})
 	}
 
 	if endpoint := destination.Config["endpoint"]; endpoint != "" {
@@ -163,7 +188,7 @@ func (p *AWSSQSPublisher) Publish(ctx context.Context, event *models.Event) (*de
 
 	msg, err := p.Format(ctx, event)
 	if err != nil {
-		return nil, err
+		return destregistry.NewFormatError("aws_sqs", "", err)
 	}
 
 	if _, err = p.client.SendMessage(ctx, msg); err != nil {
@@ -194,12 +219,51 @@ func ParseQueueURL(queueURL string) (baseURL string, region string, err error) {
 	}
 
 	baseURL = fmt.Sprintf("%s://%s", parsedURL.Scheme, parsedURL.Host)
-	if strings.Contains(baseURL, "amazonaws.com") {
-		region = strings.Split(parsedURL.Host, ".")[1]
-		return
+	if isAWSSQSHost(parsedURL.Hostname()) {
+		region = awsSQSHostRegion(parsedURL.Hostname())
 	}
 
 	return
+}
+
+// awsSQSHostPattern matches the SQS endpoint hostnames AWS documents:
+// sqs.<region>.amazonaws.com, sqs-fips.<region>.amazonaws.com,
+// sqs.<region>.api.aws, sqs-fips.<region>.api.aws, the China partition's
+// sqs.<region>.amazonaws.com.cn, and the legacy queue.amazonaws.com and
+// <region>.queue.amazonaws.com.
+var awsSQSHostPattern = regexp.MustCompile(
+	`^(?:sqs(?:-fips)?\.(` + awsRegionPattern + `)\.(?:amazonaws\.com|amazonaws\.com\.cn|api\.aws)|(?:(` + awsRegionPattern + `)\.)?queue\.amazonaws\.com)$`)
+
+const awsRegionPattern = `[a-z]{2}(?:-[a-z]+)+-[0-9]+`
+
+func isAWSSQSHost(host string) bool {
+	return awsSQSHostPattern.MatchString(strings.ToLower(host))
+}
+
+func awsSQSHostRegion(host string) string {
+	m := awsSQSHostPattern.FindStringSubmatch(strings.ToLower(host))
+	if m == nil {
+		return ""
+	}
+	if m[1] != "" {
+		return m[1]
+	}
+	if m[2] != "" {
+		return m[2]
+	}
+	return "us-east-1" // the legacy queue.amazonaws.com host
+}
+
+// IsAWSQueueURL reports whether queueURL is an https URL on an AWS SQS endpoint host.
+func IsAWSQueueURL(queueURL string) bool {
+	u, err := url.Parse(queueURL)
+	if err != nil || u.Scheme != "https" || u.User != nil {
+		return false
+	}
+	if port := u.Port(); port != "" && port != "443" {
+		return false
+	}
+	return isAWSSQSHost(u.Hostname())
 }
 
 func (d *AWSSQSDestination) ComputeTarget(destination *models.Destination) destregistry.DestinationTarget {

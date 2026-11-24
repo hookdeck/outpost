@@ -4,7 +4,13 @@ from __future__ import annotations
 from .destinationtype import DestinationType
 from datetime import datetime
 from enum import Enum
-from outpost_sdk.types import BaseModel, UNSET_SENTINEL
+from outpost_sdk.types import (
+    BaseModel,
+    UNSET_SENTINEL,
+    current_exclude_none,
+    serialize_with_info,
+)
+from outpost_sdk.types.basemodel import current_filtered_dump
 from outpost_sdk.utils import FieldMetadata, QueryParamMetadata
 import pydantic
 from pydantic import model_serializer
@@ -43,6 +49,10 @@ class GetAttemptMetricsMeasuresEnum2(str, Enum):
     RATE = "rate"
     SUCCESSFUL_RATE = "successful_rate"
     FAILED_RATE = "failed_rate"
+    AVG_LATENCY = "avg_latency"
+    P50_LATENCY = "p50_latency"
+    P95_LATENCY = "p95_latency"
+    P99_LATENCY = "p99_latency"
 
 
 class GetAttemptMetricsMeasuresEnum1(str, Enum):
@@ -57,20 +67,24 @@ class GetAttemptMetricsMeasuresEnum1(str, Enum):
     RATE = "rate"
     SUCCESSFUL_RATE = "successful_rate"
     FAILED_RATE = "failed_rate"
+    AVG_LATENCY = "avg_latency"
+    P50_LATENCY = "p50_latency"
+    P95_LATENCY = "p95_latency"
+    P99_LATENCY = "p99_latency"
 
 
 GetAttemptMetricsMeasuresUnionTypedDict = TypeAliasType(
     "GetAttemptMetricsMeasuresUnionTypedDict",
     Union[GetAttemptMetricsMeasuresEnum1, List[GetAttemptMetricsMeasuresEnum2]],
 )
-r"""Measures to compute. At least one required. Rate measures (`rate`, `successful_rate`, `failed_rate`) are throughput in events/second. Use bracket notation for multiple values (e.g., `measures[0]=count&measures[1]=error_rate`)."""
+r"""Measures to compute. At least one required. Rate measures (`rate`, `successful_rate`, `failed_rate`) are throughput in events/second. Latency measures (`avg_latency`, `p50_latency`, `p95_latency`, `p99_latency`) are destination response times in milliseconds, `null` when no attempt in the bucket recorded a latency. Use bracket notation for multiple values (e.g., `measures[0]=count&measures[1]=error_rate`)."""
 
 
 GetAttemptMetricsMeasuresUnion = TypeAliasType(
     "GetAttemptMetricsMeasuresUnion",
     Union[GetAttemptMetricsMeasuresEnum1, List[GetAttemptMetricsMeasuresEnum2]],
 )
-r"""Measures to compute. At least one required. Rate measures (`rate`, `successful_rate`, `failed_rate`) are throughput in events/second. Use bracket notation for multiple values (e.g., `measures[0]=count&measures[1]=error_rate`)."""
+r"""Measures to compute. At least one required. Rate measures (`rate`, `successful_rate`, `failed_rate`) are throughput in events/second. Latency measures (`avg_latency`, `p50_latency`, `p95_latency`, `p99_latency`) are destination response times in milliseconds, `null` when no attempt in the bucket recorded a latency. Use bracket notation for multiple values (e.g., `measures[0]=count&measures[1]=error_rate`)."""
 
 
 class GetAttemptMetricsDimensionsEnum2(str, Enum):
@@ -208,7 +222,7 @@ class GetAttemptMetricsRequestTypedDict(TypedDict):
     time: GetAttemptMetricsTimeTypedDict
     r"""Time range for the metrics query."""
     measures: GetAttemptMetricsMeasuresUnionTypedDict
-    r"""Measures to compute. At least one required. Rate measures (`rate`, `successful_rate`, `failed_rate`) are throughput in events/second. Use bracket notation for multiple values (e.g., `measures[0]=count&measures[1]=error_rate`)."""
+    r"""Measures to compute. At least one required. Rate measures (`rate`, `successful_rate`, `failed_rate`) are throughput in events/second. Latency measures (`avg_latency`, `p50_latency`, `p95_latency`, `p99_latency`) are destination response times in milliseconds, `null` when no attempt in the bucket recorded a latency. Use bracket notation for multiple values (e.g., `measures[0]=count&measures[1]=error_rate`)."""
     granularity: NotRequired[str]
     r"""Time bucketing granularity. Pattern: `<number><unit>`.
     Units: `s` (1-60), `m` (1-60), `h` (1-24), `d` (1-31), `w` (1-4), `M` (1-12).
@@ -246,7 +260,7 @@ class GetAttemptMetricsRequest(BaseModel):
         GetAttemptMetricsMeasuresUnion,
         FieldMetadata(query=QueryParamMetadata(style="form", explode=True)),
     ]
-    r"""Measures to compute. At least one required. Rate measures (`rate`, `successful_rate`, `failed_rate`) are throughput in events/second. Use bracket notation for multiple values (e.g., `measures[0]=count&measures[1]=error_rate`)."""
+    r"""Measures to compute. At least one required. Rate measures (`rate`, `successful_rate`, `failed_rate`) are throughput in events/second. Latency measures (`avg_latency`, `p50_latency`, `p95_latency`, `p99_latency`) are destination response times in milliseconds, `null` when no attempt in the bucket recorded a latency. Use bracket notation for multiple values (e.g., `measures[0]=count&measures[1]=error_rate`)."""
 
     granularity: Annotated[
         Optional[str],
@@ -321,6 +335,9 @@ class GetAttemptMetricsRequest(BaseModel):
     r"""Filter by tenant ID(s). Admin-only — rejected with 403 for JWT callers. Use bracket notation for multiple values (e.g., `filters[tenant_id][0]=t1&filters[tenant_id][1]=t2`)."""
 
     @model_serializer(mode="wrap")
+    def _serialize_model_with_info(self, handler, info):
+        return serialize_with_info(self.serialize_model, handler, info)
+
     def serialize_model(self, handler):
         optional_fields = set(
             [
@@ -336,11 +353,15 @@ class GetAttemptMetricsRequest(BaseModel):
                 "filters[tenant_id]",
             ]
         )
+        exclude_none = current_exclude_none()
+        skip_filtered = exclude_none is False or current_filtered_dump()
         serialized = handler(self)
         m = {}
 
         for n, f in type(self).model_fields.items():
-            k = f.alias or n
+            k = f.alias if f.alias is not None else n
+            if k not in serialized and n not in serialized and skip_filtered:
+                continue
             val = serialized.get(k, serialized.get(n))
 
             if val != UNSET_SENTINEL:

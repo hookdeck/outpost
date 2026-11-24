@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/logstore"
 	"github.com/hookdeck/outpost/internal/models"
@@ -14,9 +15,10 @@ import (
 )
 
 type mockPublisher struct {
-	responses []error
-	current   int
-	mu        sync.Mutex
+	responses  []error
+	current    int
+	messageIDs []string
+	mu         sync.Mutex
 }
 
 func newMockPublisher(responses []error) *mockPublisher {
@@ -26,6 +28,7 @@ func newMockPublisher(responses []error) *mockPublisher {
 func (m *mockPublisher) PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) (*models.Attempt, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.messageIDs = append(m.messageIDs, destregistry.MessageIDFrom(ctx))
 
 	if m.current >= len(m.responses) {
 		m.current++
@@ -105,8 +108,10 @@ func (m *mockMultiDestinationGetter) RetrieveDestination(ctx context.Context, te
 }
 
 type mockEventGetter struct {
-	records []*logstore.AttemptRecord // tracks logged attempts with event data
-	err     error
+	records  []*logstore.AttemptRecord // tracks logged attempts with event data
+	err      error
+	mu       sync.Mutex
+	requests []logstore.ListAttemptRequest
 }
 
 func newMockEventGetter() *mockEventGetter {
@@ -116,10 +121,15 @@ func newMockEventGetter() *mockEventGetter {
 }
 
 func (m *mockEventGetter) addRecord(attempt *models.Attempt, event *models.Event) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.records = append(m.records, &logstore.AttemptRecord{Attempt: attempt, Event: event})
 }
 
 func (m *mockEventGetter) ListAttempt(ctx context.Context, req logstore.ListAttemptRequest) (logstore.ListAttemptResponse, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.requests = append(m.requests, req)
 	if m.err != nil {
 		return logstore.ListAttemptResponse{}, m.err
 	}
@@ -130,6 +140,9 @@ func (m *mockEventGetter) ListAttempt(ctx context.Context, req logstore.ListAtte
 			continue
 		}
 		if len(req.DestinationIDs) > 0 && !contains(req.DestinationIDs, r.Attempt.DestinationID) {
+			continue
+		}
+		if req.TimeFilter.GTE != nil && r.Attempt.Time.Before(*req.TimeFilter.GTE) {
 			continue
 		}
 		matched = append(matched, r)
@@ -181,6 +194,12 @@ func (m *mockDelayedEventGetter) ListAttempt(ctx context.Context, req logstore.L
 		return logstore.ListAttemptResponse{}, nil
 	}
 	return logstore.ListAttemptResponse{Data: []*logstore.AttemptRecord{m.record}}, nil
+}
+
+func (m *mockDelayedEventGetter) calls() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.callCount
 }
 
 func contains(slice []string, s string) bool {

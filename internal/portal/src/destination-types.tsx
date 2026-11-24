@@ -3,10 +3,9 @@ import useSWR from "swr";
 import type { DestinationTypeReference } from "./typings/Destination";
 import { ApiContext } from "./app";
 
-export function useDestinationTypes(): Record<
-  string,
-  DestinationTypeReference
-> {
+export function useDestinationTypes():
+  | Record<string, DestinationTypeReference>
+  | undefined {
   const apiClient = useContext(ApiContext);
   const { data } = useSWR<DestinationTypeReference[]>(
     "destination-types",
@@ -14,7 +13,7 @@ export function useDestinationTypes(): Record<
     { revalidateIfStale: false },
   );
   if (!data) {
-    return {};
+    return undefined;
   }
   return data.reduce(
     (acc, type) => {
@@ -30,7 +29,7 @@ export function useDestinationType(
 ): DestinationTypeReference | undefined {
   const destination_types = useDestinationTypes();
 
-  if (!type) {
+  if (!type || !destination_types) {
     return undefined;
   }
 

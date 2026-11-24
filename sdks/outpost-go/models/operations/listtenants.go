@@ -99,8 +99,6 @@ type ListTenantsResponse struct {
 	HTTPMeta components.HTTPMetadata `json:"-"`
 	// List of tenants.
 	TenantPaginatedResult *components.TenantPaginatedResult
-
-	Next func() (*ListTenantsResponse, error)
 }
 
 func (l *ListTenantsResponse) GetHTTPMeta() components.HTTPMetadata {

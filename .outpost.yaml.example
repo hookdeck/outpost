@@ -24,7 +24,7 @@ clickhouse:
 
 ## Message Queue
 mqs:
-  # Choose either RabbitMQ or AWS SQS configuration
+  # Configure one provider only
 
   # RabbitMQ Configuration Example
   rabbitmq:
@@ -34,7 +34,7 @@ mqs:
     log_queue: "outpost-log" # Queue for log events
 
   # AWS SQS Configuration Example
-  awssqs:
+  aws_sqs:
     access_key_id: "YOUR_AWS_ACCESS_KEY" # AWS access key ID
     secret_access_key: "YOUR_AWS_SECRET_KEY" # AWS secret access key
     region: "us-west-2" # AWS region
@@ -42,6 +42,12 @@ mqs:
     delivery_queue: "outpost-delivery" # SQS queue name for delivery events
     log_queue: "outpost-log" # SQS queue name for log events
 
+  # NATS JetStream Configuration Example
+  nats:
+    server_url: "nats://localhost:4222" # NATS server URL
+    stream: "outpost" # JetStream stream name
+    delivery_subject: "outpost.delivery" # Subject for delivery events (must start with "<stream>.")
+    log_subject: "outpost.log" # Subject for log events (must start with "<stream>.")
 # Publish Message Queue (optional)
 # Configure one provider to ingest events from an external source instead
 # of (or in addition to) the Publish API. Only one provider may be set.
@@ -86,8 +92,14 @@ retry_max_limit: 10 # Maximum number of event delivery retries
 
 ## Consumer Settings
 publish_max_concurrency: 1 # Max number of publish messages to process concurrently
+publish_max_redeliveries: -1 # Max redeliveries of a failed publish message before Outpost stops redelivering it (-1 = unlimited, 0 = none)
 delivery_max_concurrency: 1 # Max number of delivery messages to process concurrently
 log_max_concurrency: 1 # Max number of log messages to process concurrently
+
+## Supervisor
+# Restart queue workers that fail instead of reporting them failed at once. Off by default.
+# supervisor:
+#   restart_workers: [publishmq, deliverymq, logmq, retrymq]
 
 ## Log Batcher
 log_batch_threshold_seconds: 10 # Time to wait before sending a batch of logs (env: LOG_BATCH_THRESHOLD_SECONDS)
@@ -105,6 +117,10 @@ portal:
 # Destinations Configuration
 destinations:
   metadata_path: "config/outpost/destinations" # Path to destination metadata
+  # proxy_url: "http://user:pass@proxy:10000" # Forward proxy for webhook, RabbitMQ and Kafka destinations
+  # allow_custom_endpoints: false # Allow a custom 'endpoint' (and a non-AWS SQS 'queue_url') on AWS and GCP Pub/Sub destinations (emulators, local development)
+  # aws_eventbridge:
+  #   source: "outpost" # EventBridge Source set on every event
   webhook:
     header_prefix: "x-custom-" # Prefix for webhook headers
     # disable_default_event_id_header
@@ -115,6 +131,28 @@ destinations:
     # signature_header_template: t={{.Timestamp.UnixMilli}},v0={{.Signatures | join ","}}
     # signature_encoding: hex
     # signature_algorithm: hmac-sha256
+    # follow_redirects: false # Follow redirects (up to 10) on webhook deliveries
+
+## MCP Events
+# Experimental. Enables the MCP subscribe endpoints.
+# experimental:
+#   mcp:
+#     enabled: true
+#     allow_insecure_callbacks: false
+#     verification_ttl_seconds: 86400
+#     events_schema: # or a path to a JSON or YAML file
+#       events:
+#         - name: user.created
+#           description: A user was created.
+#           inputSchema:
+#             type: object
+#             properties:
+#               plan: {type: string, enum: [free, pro]}
+#           payloadSchema:
+#             type: object
+#             properties:
+#               plan: {type: string, enum: [free, pro]}
+#               credits: {type: number}
 
 # Note: OpenTelemetry Configuration
 # It is recommended to configure OpenTelemetry using environment variables as they are better supported by the SDK.

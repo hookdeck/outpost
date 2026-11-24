@@ -40,10 +40,11 @@ const (
 
 const (
 	defaultNs      = "rsmq"
-	defaultVt      = 30
 	defaultDelay   = 0
 	defaultMaxsize = 65536
 )
+
+const DefaultVt uint = 30
 
 // Errors returned on rsmq operation
 var (
@@ -51,12 +52,17 @@ var (
 	ErrQueueExists     = errors.New("queue exists")
 	ErrMessageTooLong  = errors.New("message too long")
 	ErrMessageNotFound = errors.New("message not found")
+	ErrReceiptMismatch = errors.New("message receipt does not match")
 )
 
 var (
-	hashPopMessage              = redis.NewScript(scriptPopMessage).Hash()
-	hashReceiveMessage          = redis.NewScript(scriptReceiveMessage).Hash()
-	hashChangeMessageVisibility = redis.NewScript(scriptChangeMessageVisibility).Hash()
+	popMessageScript              = redis.NewScript(scriptPopMessage)
+	receiveMessageScript          = redis.NewScript(scriptReceiveMessage)
+	changeMessageVisibilityScript = redis.NewScript(scriptChangeMessageVisibility)
+
+	deleteMessageReceiptScript           = redis.NewScript(scriptDeleteMessageReceipt)
+	changeMessageVisibilityReceiptScript = redis.NewScript(scriptChangeMessageVisibilityReceipt)
+	requeueMessageScript                 = redis.NewScript(scriptRequeueMessage)
 )
 
 // Pipeliner interface defines the pipeline operations needed by RSMQ
@@ -95,8 +101,7 @@ type RedisClient interface {
 	HDel(key string, fields ...string) *redis.IntCmd
 	ZRem(key string, members ...interface{}) *redis.IntCmd
 	SRem(key string, members ...interface{}) *redis.IntCmd
-	EvalSha(sha1 string, keys []string, args ...interface{}) *redis.Cmd
-	ScriptLoad(script string) *redis.StringCmd
+	RunScript(script *redis.Script, keys []string, args ...interface{}) *redis.Cmd
 	TxPipeline() Pipeliner
 	Exists(keys ...string) *redis.IntCmd
 	Type(key string) *redis.StatusCmd
@@ -139,14 +144,39 @@ type QueueMessage struct {
 	Rc      uint64
 	Fr      time.Time
 	Sent    time.Time
+	// Receipt identifies this receive; empty for PopMessage.
+	Receipt string
+}
+
+// PollResult is the outcome of a ReceiveMessagePoll call.
+type PollResult struct {
+	// Message is the received message, or nil if nothing was due.
+	Message *QueueMessage
+	// HasNext reports whether the queue holds any message at all. It is only
+	// meaningful when Message is nil.
+	HasNext bool
+	// NextDue is how long until the earliest message in the queue becomes
+	// visible. It is only meaningful when Message is nil and HasNext is true,
+	// and it is never negative.
+	NextDue time.Duration
 }
 
 // Client is the subset of *RedisSMQ methods used by consumers (e.g., scheduler)
 type Client interface {
 	CreateQueue(qname string, vt uint, delay uint, maxsize int) error
-	ReceiveMessage(qname string, vt uint) (*QueueMessage, error)
+	ReceiveMessagePoll(qname string, vt uint) (PollResult, error)
 	SendMessage(qname string, message string, delay uint, opts ...SendMessageOption) (string, error)
+	ChangeMessageVisibility(qname string, id string, vt uint) error
 	DeleteMessage(qname string, id string) error
+	// DeleteMessageWithReceipt deletes the message only if it was not
+	// re-created or re-received since the receive that returned receipt.
+	DeleteMessageWithReceipt(qname string, id string, receipt string) error
+	// ChangeMessageVisibilityWithReceipt is ChangeMessageVisibility under the
+	// same condition.
+	ChangeMessageVisibilityWithReceipt(qname string, id string, receipt string, vt uint) error
+	// RequeueMessage makes the received message visible after delay without
+	// counting that receive, under the same condition.
+	RequeueMessage(qname string, id string, receipt string, delay uint) error
 	Quit() error
 }
 
@@ -176,10 +206,6 @@ func NewRedisSMQ(client RedisClient, ns string, logger ...*logging.Logger) *Redi
 		logger: l,
 	}
 
-	client.ScriptLoad(scriptPopMessage)
-	client.ScriptLoad(scriptReceiveMessage)
-	client.ScriptLoad(scriptChangeMessageVisibility)
-
 	return rsmq
 }
 
@@ -189,7 +215,7 @@ func NewRedisSMQ(client RedisClient, ns string, logger ...*logging.Logger) *Redi
 //	err:=redisRsmq.CreateQueue(qname,rsmq.UnsetVt,rsmq.UnsetDelay,rsmq.UnsetMaxsize)
 func (rsmq *RedisSMQ) CreateQueue(qname string, vt uint, delay uint, maxsize int) error {
 	if vt == UnsetVt {
-		vt = defaultVt
+		vt = DefaultVt
 	}
 	if delay == UnsetDelay {
 		delay = defaultDelay
@@ -510,6 +536,9 @@ func (rsmq *RedisSMQ) SendMessage(qname string, message string, delay uint, opts
 	})
 	tx.HSet(key+q, messageID, message)
 	tx.HIncrBy(key+q, "totalsent", 1)
+	if options.id != "" {
+		tx.HDel(key+q, messageID+":rc", messageID+":fr", messageID+":rt")
+	}
 	if _, err := tx.Exec(); err != nil {
 		return "", err
 	}
@@ -519,31 +548,80 @@ func (rsmq *RedisSMQ) SendMessage(qname string, message string, delay uint, opts
 
 // ReceiveMessage receives message from the queue
 func (rsmq *RedisSMQ) ReceiveMessage(qname string, vt uint) (*QueueMessage, error) {
-	if err := validateQname(qname); err != nil {
-		return nil, err
-	}
-
-	queue, err := rsmq.getQueue(qname, true)
+	res, err := rsmq.ReceiveMessagePoll(qname, vt)
 	if err != nil {
 		return nil, err
 	}
+	return res.Message, nil
+}
 
-	if vt == UnsetVt {
-		vt = queue.vt
+// ReceiveMessagePoll receives a message from the queue and, when nothing is
+// due, reports when the queue's earliest message becomes visible so the caller
+// can sleep until then instead of polling on a fixed interval.
+func (rsmq *RedisSMQ) ReceiveMessagePoll(qname string, vt uint) (PollResult, error) {
+	if err := validateQname(qname); err != nil {
+		return PollResult{}, err
 	}
 
-	if err := validateVt(vt); err != nil {
-		return nil, err
+	vtArg := ""
+	if vt != UnsetVt {
+		if err := validateVt(vt); err != nil {
+			return PollResult{}, err
+		}
+		vtArg = strconv.FormatUint(uint64(vt), 10)
 	}
 
 	key := rsmq.ns + qname
 	hashKey := key + q // key + ":Q"
 
-	qvt := strconv.FormatUint(queue.ts+uint64(vt)*1000, 10)
-	ct := strconv.FormatUint(queue.ts, 10)
+	evalCmd := rsmq.client.RunScript(receiveMessageScript, []string{key, hashKey}, vtArg)
+	return rsmq.createPollResult(evalCmd)
+}
 
-	evalCmd := rsmq.client.EvalSha(hashReceiveMessage, []string{key, hashKey}, ct, qvt)
-	return rsmq.createQueueMessage(evalCmd)
+func (rsmq *RedisSMQ) createPollResult(cmd *redis.Cmd) (PollResult, error) {
+	if err := cmd.Err(); err != nil {
+		return PollResult{}, fmt.Errorf("rsmq command failed: %w", err)
+	}
+
+	vals, err := toAnySlice(cmd.Val())
+	if err != nil {
+		return PollResult{}, err
+	}
+	if len(vals) == 0 {
+		return PollResult{}, fmt.Errorf("empty receiveMessage response")
+	}
+
+	tag, ok := vals[0].(string)
+	if !ok {
+		return PollResult{}, fmt.Errorf("mismatched receiveMessage tag type: got %T", vals[0])
+	}
+
+	switch tag {
+	case "n":
+		return PollResult{}, ErrQueueNotFound
+	case "e":
+		if len(vals) != 3 {
+			return PollResult{}, fmt.Errorf("malformed receiveMessage empty response: %v", vals)
+		}
+		if convertIntToUint(vals[1]) == 0 {
+			return PollResult{}, nil
+		}
+		return PollResult{
+			HasNext: true,
+			NextDue: time.Duration(convertIntToUint(vals[2])) * time.Millisecond,
+		}, nil
+	case "m":
+		if len(vals) != 6 {
+			return PollResult{}, fmt.Errorf("malformed receiveMessage response: %v", vals)
+		}
+		msg, err := buildQueueMessage(vals[1:])
+		if err != nil {
+			return PollResult{}, err
+		}
+		return PollResult{Message: msg}, nil
+	default:
+		return PollResult{}, fmt.Errorf("unknown receiveMessage tag: %q", tag)
+	}
 }
 
 // PopMessage pop message from queue
@@ -562,7 +640,7 @@ func (rsmq *RedisSMQ) PopMessage(qname string) (*QueueMessage, error) {
 
 	t := strconv.FormatUint(queue.ts, 10)
 
-	evalCmd := rsmq.client.EvalSha(hashPopMessage, []string{key, hashKey}, t)
+	evalCmd := rsmq.client.RunScript(popMessageScript, []string{key, hashKey}, t)
 	return rsmq.createQueueMessage(evalCmd)
 }
 
@@ -572,28 +650,34 @@ func (rsmq *RedisSMQ) createQueueMessage(cmd *redis.Cmd) (*QueueMessage, error) 
 		return nil, fmt.Errorf("rsmq command failed: %w", err)
 	}
 
-	val := cmd.Val()
-
-	// Handle nil response - some Redis-compatible databases (e.g., Dragonfly)
-	// may return nil instead of empty array when no message is available
-	if val == nil {
-		return nil, nil
-	}
-
-	// Try different type assertions for cluster vs regular client compatibility
-	var vals []any
-	if v, ok := val.([]any); ok {
-		vals = v
-	} else if v, ok := val.([]interface{}); ok {
-		vals = make([]any, len(v))
-		for i, item := range v {
-			vals[i] = item
-		}
-	} else {
-		return nil, fmt.Errorf("mismatched message response type: got %T, value: %v", val, val)
+	vals, err := toAnySlice(cmd.Val())
+	if err != nil {
+		return nil, err
 	}
 	if len(vals) == 0 {
 		return nil, nil
+	}
+	return buildQueueMessage(vals)
+}
+
+// toAnySlice normalizes a script reply into a slice. A nil reply becomes an
+// empty slice — some Redis-compatible databases (e.g., Dragonfly) return nil
+// instead of an empty array.
+func toAnySlice(val any) ([]any, error) {
+	if val == nil {
+		return nil, nil
+	}
+	v, ok := val.([]any)
+	if !ok {
+		return nil, fmt.Errorf("mismatched message response type: got %T, value: %v", val, val)
+	}
+	return v, nil
+}
+
+// buildQueueMessage converts a {id, message, rc, fr[, receipt]} reply into a QueueMessage.
+func buildQueueMessage(vals []any) (*QueueMessage, error) {
+	if len(vals) < 4 {
+		return nil, fmt.Errorf("malformed message response: %v", vals)
 	}
 	id := vals[0].(string)
 	message := vals[1].(string)
@@ -604,12 +688,18 @@ func (rsmq *RedisSMQ) createQueueMessage(cmd *redis.Cmd) (*QueueMessage, error) 
 		panic(err)
 	}
 
+	var receipt string
+	if len(vals) > 4 {
+		receipt, _ = vals[4].(string)
+	}
+
 	return &QueueMessage{
 		ID:      id,
 		Message: message,
 		Rc:      rc,
 		Fr:      time.UnixMilli(fr),
 		Sent:    time.UnixMicro(sent),
+		Receipt: receipt,
 	}, nil
 }
 
@@ -641,7 +731,7 @@ func (rsmq *RedisSMQ) ChangeMessageVisibility(qname string, id string, vt uint) 
 	key := rsmq.ns + qname
 	t := strconv.FormatUint(queue.ts+uint64(vt)*1000, 10)
 
-	evalCmd := rsmq.client.EvalSha(hashChangeMessageVisibility, []string{key}, id, t)
+	evalCmd := rsmq.client.RunScript(changeMessageVisibilityScript, []string{key}, id, t)
 	if e, err := evalCmd.Bool(); err != nil {
 		return err
 	} else if !e {
@@ -669,7 +759,7 @@ func (rsmq *RedisSMQ) DeleteMessage(qname string, id string) error {
 
 	tx := rsmq.client.TxPipeline()
 	zremIntCmd := tx.ZRem(key, id)
-	hdelIntCmd := tx.HDel(key+q, id, id+":rc", id+":fr")
+	hdelIntCmd := tx.HDel(key+q, id, id+":rc", id+":fr", id+":rt")
 	if _, err := tx.Exec(); err != nil {
 		return err
 	}
@@ -678,5 +768,94 @@ func (rsmq *RedisSMQ) DeleteMessage(qname string, id string) error {
 		return ErrMessageNotFound
 	}
 
+	return nil
+}
+
+// DeleteMessageWithReceipt deletes the message only if receipt, from the
+// receive that returned it, is still current. It returns ErrReceiptMismatch if
+// the message was re-created or received again since.
+func (rsmq *RedisSMQ) DeleteMessageWithReceipt(qname string, id string, receipt string) error {
+	if err := validateQname(qname); err != nil {
+		return err
+	}
+	if err := validateID(id); err != nil {
+		return err
+	}
+	if receipt == "" {
+		return ErrReceiptMismatch
+	}
+	if _, err := rsmq.getQueue(qname, false); err != nil {
+		return err
+	}
+
+	key := rsmq.ns + qname
+	return receiptResult(rsmq.client.RunScript(deleteMessageReceiptScript, []string{key, key + q}, id, receipt))
+}
+
+// ChangeMessageVisibilityWithReceipt changes message visibility only if
+// receipt, from the receive that returned it, is still current. It returns
+// ErrReceiptMismatch if the message was re-created or received again since.
+func (rsmq *RedisSMQ) ChangeMessageVisibilityWithReceipt(qname string, id string, receipt string, vt uint) error {
+	if err := validateQname(qname); err != nil {
+		return err
+	}
+	if err := validateID(id); err != nil {
+		return err
+	}
+	if receipt == "" {
+		return ErrReceiptMismatch
+	}
+	queue, err := rsmq.getQueue(qname, false)
+	if err != nil {
+		return err
+	}
+	if vt == UnsetVt {
+		vt = queue.vt
+	}
+	if err := validateVt(vt); err != nil {
+		return err
+	}
+
+	key := rsmq.ns + qname
+	vtArg := strconv.FormatUint(uint64(vt), 10)
+	return receiptResult(rsmq.client.RunScript(changeMessageVisibilityReceiptScript, []string{key, key + q}, id, receipt, vtArg))
+}
+
+// RequeueMessage makes the message visible after delay seconds and undoes the
+// receive count of the receive that returned receipt. It returns
+// ErrReceiptMismatch if the message was re-created or received again since.
+func (rsmq *RedisSMQ) RequeueMessage(qname string, id string, receipt string, delay uint) error {
+	if err := validateQname(qname); err != nil {
+		return err
+	}
+	if err := validateID(id); err != nil {
+		return err
+	}
+	if receipt == "" {
+		return ErrReceiptMismatch
+	}
+	if _, err := rsmq.getQueue(qname, false); err != nil {
+		return err
+	}
+	if err := validateDelay(delay); err != nil {
+		return err
+	}
+
+	key := rsmq.ns + qname
+	delayArg := strconv.FormatUint(uint64(delay), 10)
+	return receiptResult(rsmq.client.RunScript(requeueMessageScript, []string{key, key + q}, id, receipt, delayArg))
+}
+
+func receiptResult(cmd *redis.Cmd) error {
+	n, err := cmd.Int()
+	if err != nil {
+		return err
+	}
+	switch n {
+	case -1:
+		return ErrMessageNotFound
+	case 0:
+		return ErrReceiptMismatch
+	}
 	return nil
 }

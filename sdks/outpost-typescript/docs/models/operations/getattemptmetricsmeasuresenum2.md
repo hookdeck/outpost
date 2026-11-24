@@ -5,11 +5,11 @@
 ```typescript
 import { GetAttemptMetricsMeasuresEnum2 } from "@hookdeck/outpost-sdk/models/operations";
 
-let value: GetAttemptMetricsMeasuresEnum2 = "rate";
+let value: GetAttemptMetricsMeasuresEnum2 = "avg_latency";
 ```
 
 ## Values
 
 ```typescript
-"count" | "successful_count" | "failed_count" | "error_rate" | "first_attempt_count" | "retry_count" | "manual_retry_count" | "avg_attempt_number" | "rate" | "successful_rate" | "failed_rate"
+"count" | "successful_count" | "failed_count" | "error_rate" | "first_attempt_count" | "retry_count" | "manual_retry_count" | "avg_attempt_number" | "rate" | "successful_rate" | "failed_rate" | "avg_latency" | "p50_latency" | "p95_latency" | "p99_latency"
 ```

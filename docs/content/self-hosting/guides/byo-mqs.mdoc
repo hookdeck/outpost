@@ -71,7 +71,7 @@ The following table shows the resources, default names, and configuration variab
 |----------|--------------------|-----------------|-----------------------|
 | Exchange | `outpost` | `outpost` | `RABBITMQ_EXCHANGE` |
 | Queue | `outpost-delivery` | `outpost-log` | `RABBITMQ_DELIVERY_QUEUE` / `RABBITMQ_LOG_QUEUE` |
-| DLQ | `outpost-delivery.dlq` | `outpost-log.dlq` | (auto-derived from queue name) |
+| DLQ | `outpost-delivery.dlq` | `outpost-log.dlq` | `RABBITMQ_DELIVERY_DLQ` / `RABBITMQ_LOG_DLQ` (optional; defaults to `<queue>.dlq` if unset) |
 
 **Configuration requirements:**
 - Exchange type: `topic`
@@ -79,17 +79,38 @@ The following table shows the resources, default names, and configuration variab
 - DLQ routing: Configure `x-dead-letter-exchange` and `x-dead-letter-routing-key` on main queue
 - Bindings: Bind queues to exchange with routing keys matching queue names
 
+### NATS JetStream
+
+| Resource | Delivery MQ Default | Log MQ Default | Environment Variable |
+|----------|--------------------|-----------------|-----------------------|
+| Stream | `outpost` | `outpost` | `NATS_STREAM` |
+| Subject | `outpost.delivery` | `outpost.log` | `NATS_DELIVERY_SUBJECT` / `NATS_LOG_SUBJECT` |
+| DLQ Subject | `dlq.outpost-delivery` | `dlq.outpost-log` | `NATS_DELIVERY_DLQ` / `NATS_LOG_DLQ` (optional; defaults to `dlq.<subject>` if unset, with `.` replaced by `-`) |
+| Consumer | `outpost-delivery-consumer` | `outpost-log-consumer` | derived from the subject, not independently configurable |
+| DLQ Consumer | `dlq-outpost-delivery-consumer` | `dlq-outpost-log-consumer` | derived from the DLQ subject, not independently configurable |
+
+**Configuration requirements:**
+- Stream subjects: scope the main stream to `<stream>.>` so the delivery and log subjects can each be declared without one wiping out the other's subject list
+- Retention: `WorkQueuePolicy`, so a message is removed once acked or terminated
+- Delivery and log subjects must be prefixed with the stream name followed by `.` — a subject outside that prefix lets the stream declare successfully while every publish then fails
+- DLQ stream: a separate stream whose subject sits outside the main stream's `<stream>.>` wildcard (JetStream doesn't allow two streams to claim overlapping subjects)
+- Consumer names: `.`, `*`, `>` and whitespace in a subject become `-` (JetStream consumer names can't contain them), then `-consumer` is appended — if you provision these yourself with `MQS_AUTO_PROVISION=false`, the name has to match exactly or Outpost won't find it
+- DLQ consumer: the DLQ stream needs its own consumer too, so a message moved there can be read back out (e.g. for reprocessing) through the same interface as the main queue
+- Consumer: `AckExplicitPolicy`, `AckWait` around 60 seconds, `MaxDeliver` set to the retry limit plus 1 (JetStream counts the initial delivery as attempt #1) — the handler sees every one of these deliveries, including the last; only a Nack on that final attempt moves the message to the DLQ
+- NATS servers default `max_payload` to 1 MiB; raise it if you deliver larger events
+
 ### AWS SQS
 
 | Resource | Delivery MQ Default | Log MQ Default | Environment Variable |
 |----------|--------------------|-----------------|-----------------------|
 | Queue | `outpost-delivery` | `outpost-log` | `AWS_SQS_DELIVERY_QUEUE` / `AWS_SQS_LOG_QUEUE` |
-| DLQ | `outpost-delivery-dlq` | `outpost-log-dlq` | (auto-derived from queue name) |
+| DLQ | `outpost-delivery-dlq` | `outpost-log-dlq` | `AWS_SQS_DELIVERY_DLQ` / `AWS_SQS_LOG_DLQ` (optional; defaults to `<queue>-dlq` if unset) |
 
 **Configuration requirements:**
 - Configure `RedrivePolicy` on main queue pointing to DLQ
 - Set appropriate `VisibilityTimeout` (SQS default: 30 seconds)
 - Set `maxReceiveCount` in RedrivePolicy for retry limit
+- Grant the Outpost principal `sqs:GetQueueUrl`, `sqs:SendMessage`, `sqs:ReceiveMessage`, `sqs:DeleteMessage`, and `sqs:ChangeMessageVisibility` on the queues. No create or delete permissions are needed when you manage the queues yourself.
 
 ### GCP Pub/Sub
 
@@ -97,14 +118,15 @@ The following table shows the resources, default names, and configuration variab
 |----------|--------------------|-----------------|-----------------------|
 | Topic | `outpost-delivery` | `outpost-log` | `GCP_PUBSUB_DELIVERY_TOPIC` / `GCP_PUBSUB_LOG_TOPIC` |
 | Subscription | `outpost-delivery-sub` | `outpost-log-sub` | `GCP_PUBSUB_DELIVERY_SUBSCRIPTION` / `GCP_PUBSUB_LOG_SUBSCRIPTION` |
-| DLQ Topic | `outpost-delivery-dlq` | `outpost-log-dlq` | (auto-derived from topic name) |
-| DLQ Subscription | `outpost-delivery-dlq-sub` | `outpost-log-dlq-sub` | (auto-derived from topic name) |
+| DLQ Topic | `outpost-delivery-dlq` | `outpost-log-dlq` | `GCP_PUBSUB_DELIVERY_DLQ_TOPIC` / `GCP_PUBSUB_LOG_DLQ_TOPIC` (optional; defaults to `<topic>-dlq` if unset) |
+| DLQ Subscription | `outpost-delivery-dlq-sub` | `outpost-log-dlq-sub` | `GCP_PUBSUB_DELIVERY_DLQ_SUBSCRIPTION` / `GCP_PUBSUB_LOG_DLQ_SUBSCRIPTION` (optional; defaults to `<dlq-topic>-sub` if unset) |
 
 **Configuration requirements:**
 - Create both topic and subscription pairs
 - Configure `DeadLetterPolicy` on main subscription
 - Set `ackDeadlineSeconds` for visibility timeout (default: 10 seconds)
 - Set `maxDeliveryAttempts` in DeadLetterPolicy
+- Disable `expirationPolicy` on both subscriptions; the default deletes a subscription after 31 days without a subscriber, and the DLQ subscription has none
 
 ### Azure Service Bus
 

@@ -303,6 +303,10 @@ func (s *logStore) QueryAttemptMetrics(ctx context.Context, req driver.MetricsRe
 		sfRetryCount
 		sfManualRetry
 		sfAvgAttemptNum
+		sfAvgLatency
+		sfP50Latency
+		sfP95Latency
+		sfP99Latency
 	)
 	var order []sf
 
@@ -379,6 +383,19 @@ func (s *logStore) QueryAttemptMetrics(ctx context.Context, req driver.MetricsRe
 		case "avg_attempt_number":
 			selectExprs = append(selectExprs, "AVG(attempt_number)::float8")
 			order = append(order, sfAvgAttemptNum)
+		// Latency aggregates are NULL when no row in the group has a value.
+		case "avg_latency":
+			selectExprs = append(selectExprs, "AVG(latency_ms)::float8")
+			order = append(order, sfAvgLatency)
+		case "p50_latency":
+			selectExprs = append(selectExprs, "percentile_cont(0.5) WITHIN GROUP (ORDER BY latency_ms)::float8")
+			order = append(order, sfP50Latency)
+		case "p95_latency":
+			selectExprs = append(selectExprs, "percentile_cont(0.95) WITHIN GROUP (ORDER BY latency_ms)::float8")
+			order = append(order, sfP95Latency)
+		case "p99_latency":
+			selectExprs = append(selectExprs, "percentile_cont(0.99) WITHIN GROUP (ORDER BY latency_ms)::float8")
+			order = append(order, sfP99Latency)
 		}
 	}
 
@@ -447,6 +464,10 @@ func (s *logStore) QueryAttemptMetrics(ctx context.Context, req driver.MetricsRe
 		retryCount       int
 		manualRetry      int
 		avgAttemptNum    float64
+		avgLatency       *float64
+		p50Latency       *float64
+		p95Latency       *float64
+		p99Latency       *float64
 	)
 
 	scanDests := make([]any, len(order))
@@ -486,6 +507,14 @@ func (s *logStore) QueryAttemptMetrics(ctx context.Context, req driver.MetricsRe
 			scanDests[i] = &manualRetry
 		case sfAvgAttemptNum:
 			scanDests[i] = &avgAttemptNum
+		case sfAvgLatency:
+			scanDests[i] = &avgLatency
+		case sfP50Latency:
+			scanDests[i] = &p50Latency
+		case sfP95Latency:
+			scanDests[i] = &p95Latency
+		case sfP99Latency:
+			scanDests[i] = &p99Latency
 		}
 	}
 
@@ -549,6 +578,14 @@ func (s *logStore) QueryAttemptMetrics(ctx context.Context, req driver.MetricsRe
 			case sfAvgAttemptNum:
 				v := avgAttemptNum
 				dp.AvgAttemptNumber = &v
+			case sfAvgLatency:
+				dp.AvgLatency = copyFloat64(avgLatency)
+			case sfP50Latency:
+				dp.P50Latency = copyFloat64(p50Latency)
+			case sfP95Latency:
+				dp.P95Latency = copyFloat64(p95Latency)
+			case sfP99Latency:
+				dp.P99Latency = copyFloat64(p99Latency)
 			}
 		}
 		data = append(data, dp)
@@ -578,4 +615,13 @@ func (s *logStore) QueryAttemptMetrics(ctx context.Context, req driver.MetricsRe
 			Truncated:   truncated,
 		},
 	}, nil
+}
+
+// copyFloat64 detaches a scanned nullable value from the reusable scan slot.
+func copyFloat64(p *float64) *float64 {
+	if p == nil {
+		return nil
+	}
+	v := *p
+	return &v
 }

@@ -1,43 +1,105 @@
 package destregistrydefault
 
 import (
+	"context"
+	"fmt"
+	"net/url"
+	"os"
+	"strings"
+
 	"github.com/hookdeck/outpost/internal/destregistry"
+	"github.com/hookdeck/outpost/internal/destregistry/providers/destawseventbridge"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destawskinesis"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destawss3"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destawssqs"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destazureservicebus"
+	"github.com/hookdeck/outpost/internal/destregistry/providers/destcfqueues"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destgcppubsub"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/desthookdeck"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destkafka"
+	"github.com/hookdeck/outpost/internal/destregistry/providers/destmcp"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destrabbitmq"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
-	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhookstandard"
+	"github.com/hookdeck/outpost/internal/emetrics"
+	"github.com/hookdeck/outpost/internal/netguard"
+	"github.com/hookdeck/outpost/internal/proxychain"
 )
 
+// WebhookHeaderConfig is the resolved directive for a single webhook system
+// header. The config layer collapses the three-state name config (and the
+// deprecated DISABLE_* flag) into this: an empty Name with Disabled false means
+// "use the default '<prefix>' + key".
+type WebhookHeaderConfig struct {
+	Name     string
+	Disabled bool
+}
+
 type DestWebhookConfig struct {
-	Mode                          string
-	ProxyURL                      string
-	HeaderPrefix                  string
-	DisableDefaultEventIDHeader   bool
-	DisableDefaultSignatureHeader bool
-	DisableDefaultTimestampHeader bool
-	DisableDefaultTopicHeader     bool
-	SignatureContentTemplate      string
-	SignatureHeaderTemplate       string
-	SignatureEncoding             string
-	SignatureAlgorithm            string
-	SigningSecretTemplate         string
+	// MetadataName selects the metadata/providers entry describing the
+	// provider; empty means "webhook".
+	MetadataName             string
+	ProxyURL                 string
+	HeaderPrefix             string
+	EventIDHeader            WebhookHeaderConfig
+	SignatureHeader          WebhookHeaderConfig
+	TimestampHeader          WebhookHeaderConfig
+	TopicHeader              WebhookHeaderConfig
+	TimestampFormat          string
+	SignatureContentTemplate string
+	SignatureHeaderTemplate  string
+	SignatureEncoding        string
+	SignatureAlgorithm       string
+	SigningSecretTemplate    string
+	MaxResponseBodyBytes     int
+	FollowRedirects          bool
+	SignatureSecretEncoding  string
+	SignatureSecretPrefix    string
+	Compat                   *destwebhook.CompatSignatureConfig
 }
 
 type DestAWSKinesisConfig struct {
 	MetadataInPayload bool
 }
 
+type DestAWSEventBridgeConfig struct {
+	Source string
+}
+
 type RegisterDefaultDestinationOptions struct {
 	UserAgent                   string
 	IncludeMillisecondTimestamp bool
-	Webhook                     *DestWebhookConfig
-	AWSKinesis                  *DestAWSKinesisConfig
+	// ProxyURL is the forward proxy chain for RabbitMQ and Kafka. Webhooks
+	// use Webhook.ProxyURL only; the config layer resolves its fallback to
+	// this value.
+	ProxyURL       string
+	Webhook        *DestWebhookConfig
+	AWSKinesis     *DestAWSKinesisConfig
+	AWSEventBridge *DestAWSEventBridgeConfig
+	MCP            *destmcp.Config
+
+	BlockPrivateAddresses   bool
+	PrivateAddressAllowlist []string
+
+	AllowCustomEndpoints bool
+
+	// DeliveryMaxConcurrency is the delivery worker pool size. It bounds how
+	// many deliveries can be in flight, and therefore how many connections a
+	// single destination could need. 0 leaves Go's per-host default in place.
+	DeliveryMaxConcurrency int
+}
+
+// WebhookEnvProxyIgnored reports whether HTTP_PROXY/HTTPS_PROXY are set but
+// ignored for webhooks: the address guard is on and no webhook proxy is set.
+func WebhookEnvProxyIgnored(opts RegisterDefaultDestinationOptions) bool {
+	if !opts.BlockPrivateAddresses || opts.Webhook == nil || strings.TrimSpace(opts.Webhook.ProxyURL) != "" {
+		return false
+	}
+	for _, k := range []string{"HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy"} {
+		if os.Getenv(k) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 // RegisterDefault registers the default destination providers with the registry.
@@ -52,60 +114,103 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 		basePublisherOpts = append(basePublisherOpts, destregistry.WithMillisecondTimestamp(opts.IncludeMillisecondTimestamp))
 	}
 
-	// Register webhook provider based on mode
-	if opts.Webhook != nil && opts.Webhook.Mode == "standard" {
-		// Standard Webhooks mode - register webhook_standard as "webhook"
-		webhookStandardOpts := []destwebhookstandard.Option{
-			destwebhookstandard.WithUserAgent(opts.UserAgent),
-			destwebhookstandard.WithProxyURL(opts.Webhook.ProxyURL),
-			destwebhookstandard.WithHeaderPrefix(opts.Webhook.HeaderPrefix),
+	// Webhook destinations fan out across arbitrarily many hosts, so their pool
+	// needs breadth as well as depth. The hookdeck provider talks to one host.
+	fanOutPool := destregistry.SizeFanOutPool(opts.DeliveryMaxConcurrency)
+	singleHostPool := destregistry.SizeSingleHostPool(opts.DeliveryMaxConcurrency)
+
+	emeter, err := emetrics.New()
+	if err != nil {
+		return err
+	}
+	connObserver := func(destinationType string) func(bool) {
+		return func(reused bool) {
+			emeter.DeliveryConnection(context.Background(), reused, destinationType)
 		}
-		webhookStandard, err := destwebhookstandard.New(loader, basePublisherOpts, webhookStandardOpts...)
-		if err != nil {
-			return err
-		}
-		registry.RegisterProvider("webhook", webhookStandard)
-	} else {
-		// Default mode - register customizable webhook as "webhook"
-		webhookOpts := []destwebhook.Option{
-			destwebhook.WithUserAgent(opts.UserAgent),
-		}
-		if opts.Webhook != nil {
-			webhookOpts = append(webhookOpts,
-				destwebhook.WithProxyURL(opts.Webhook.ProxyURL),
-				destwebhook.WithHeaderPrefix(opts.Webhook.HeaderPrefix),
-				destwebhook.WithDisableDefaultEventIDHeader(opts.Webhook.DisableDefaultEventIDHeader),
-				destwebhook.WithDisableDefaultSignatureHeader(opts.Webhook.DisableDefaultSignatureHeader),
-				destwebhook.WithDisableDefaultTimestampHeader(opts.Webhook.DisableDefaultTimestampHeader),
-				destwebhook.WithDisableDefaultTopicHeader(opts.Webhook.DisableDefaultTopicHeader),
-				destwebhook.WithSignatureContentTemplate(opts.Webhook.SignatureContentTemplate),
-				destwebhook.WithSignatureHeaderTemplate(opts.Webhook.SignatureHeaderTemplate),
-				destwebhook.WithSignatureEncoding(opts.Webhook.SignatureEncoding),
-				destwebhook.WithSignatureAlgorithm(opts.Webhook.SignatureAlgorithm),
-				destwebhook.WithSigningSecretTemplate(opts.Webhook.SigningSecretTemplate),
-			)
-		}
-		webhook, err := destwebhook.New(loader, basePublisherOpts, webhookOpts...)
-		if err != nil {
-			return err
-		}
-		registry.RegisterProvider("webhook", webhook)
 	}
 
+	proxy, err := proxychain.Parse(opts.ProxyURL)
+	if err != nil {
+		return fmt.Errorf("destinations proxy: %w", err)
+	}
+
+	var webhookProxy []*url.URL
+	if opts.Webhook != nil {
+		webhookProxy, err = proxychain.Parse(opts.Webhook.ProxyURL)
+		if err != nil {
+			return fmt.Errorf("webhook proxy: %w", err)
+		}
+	}
+
+	webhookOpts := []destwebhook.Option{
+		destwebhook.WithUserAgent(opts.UserAgent),
+		destwebhook.WithConnectionPool(fanOutPool),
+		destwebhook.WithConnectionObserver(connObserver("webhook")),
+	}
+	if opts.Webhook != nil {
+		webhookOpts = append(webhookOpts,
+			destwebhook.WithProxy(webhookProxy),
+			destwebhook.WithHeaderPrefix(opts.Webhook.HeaderPrefix),
+			destwebhook.WithEventIDHeader(opts.Webhook.EventIDHeader.Name, opts.Webhook.EventIDHeader.Disabled),
+			destwebhook.WithSignatureHeader(opts.Webhook.SignatureHeader.Name, opts.Webhook.SignatureHeader.Disabled),
+			destwebhook.WithTimestampHeader(opts.Webhook.TimestampHeader.Name, opts.Webhook.TimestampHeader.Disabled),
+			destwebhook.WithTopicHeader(opts.Webhook.TopicHeader.Name, opts.Webhook.TopicHeader.Disabled),
+			destwebhook.WithTimestampFormat(opts.Webhook.TimestampFormat),
+			destwebhook.WithSignatureContentTemplate(opts.Webhook.SignatureContentTemplate),
+			destwebhook.WithSignatureHeaderTemplate(opts.Webhook.SignatureHeaderTemplate),
+			destwebhook.WithSignatureEncoding(opts.Webhook.SignatureEncoding),
+			destwebhook.WithSignatureAlgorithm(opts.Webhook.SignatureAlgorithm),
+			destwebhook.WithSigningSecretTemplate(opts.Webhook.SigningSecretTemplate),
+			destwebhook.WithMaxResponseBodyBytes(opts.Webhook.MaxResponseBodyBytes),
+			destwebhook.WithFollowRedirects(opts.Webhook.FollowRedirects),
+			destwebhook.WithSecretEncoding(opts.Webhook.SignatureSecretEncoding, opts.Webhook.SignatureSecretPrefix),
+			destwebhook.WithCompatSignature(opts.Webhook.Compat),
+		)
+		if opts.BlockPrivateAddresses {
+			allowlist, err := netguard.ParseAllowlist(opts.PrivateAddressAllowlist)
+			if err != nil {
+				return fmt.Errorf("private address allowlist: %w", err)
+			}
+			webhookOpts = append(webhookOpts, destwebhook.WithAddressGuard(&netguard.Guard{Allowlist: allowlist}))
+		}
+		if opts.Webhook.MetadataName != "" {
+			webhookOpts = append(webhookOpts, destwebhook.WithMetadataName(opts.Webhook.MetadataName))
+		}
+	}
+	webhook, err := destwebhook.New(loader, basePublisherOpts, webhookOpts...)
+	if err != nil {
+		return err
+	}
+	registry.RegisterProvider("webhook", webhook)
+
 	hookdeck, err := desthookdeck.New(loader, basePublisherOpts,
-		desthookdeck.WithUserAgent(opts.UserAgent))
+		desthookdeck.WithUserAgent(opts.UserAgent),
+		desthookdeck.WithConnectionPool(singleHostPool),
+		desthookdeck.WithConnectionObserver(connObserver("hookdeck")))
 	if err != nil {
 		return err
 	}
 	registry.RegisterProvider("hookdeck", hookdeck)
 
-	awsSQS, err := destawssqs.New(loader, basePublisherOpts)
+	awsSQS, err := destawssqs.New(loader, basePublisherOpts, destawssqs.WithAllowCustomEndpoints(opts.AllowCustomEndpoints))
 	if err != nil {
 		return err
 	}
 	registry.RegisterProvider("aws_sqs", awsSQS)
 
-	awsKinesisOpts := []destawskinesis.Option{}
+	awsEventBridgeOpts := []destawseventbridge.Option{destawseventbridge.WithAllowCustomEndpoints(opts.AllowCustomEndpoints)}
+	if opts.AWSEventBridge != nil {
+		awsEventBridgeOpts = append(awsEventBridgeOpts,
+			destawseventbridge.WithSource(opts.AWSEventBridge.Source),
+		)
+	}
+	awsEventBridge, err := destawseventbridge.New(loader, basePublisherOpts, awsEventBridgeOpts...)
+	if err != nil {
+		return err
+	}
+	registry.RegisterProvider("aws_eventbridge", awsEventBridge)
+
+	awsKinesisOpts := []destawskinesis.Option{destawskinesis.WithAllowCustomEndpoints(opts.AllowCustomEndpoints)}
 	if opts.AWSKinesis != nil {
 		awsKinesisOpts = append(awsKinesisOpts,
 			destawskinesis.WithMetadataInPayload(opts.AWSKinesis.MetadataInPayload),
@@ -117,13 +222,13 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 	}
 	registry.RegisterProvider("aws_kinesis", awsKinesis)
 
-	awsS3, err := destawss3.New(loader, basePublisherOpts)
+	awsS3, err := destawss3.New(loader, basePublisherOpts, destawss3.WithAllowCustomEndpoints(opts.AllowCustomEndpoints))
 	if err != nil {
 		return err
 	}
 	registry.RegisterProvider("aws_s3", awsS3)
 
-	gcpPubSub, err := destgcppubsub.New(loader, basePublisherOpts)
+	gcpPubSub, err := destgcppubsub.New(loader, basePublisherOpts, destgcppubsub.WithAllowCustomEndpoints(opts.AllowCustomEndpoints))
 	if err != nil {
 		return err
 	}
@@ -135,17 +240,34 @@ func RegisterDefault(registry destregistry.Registry, opts RegisterDefaultDestina
 	}
 	registry.RegisterProvider("azure_servicebus", azureServiceBus)
 
-	rabbitmq, err := destrabbitmq.New(loader, basePublisherOpts)
+	rabbitmq, err := destrabbitmq.New(loader, basePublisherOpts, destrabbitmq.WithProxy(proxy))
 	if err != nil {
 		return err
 	}
 	registry.RegisterProvider("rabbitmq", rabbitmq)
 
-	kafkaDest, err := destkafka.New(loader, basePublisherOpts)
+	kafkaDest, err := destkafka.New(loader, basePublisherOpts, destkafka.WithProxy(proxy))
 	if err != nil {
 		return err
 	}
 	registry.RegisterProvider("kafka", kafkaDest)
+
+	cloudflareQueues, err := destcfqueues.New(loader, basePublisherOpts,
+		destcfqueues.WithUserAgent(opts.UserAgent),
+		destcfqueues.WithConnectionPool(singleHostPool),
+		destcfqueues.WithConnectionObserver(connObserver("cloudflare_queues")))
+	if err != nil {
+		return err
+	}
+	registry.RegisterProvider("cloudflare_queues", cloudflareQueues)
+
+	if opts.MCP != nil {
+		mcp, err := destmcp.New(loader, *opts.MCP)
+		if err != nil {
+			return err
+		}
+		registry.RegisterProvider(destmcp.Type, mcp)
+	}
 
 	return nil
 }

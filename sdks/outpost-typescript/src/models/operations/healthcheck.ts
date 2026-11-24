@@ -8,25 +8,59 @@ import { ClosedEnum } from "../../types/enums.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
-export const HealthCheckStatus1 = {
+export const HealthCheckStatus = {
   Healthy: "healthy",
+  Degraded: "degraded",
 } as const;
-export type HealthCheckStatus1 = ClosedEnum<typeof HealthCheckStatus1>;
+export type HealthCheckStatus = ClosedEnum<typeof HealthCheckStatus>;
 
-export const HealthCheckStatus2 = {
+export const WorkersStatus = {
   Healthy: "healthy",
+  Degraded: "degraded",
 } as const;
-export type HealthCheckStatus2 = ClosedEnum<typeof HealthCheckStatus2>;
+export type WorkersStatus = ClosedEnum<typeof WorkersStatus>;
+
+/**
+ * Present when the status is `degraded` or `failed`.
+ *
+ * @remarks
+ * `startup_failed`: the worker has not been healthy since the process started (usually configuration or a dependency that is not up yet).
+ * `recovery_failed`: the worker was healthy and then failed (e.g. a broker restart or failover).
+ */
+export const Reason = {
+  StartupFailed: "startup_failed",
+  RecoveryFailed: "recovery_failed",
+} as const;
+/**
+ * Present when the status is `degraded` or `failed`.
+ *
+ * @remarks
+ * `startup_failed`: the worker has not been healthy since the process started (usually configuration or a dependency that is not up yet).
+ * `recovery_failed`: the worker was healthy and then failed (e.g. a broker restart or failover).
+ */
+export type Reason = ClosedEnum<typeof Reason>;
 
 export type Workers = {
-  status: HealthCheckStatus2;
+  status: WorkersStatus;
+  /**
+   * Start of the worker's current failure episode. Present when the status is `degraded` or `failed`.
+   */
+  since?: Date | undefined;
+  /**
+   * Present when the status is `degraded` or `failed`.
+   *
+   * @remarks
+   * `startup_failed`: the worker has not been healthy since the process started (usually configuration or a dependency that is not up yet).
+   * `recovery_failed`: the worker was healthy and then failed (e.g. a broker restart or failover).
+   */
+  reason?: Reason | undefined;
 };
 
 /**
- * Service is healthy - all workers are operational.
+ * Service is healthy or degraded - no worker has failed.
  */
 export type HealthCheckResponse = {
-  status: HealthCheckStatus1;
+  status: HealthCheckStatus;
   /**
    * When this health check was performed
    */
@@ -35,31 +69,43 @@ export type HealthCheckResponse = {
 };
 
 /** @internal */
-export const HealthCheckStatus1$inboundSchema: z.ZodNativeEnum<
-  typeof HealthCheckStatus1
-> = z.nativeEnum(HealthCheckStatus1);
+export const HealthCheckStatus$inboundSchema: z.ZodNativeEnum<
+  typeof HealthCheckStatus
+> = z.nativeEnum(HealthCheckStatus);
 /** @internal */
-export const HealthCheckStatus1$outboundSchema: z.ZodNativeEnum<
-  typeof HealthCheckStatus1
-> = HealthCheckStatus1$inboundSchema;
+export const HealthCheckStatus$outboundSchema: z.ZodNativeEnum<
+  typeof HealthCheckStatus
+> = HealthCheckStatus$inboundSchema;
 
 /** @internal */
-export const HealthCheckStatus2$inboundSchema: z.ZodNativeEnum<
-  typeof HealthCheckStatus2
-> = z.nativeEnum(HealthCheckStatus2);
+export const WorkersStatus$inboundSchema: z.ZodNativeEnum<
+  typeof WorkersStatus
+> = z.nativeEnum(WorkersStatus);
 /** @internal */
-export const HealthCheckStatus2$outboundSchema: z.ZodNativeEnum<
-  typeof HealthCheckStatus2
-> = HealthCheckStatus2$inboundSchema;
+export const WorkersStatus$outboundSchema: z.ZodNativeEnum<
+  typeof WorkersStatus
+> = WorkersStatus$inboundSchema;
+
+/** @internal */
+export const Reason$inboundSchema: z.ZodNativeEnum<typeof Reason> = z
+  .nativeEnum(Reason);
+/** @internal */
+export const Reason$outboundSchema: z.ZodNativeEnum<typeof Reason> =
+  Reason$inboundSchema;
 
 /** @internal */
 export const Workers$inboundSchema: z.ZodType<Workers, z.ZodTypeDef, unknown> =
   z.object({
-    status: HealthCheckStatus2$inboundSchema,
+    status: WorkersStatus$inboundSchema,
+    since: z.string().datetime({ offset: true }).transform(v => new Date(v))
+      .optional(),
+    reason: Reason$inboundSchema.optional(),
   });
 /** @internal */
 export type Workers$Outbound = {
   status: string;
+  since?: string | undefined;
+  reason?: string | undefined;
 };
 
 /** @internal */
@@ -68,7 +114,9 @@ export const Workers$outboundSchema: z.ZodType<
   z.ZodTypeDef,
   Workers
 > = z.object({
-  status: HealthCheckStatus2$outboundSchema,
+  status: WorkersStatus$outboundSchema,
+  since: z.date().transform(v => v.toISOString()).optional(),
+  reason: Reason$outboundSchema.optional(),
 });
 
 export function workersToJSON(workers: Workers): string {
@@ -90,7 +138,7 @@ export const HealthCheckResponse$inboundSchema: z.ZodType<
   z.ZodTypeDef,
   unknown
 > = z.object({
-  status: HealthCheckStatus1$inboundSchema,
+  status: HealthCheckStatus$inboundSchema,
   timestamp: z.string().datetime({ offset: true }).transform(v => new Date(v)),
   workers: z.record(z.lazy(() => Workers$inboundSchema)),
 });
@@ -107,7 +155,7 @@ export const HealthCheckResponse$outboundSchema: z.ZodType<
   z.ZodTypeDef,
   HealthCheckResponse
 > = z.object({
-  status: HealthCheckStatus1$outboundSchema,
+  status: HealthCheckStatus$outboundSchema,
   timestamp: z.date().transform(v => v.toISOString()),
   workers: z.record(z.lazy(() => Workers$outboundSchema)),
 });

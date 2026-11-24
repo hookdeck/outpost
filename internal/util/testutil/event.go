@@ -193,6 +193,12 @@ func (f *mockAttemptFactory) WithCode(code string) func(*models.Attempt) {
 	}
 }
 
+func (f *mockAttemptFactory) WithLatencyMs(latencyMs int64) func(*models.Attempt) {
+	return func(attempt *models.Attempt) {
+		attempt.LatencyMs = &latencyMs
+	}
+}
+
 func (f *mockAttemptFactory) WithTime(time time.Time) func(*models.Attempt) {
 	return func(attempt *models.Attempt) {
 		attempt.Time = time

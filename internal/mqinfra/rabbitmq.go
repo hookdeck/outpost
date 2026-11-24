@@ -11,6 +11,17 @@ type infraRabbitMQ struct {
 	cfg *MQInfraConfig
 }
 
+func DefaultRabbitMQDLQName(queue string) string {
+	return queue + ".dlq"
+}
+
+func (infra *infraRabbitMQ) dlqName() string {
+	if infra.cfg.RabbitMQ.DLQ != "" {
+		return infra.cfg.RabbitMQ.DLQ
+	}
+	return DefaultRabbitMQDLQName(infra.cfg.RabbitMQ.Queue)
+}
+
 func (infra *infraRabbitMQ) Exist(ctx context.Context) (bool, error) {
 	if infra.cfg == nil || infra.cfg.RabbitMQ == nil {
 		return false, errors.New("failed assertion: cfg.RabbitMQ != nil") // IMPOSSIBLE
@@ -27,7 +38,7 @@ func (infra *infraRabbitMQ) Exist(ctx context.Context) (bool, error) {
 	}
 	defer ch.Close()
 
-	dlq := infra.cfg.RabbitMQ.Queue + ".dlq"
+	dlq := infra.dlqName()
 
 	if err := ch.ExchangeDeclarePassive(
 		infra.cfg.RabbitMQ.Exchange, // name
@@ -94,7 +105,7 @@ func (infra *infraRabbitMQ) Declare(ctx context.Context) error {
 	}
 	defer ch.Close()
 
-	dlq := infra.cfg.RabbitMQ.Queue + ".dlq"
+	dlq := infra.dlqName()
 
 	if err := ch.ExchangeDeclare(
 		infra.cfg.RabbitMQ.Exchange, // name
@@ -173,7 +184,7 @@ func (infra *infraRabbitMQ) TearDown(ctx context.Context) error {
 	}
 	defer ch.Close()
 
-	dlq := infra.cfg.RabbitMQ.Queue + ".dlq"
+	dlq := infra.dlqName()
 
 	if _, err := ch.QueueDelete(
 		infra.cfg.RabbitMQ.Queue, // name

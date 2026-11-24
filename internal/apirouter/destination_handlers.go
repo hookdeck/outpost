@@ -12,9 +12,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/hookdeck/outpost/internal/destregistry"
+	destmetadata "github.com/hookdeck/outpost/internal/destregistry/metadata"
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/opevents"
 	"github.com/hookdeck/outpost/internal/telemetry"
 	"github.com/hookdeck/outpost/internal/tenantstore"
 	"github.com/hookdeck/outpost/internal/util/maputil"
@@ -24,37 +26,30 @@ import (
 // SubscriptionEmitter emits operator events for subscription changes.
 // Satisfied by opevents.Emitter.
 type SubscriptionEmitter interface {
-	Emit(ctx context.Context, topic string, tenantID string, data any) error
-}
-
-// TenantSubscriptionUpdatedData is the data payload for tenant.subscription.updated events.
-type TenantSubscriptionUpdatedData struct {
-	TenantID                  string   `json:"tenant_id"`
-	Topics                    []string `json:"topics"`
-	PreviousTopics            []string `json:"previous_topics"`
-	DestinationsCount         int      `json:"destinations_count"`
-	PreviousDestinationsCount int      `json:"previous_destinations_count"`
+	Emit(ctx context.Context, ev opevents.Event) error
 }
 
 type DestinationHandlers struct {
-	logger      *logging.Logger
-	telemetry   telemetry.Telemetry
-	tenantStore tenantstore.TenantStore
-	emitter     SubscriptionEmitter
-	topics      []string
-	registry    destregistry.Registry
-	displayer   *destinationDisplayer
+	logger               *logging.Logger
+	telemetry            telemetry.Telemetry
+	tenantStore          tenantstore.TenantStore
+	emitter              SubscriptionEmitter
+	topics               []string
+	topicsAllowWildcards bool
+	registry             destregistry.Registry
+	displayer            *destinationDisplayer
 }
 
-func NewDestinationHandlers(logger *logging.Logger, telemetry telemetry.Telemetry, tenantStore tenantstore.TenantStore, emitter SubscriptionEmitter, topics []string, registry destregistry.Registry, displayer *destinationDisplayer) *DestinationHandlers {
+func NewDestinationHandlers(logger *logging.Logger, telemetry telemetry.Telemetry, tenantStore tenantstore.TenantStore, emitter SubscriptionEmitter, topics []string, topicsAllowWildcards bool, registry destregistry.Registry, displayer *destinationDisplayer) *DestinationHandlers {
 	return &DestinationHandlers{
-		logger:      logger,
-		telemetry:   telemetry,
-		tenantStore: tenantStore,
-		emitter:     emitter,
-		topics:      topics,
-		registry:    registry,
-		displayer:   displayer,
+		logger:               logger,
+		telemetry:            telemetry,
+		tenantStore:          tenantStore,
+		emitter:              emitter,
+		topics:               topics,
+		topicsAllowWildcards: topicsAllowWildcards,
+		registry:             registry,
+		displayer:            displayer,
 	}
 }
 
@@ -62,9 +57,10 @@ func (h *DestinationHandlers) List(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
 
 	destinations, err := h.tenantStore.ListDestination(c.Request.Context(), tenantstore.ListDestinationRequest{
-		TenantID: tenant.ID,
-		Type:     ParseArrayQueryParam(c, "type"),
-		Topics:   ParseArrayQueryParam(c, "topics"),
+		TenantID:       tenant.ID,
+		Type:           ParseArrayQueryParam(c, "type"),
+		Topics:         ParseArrayQueryParam(c, "topics"),
+		AllowWildcards: h.topicsAllowWildcards,
 	})
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
@@ -111,22 +107,31 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 	prev := h.snapshotTenant(tenant)
 
 	destination := input.ToDestination(tenant.ID)
-	if err := destination.Validate(h.topics); err != nil {
+	if err := destination.Validate(h.topics, h.topicsAllowWildcards); err != nil {
 		AbortWithValidationError(c, err)
 		return
 	}
+	if models.IsInternalDestinationType(destination.Type) {
+		AbortWithValidationError(c, destregistry.NewErrNoProvider(destination.Type))
+		return
+	}
+	destination.Topics = destination.Topics.Normalize()
 	if err := h.registry.ValidateDestination(c.Request.Context(), &destination); err != nil {
 		AbortWithValidationError(c, err)
 		return
 	}
 	if err := h.registry.PreprocessDestination(&destination, nil, &destregistry.PreprocessDestinationOpts{
 		Role: mustRoleFromContext(c),
+		Request: destregistry.PreprocessRequest{
+			Config:      destination.Config,
+			Credentials: destination.Credentials,
+		},
 	}); err != nil {
 		AbortWithValidationError(c, err)
 		return
 	}
 	if err := h.tenantStore.CreateDestination(c.Request.Context(), destination); err != nil {
-		h.handleUpsertDestinationError(c, err)
+		h.handleDestinationWriteError(c, err)
 		return
 	}
 	h.telemetry.DestinationCreated(c.Request.Context(), destination.Type)
@@ -147,7 +152,7 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 
 func (h *DestinationHandlers) Retrieve(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
-	destination := h.mustRetrieveDestination(c, tenant.ID, c.Param("destination_id"))
+	destination := mustRetrieveDestination(c, h.tenantStore, tenant.ID, c.Param("destination_id"))
 	if destination == nil {
 		return
 	}
@@ -168,133 +173,30 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 		return
 	}
 
-	// Retrieve destination.
+	// Retrieve, apply and write; retry from a fresh read when another write
+	// landed in between.
 	tenant := mustTenantFromContext(c)
 	prev := h.snapshotTenant(tenant)
-	originalDestination := h.mustRetrieveDestination(c, tenant.ID, c.Param("destination_id"))
-	if originalDestination == nil {
-		return
-	}
-
-	updatedDestination := *originalDestination
-
-	// Validate.
-	if input.Topics != nil {
-		updatedDestination.Topics = input.Topics
-		if err := updatedDestination.Validate(h.topics); err != nil {
-			AbortWithValidationError(c, err)
-			return
-		}
-	}
-	shouldRevalidate := false
-	if input.Type != "" && input.Type != originalDestination.Type {
-		AbortWithValidationError(c, errors.New("type cannot be updated"))
-		return
-	}
-
-	// Config (merge-patch)
-	configResult, configChanged, err := applyMergePatchStringMap(originalDestination.Config, input.Config)
-	if err != nil {
-		AbortWithValidationError(c, fmt.Errorf("invalid config: %w", err))
-		return
-	}
-	if configChanged {
-		shouldRevalidate = true
-		updatedDestination.Config = configResult
-	}
-
-	// Credentials (merge-patch)
-	credsResult, credsChanged, err := applyMergePatchStringMap(originalDestination.Credentials, input.Credentials)
-	if err != nil {
-		AbortWithValidationError(c, fmt.Errorf("invalid credentials: %w", err))
-		return
-	}
-	if credsChanged {
-		shouldRevalidate = true
-		updatedDestination.Credentials = credsResult
-	}
-
-	// Filter (full replacement)
-	if input.Filter != nil {
-		if isJSONNull(input.Filter) {
-			updatedDestination.Filter = nil
-		} else {
-			var filter models.Filter
-			if err := json.Unmarshal(input.Filter, &filter); err != nil {
-				AbortWithValidationError(c, fmt.Errorf("invalid filter: %w", err))
-				return
-			}
-			updatedDestination.Filter = filter
-		}
-	}
-
-	// DeliveryMetadata (merge-patch)
-	dmResult, dmChanged, err := applyMergePatchStringMap(originalDestination.DeliveryMetadata, input.DeliveryMetadata)
-	if err != nil {
-		AbortWithValidationError(c, fmt.Errorf("invalid delivery_metadata: %w", err))
-		return
-	}
-	if dmChanged {
-		updatedDestination.DeliveryMetadata = dmResult
-	}
-
-	// Metadata (merge-patch)
-	metaResult, metaChanged, err := applyMergePatchStringMap(originalDestination.Metadata, input.Metadata)
-	if err != nil {
-		AbortWithValidationError(c, fmt.Errorf("invalid metadata: %w", err))
-		return
-	}
-	if metaChanged {
-		updatedDestination.Metadata = metaResult
-	}
-
-	// DisabledAt
-	//   omitted: leave alone
-	//   null:    enable (clear)
-	//   <ts>:    disable at that time
+	var updatedDestination *models.Destination
 	disabilityChanged := false
-	if input.DisabledAt != nil {
-		if isJSONNull(input.DisabledAt) {
-			if updatedDestination.DisabledAt != nil {
-				updatedDestination.DisabledAt = nil
-				disabilityChanged = true
-			}
-		} else {
-			var ts time.Time
-			if err := json.Unmarshal(input.DisabledAt, &ts); err != nil {
-				AbortWithValidationError(c, fmt.Errorf("invalid disabled_at: %w", err))
-				return
-			}
-			if ts.After(time.Now()) {
-				AbortWithValidationError(c, errors.New("disabled_at cannot be in the future"))
-				return
-			}
-			if updatedDestination.DisabledAt == nil || !updatedDestination.DisabledAt.Equal(ts) {
-				updatedDestination.DisabledAt = &ts
-				disabilityChanged = true
-			}
-		}
-	}
-
-	// Always preprocess before updating
-	if err := h.registry.PreprocessDestination(&updatedDestination, originalDestination, &destregistry.PreprocessDestinationOpts{
-		Role: mustRoleFromContext(c),
-	}); err != nil {
-		AbortWithValidationError(c, err)
-		return
-	}
-
-	if shouldRevalidate {
-		if err := h.registry.ValidateDestination(c.Request.Context(), &updatedDestination); err != nil {
-			AbortWithValidationError(c, err)
+	for attempt := 0; ; attempt++ {
+		originalDestination := mustRetrieveDestination(c, h.tenantStore, tenant.ID, c.Param("destination_id"))
+		if originalDestination == nil {
 			return
 		}
-	}
-
-	// Update destination.
-	updatedDestination.UpdatedAt = time.Now()
-	if err := h.tenantStore.UpsertDestination(c.Request.Context(), updatedDestination); err != nil {
-		h.handleUpsertDestinationError(c, err)
+		var ok bool
+		updatedDestination, disabilityChanged, ok = h.applyDestinationUpdate(c, input, originalDestination)
+		if !ok {
+			return
+		}
+		err := h.tenantStore.UpdateDestination(c.Request.Context(), *updatedDestination)
+		if err == nil {
+			break
+		}
+		if errors.Is(err, tenantstore.ErrDestinationConflict) && attempt+1 < tenantstore.MaxDestinationWriteAttempts {
+			continue
+		}
+		h.handleDestinationWriteError(c, err)
 		return
 	}
 	h.emitSubscriptionUpdateIfChanged(c.Request.Context(), tenant.ID, prev)
@@ -315,7 +217,7 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 		)
 	}
 
-	display, err := h.displayer.Display(&updatedDestination)
+	display, err := h.displayer.Display(updatedDestination)
 	if err != nil {
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
@@ -323,14 +225,155 @@ func (h *DestinationHandlers) Update(c *gin.Context) {
 	c.JSON(http.StatusOK, display)
 }
 
+// applyDestinationUpdate applies the PATCH input to the destination as it
+// stands now. It answers the request and returns ok=false when the input is
+// invalid for that destination.
+func (h *DestinationHandlers) applyDestinationUpdate(c *gin.Context, input UpdateDestinationRequest, originalDestination *models.Destination) (updated *models.Destination, disabilityChanged bool, ok bool) {
+	updatedDestination := *originalDestination
+
+	// Validate.
+	if input.Topics != nil {
+		updatedDestination.Topics = input.Topics
+		// Topics only: a stored filter over the depth limit must not block other updates.
+		if err := updatedDestination.Topics.Validate(h.topics, h.topicsAllowWildcards); err != nil {
+			AbortWithValidationError(c, err)
+			return nil, false, false
+		}
+		updatedDestination.Topics = updatedDestination.Topics.Normalize()
+	}
+	shouldRevalidate := false
+	if input.Type != "" && input.Type != originalDestination.Type {
+		AbortWithValidationError(c, errors.New("type cannot be updated"))
+		return nil, false, false
+	}
+
+	// Config (merge-patch)
+	configResult, configRequest, configChanged, err := applyMergePatchStringMap(originalDestination.Config, input.Config)
+	if err != nil {
+		AbortWithValidationError(c, fmt.Errorf("invalid config: %w", err))
+		return nil, false, false
+	}
+	if configChanged {
+		shouldRevalidate = true
+		updatedDestination.Config = configResult
+	}
+
+	// Credentials (merge-patch)
+	credsResult, credsRequest, credsChanged, err := applyMergePatchStringMap(originalDestination.Credentials, input.Credentials)
+	if err != nil {
+		AbortWithValidationError(c, fmt.Errorf("invalid credentials: %w", err))
+		return nil, false, false
+	}
+	if credsChanged {
+		shouldRevalidate = true
+		updatedDestination.Credentials = credsResult
+	}
+
+	// Filter (full replacement)
+	if input.Filter != nil {
+		if isJSONNull(input.Filter) {
+			updatedDestination.Filter = nil
+		} else {
+			var filter models.Filter
+			if err := json.Unmarshal(input.Filter, &filter); err != nil {
+				AbortWithValidationError(c, fmt.Errorf("invalid filter: %w", err))
+				return nil, false, false
+			}
+			if err := filter.Validate(); err != nil {
+				AbortWithValidationError(c, err)
+				return nil, false, false
+			}
+			updatedDestination.Filter = filter
+		}
+	}
+
+	// DeliveryMetadata (merge-patch)
+	dmResult, _, dmChanged, err := applyMergePatchStringMap(originalDestination.DeliveryMetadata, input.DeliveryMetadata)
+	if err != nil {
+		AbortWithValidationError(c, fmt.Errorf("invalid delivery_metadata: %w", err))
+		return nil, false, false
+	}
+	if dmChanged {
+		updatedDestination.DeliveryMetadata = dmResult
+	}
+
+	// Metadata (merge-patch)
+	metaResult, _, metaChanged, err := applyMergePatchStringMap(originalDestination.Metadata, input.Metadata)
+	if err != nil {
+		AbortWithValidationError(c, fmt.Errorf("invalid metadata: %w", err))
+		return nil, false, false
+	}
+	if metaChanged {
+		updatedDestination.Metadata = metaResult
+	}
+
+	// DisabledAt
+	//   omitted: leave alone
+	//   null:    enable (clear)
+	//   <ts>:    disable at that time
+	disabilityChanged = false
+	if input.DisabledAt != nil {
+		if isJSONNull(input.DisabledAt) {
+			if updatedDestination.DisabledAt != nil {
+				updatedDestination.DisabledAt = nil
+				disabilityChanged = true
+			}
+		} else {
+			var ts time.Time
+			if err := json.Unmarshal(input.DisabledAt, &ts); err != nil {
+				var parseErr *time.ParseError
+				if errors.As(err, &parseErr) {
+					err = errors.New(expectedRFC3339)
+				}
+				AbortWithValidationError(c, fmt.Errorf("invalid disabled_at: %w", err))
+				return nil, false, false
+			}
+			if ts.After(time.Now()) {
+				AbortWithValidationError(c, errors.New("disabled_at cannot be in the future"))
+				return nil, false, false
+			}
+			if updatedDestination.DisabledAt == nil || !updatedDestination.DisabledAt.Equal(ts) {
+				updatedDestination.DisabledAt = &ts
+				disabilityChanged = true
+			}
+		}
+	}
+
+	// Always preprocess before updating
+	if err := h.registry.PreprocessDestination(&updatedDestination, originalDestination, &destregistry.PreprocessDestinationOpts{
+		Role: mustRoleFromContext(c),
+		Request: destregistry.PreprocessRequest{
+			Config:      configRequest,
+			Credentials: credsRequest,
+		},
+	}); err != nil {
+		AbortWithValidationError(c, err)
+		return nil, false, false
+	}
+
+	if shouldRevalidate {
+		if err := h.registry.ValidateDestination(c.Request.Context(), &updatedDestination); err != nil {
+			AbortWithValidationError(c, err)
+			return nil, false, false
+		}
+	}
+
+	updatedDestination.UpdatedAt = time.Now()
+	return &updatedDestination, disabilityChanged, true
+}
+
 func (h *DestinationHandlers) Delete(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
 	prev := h.snapshotTenant(tenant)
-	destination := h.mustRetrieveDestination(c, tenant.ID, c.Param("destination_id"))
+	destination := mustRetrieveDestination(c, h.tenantStore, tenant.ID, c.Param("destination_id"))
 	if destination == nil {
 		return
 	}
 	if err := h.tenantStore.DeleteDestination(c.Request.Context(), destination.TenantID, destination.ID); err != nil {
+		if errors.Is(err, tenantstore.ErrDestinationNotFound) {
+			AbortWithError(c, http.StatusNotFound, NewErrNotFound("destination"))
+			return
+		}
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
 	}
@@ -353,15 +396,17 @@ func (h *DestinationHandlers) Enable(c *gin.Context) {
 }
 
 func (h *DestinationHandlers) ListProviderMetadata(c *gin.Context) {
-	metadata := h.registry.ListProviderMetadata()
-	c.JSON(http.StatusOK, metadata)
+	types := slices.DeleteFunc(slices.Clone(h.registry.ListProviderMetadata()), func(m *destmetadata.ProviderMetadata) bool {
+		return models.IsInternalDestinationType(m.Type)
+	})
+	c.JSON(http.StatusOK, types)
 }
 
 func (h *DestinationHandlers) RetrieveProviderMetadata(c *gin.Context) {
 	providerType := c.Param("type")
 	metadata, err := h.registry.RetrieveProviderMetadata(providerType)
-	if err != nil {
-		c.Status(http.StatusNotFound)
+	if err != nil || models.IsInternalDestinationType(providerType) {
+		AbortWithError(c, http.StatusNotFound, NewErrNotFound("destination type"))
 		return
 	}
 	c.JSON(http.StatusOK, metadata)
@@ -370,25 +415,33 @@ func (h *DestinationHandlers) RetrieveProviderMetadata(c *gin.Context) {
 func (h *DestinationHandlers) setDisabilityHandler(c *gin.Context, disabled bool) {
 	tenant := mustTenantFromContext(c)
 	prev := h.snapshotTenant(tenant)
-	destination := h.mustRetrieveDestination(c, tenant.ID, c.Param("destination_id"))
-	if destination == nil {
-		return
-	}
-	shouldUpdate := false
-	if disabled && destination.DisabledAt == nil {
-		shouldUpdate = true
-		now := time.Now()
-		destination.DisabledAt = &now
-	}
-	if !disabled && destination.DisabledAt != nil {
-		shouldUpdate = true
-		destination.DisabledAt = nil
-	}
-	if shouldUpdate {
-		if err := h.tenantStore.UpsertDestination(c.Request.Context(), *destination); err != nil {
-			h.handleUpsertDestinationError(c, err)
+	var destination *models.Destination
+	written := false
+	for attempt := 0; ; attempt++ {
+		destination = mustRetrieveDestination(c, h.tenantStore, tenant.ID, c.Param("destination_id"))
+		if destination == nil {
 			return
 		}
+		if disabled && destination.DisabledAt == nil {
+			now := time.Now()
+			destination.DisabledAt = &now
+		} else if !disabled && destination.DisabledAt != nil {
+			destination.DisabledAt = nil
+		} else {
+			break
+		}
+		err := h.tenantStore.UpdateDestination(c.Request.Context(), *destination)
+		if err == nil {
+			written = true
+			break
+		}
+		if errors.Is(err, tenantstore.ErrDestinationConflict) && attempt+1 < tenantstore.MaxDestinationWriteAttempts {
+			continue
+		}
+		h.handleDestinationWriteError(c, err)
+		return
+	}
+	if written {
 		h.emitSubscriptionUpdateIfChanged(c.Request.Context(), tenant.ID, prev)
 		action := "destination enabled"
 		if disabled {
@@ -409,29 +462,47 @@ func (h *DestinationHandlers) setDisabilityHandler(c *gin.Context, disabled bool
 	c.JSON(http.StatusOK, display)
 }
 
-func (h *DestinationHandlers) mustRetrieveDestination(c *gin.Context, tenantID, destinationID string) *models.Destination {
-	destination, err := h.tenantStore.RetrieveDestination(c.Request.Context(), tenantID, destinationID)
+// mustRetrieveDestination returns the tenant's destination, or answers the
+// request and returns nil: 404 when it is deleted or does not exist.
+func mustRetrieveDestination(c *gin.Context, store tenantstore.TenantStore, tenantID, destinationID string) *models.Destination {
+	destination, err := store.RetrieveDestination(c.Request.Context(), tenantID, destinationID)
 	if err != nil {
 		if errors.Is(err, tenantstore.ErrDestinationDeleted) {
-			c.Status(http.StatusNotFound)
+			AbortWithError(c, http.StatusNotFound, NewErrNotFound("destination"))
 			return nil
 		}
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return nil
 	}
 	if destination == nil {
-		c.Status(http.StatusNotFound)
+		AbortWithError(c, http.StatusNotFound, NewErrNotFound("destination"))
 		return nil
 	}
 	return destination
 }
 
-func (h *DestinationHandlers) handleUpsertDestinationError(c *gin.Context, err error) {
+func (h *DestinationHandlers) handleDestinationWriteError(c *gin.Context, err error) {
 	if strings.Contains(err.Error(), "validation failed") {
 		AbortWithValidationError(c, err)
 		return
 	}
+	if errors.Is(err, tenantstore.ErrDestinationNotFound) {
+		AbortWithError(c, http.StatusNotFound, NewErrNotFound("destination"))
+		return
+	}
+	if errors.Is(err, tenantstore.ErrTenantNotFound) {
+		AbortWithError(c, http.StatusNotFound, NewErrNotFound("tenant"))
+		return
+	}
+	if errors.Is(err, tenantstore.ErrDestinationConflict) {
+		AbortWithError(c, http.StatusConflict, NewErrConflict("destination was modified by another request, retry"))
+		return
+	}
 	if errors.Is(err, tenantstore.ErrDuplicateDestination) {
+		AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
+		return
+	}
+	if errors.Is(err, tenantstore.ErrMaxDestinationsPerTenantReached) {
 		AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
 		return
 	}
@@ -507,26 +578,28 @@ func isJSONNull(raw json.RawMessage) bool {
 }
 
 // applyMergePatchStringMap applies RFC 7396 merge-patch semantics for a map[string]string field.
-// Returns (result, changed, error):
+// Returns (result, request, changed, error), where request is the patch as
+// sent by the caller (string-coerced, nulls dropped):
 //   - raw is nil (field omitted): returns original unchanged
 //   - raw is "null": returns nil (clear field)
 //   - raw is "{}": returns original unchanged (empty merge = no-op)
 //   - raw is an object: merge-patch into original
-func applyMergePatchStringMap(original map[string]string, raw json.RawMessage) (map[string]string, bool, error) {
+func applyMergePatchStringMap(original map[string]string, raw json.RawMessage) (map[string]string, map[string]string, bool, error) {
 	if raw == nil {
-		return original, false, nil
+		return original, nil, false, nil
 	}
 	if isJSONNull(raw) {
-		return nil, true, nil
+		return nil, nil, true, nil
 	}
 	var patch map[string]any
 	if err := json.Unmarshal(raw, &patch); err != nil {
-		return nil, false, err
+		return nil, nil, false, err
 	}
 	if len(patch) == 0 {
-		return original, false, nil
+		return original, nil, false, nil
 	}
-	return maputil.MergePatchStringMap(original, patch), true, nil
+	request := maputil.MergePatchStringMap(nil, patch)
+	return maputil.MergePatchStringMap(original, patch), request, true, nil
 }
 
 // tenantSnapshot captures the tenant's derived state before a destination mutation.
@@ -560,14 +633,13 @@ func (h *DestinationHandlers) emitSubscriptionUpdateIfChanged(ctx context.Contex
 		return
 	}
 
-	data := TenantSubscriptionUpdatedData{
+	if err := h.emitter.Emit(ctx, opevents.TenantSubscriptionUpdatedEvent(opevents.TenantSubscriptionUpdatedData{
 		TenantID:                  tenantID,
 		Topics:                    tenant.Topics,
 		PreviousTopics:            prev.topics,
 		DestinationsCount:         tenant.DestinationsCount,
 		PreviousDestinationsCount: prev.destinationsCount,
-	}
-	if err := h.emitter.Emit(ctx, "tenant.subscription.updated", tenantID, data); err != nil {
+	})); err != nil {
 		h.logger.Ctx(ctx).Error("failed to emit subscription update", zap.Error(err))
 	}
 }

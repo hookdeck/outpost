@@ -115,6 +115,7 @@ func TestAWSSQSSuite(t *testing.T) {
 
 func (s *AWSSQSSuite) SetupSuite() {
 	t := s.T()
+	testutil.SkipUnlessDest(t)
 	t.Cleanup(testinfra.Start(t))
 	mqConfig := testinfra.NewMQAWSConfig(t, nil)
 
@@ -128,7 +129,7 @@ func (s *AWSSQSSuite) SetupSuite() {
 	s.consumer = NewSQSConsumer(sqsClient, queueURL)
 
 	// Create provider
-	provider, err := destawssqs.New(testutil.Registry.MetadataLoader(), nil)
+	provider, err := destawssqs.New(testutil.Registry.MetadataLoader(), nil, destawssqs.WithAllowCustomEndpoints(true))
 	require.NoError(t, err)
 
 	// Create destination

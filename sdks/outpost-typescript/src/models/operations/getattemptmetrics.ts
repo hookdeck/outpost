@@ -36,6 +36,10 @@ export const GetAttemptMetricsMeasuresEnum2 = {
   Rate: "rate",
   SuccessfulRate: "successful_rate",
   FailedRate: "failed_rate",
+  AvgLatency: "avg_latency",
+  P50Latency: "p50_latency",
+  P95Latency: "p95_latency",
+  P99Latency: "p99_latency",
 } as const;
 export type GetAttemptMetricsMeasuresEnum2 = ClosedEnum<
   typeof GetAttemptMetricsMeasuresEnum2
@@ -53,13 +57,17 @@ export const GetAttemptMetricsMeasuresEnum1 = {
   Rate: "rate",
   SuccessfulRate: "successful_rate",
   FailedRate: "failed_rate",
+  AvgLatency: "avg_latency",
+  P50Latency: "p50_latency",
+  P95Latency: "p95_latency",
+  P99Latency: "p99_latency",
 } as const;
 export type GetAttemptMetricsMeasuresEnum1 = ClosedEnum<
   typeof GetAttemptMetricsMeasuresEnum1
 >;
 
 /**
- * Measures to compute. At least one required. Rate measures (`rate`, `successful_rate`, `failed_rate`) are throughput in events/second. Use bracket notation for multiple values (e.g., `measures[0]=count&measures[1]=error_rate`).
+ * Measures to compute. At least one required. Rate measures (`rate`, `successful_rate`, `failed_rate`) are throughput in events/second. Latency measures (`avg_latency`, `p50_latency`, `p95_latency`, `p99_latency`) are destination response times in milliseconds, `null` when no attempt in the bucket recorded a latency. Use bracket notation for multiple values (e.g., `measures[0]=count&measures[1]=error_rate`).
  */
 export type GetAttemptMetricsMeasuresUnion =
   | GetAttemptMetricsMeasuresEnum1
@@ -175,7 +183,7 @@ export type GetAttemptMetricsRequest = {
    */
   granularity?: string | undefined;
   /**
-   * Measures to compute. At least one required. Rate measures (`rate`, `successful_rate`, `failed_rate`) are throughput in events/second. Use bracket notation for multiple values (e.g., `measures[0]=count&measures[1]=error_rate`).
+   * Measures to compute. At least one required. Rate measures (`rate`, `successful_rate`, `failed_rate`) are throughput in events/second. Latency measures (`avg_latency`, `p50_latency`, `p95_latency`, `p99_latency`) are destination response times in milliseconds, `null` when no attempt in the bucket recorded a latency. Use bracket notation for multiple values (e.g., `measures[0]=count&measures[1]=error_rate`).
    */
   measures:
     | GetAttemptMetricsMeasuresEnum1

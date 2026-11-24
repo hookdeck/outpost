@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	pubsubapi "cloud.google.com/go/pubsub/apiv1"
+	"cloud.google.com/go/pubsub/apiv1/pubsubpb"
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/mqinfra"
 	"github.com/hookdeck/outpost/internal/mqs"
@@ -13,6 +15,9 @@ import (
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/api/option"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 const retryLimit = 5
@@ -183,6 +188,7 @@ func testMQInfra(t *testing.T, mqConfig *Config, dlqConfig *Config) {
 
 func TestIntegrationMQInfra_RabbitMQ(t *testing.T) {
 	testutil.CheckIntegrationTest(t)
+	testutil.SkipUnlessCompat(t)
 	exchange := idgen.String()
 	queue := idgen.String()
 
@@ -190,7 +196,7 @@ func TestIntegrationMQInfra_RabbitMQ(t *testing.T) {
 		&Config{
 			infra: mqinfra.MQInfraConfig{
 				RabbitMQ: &mqinfra.RabbitMQInfraConfig{
-					ServerURL: testinfra.EnsureRabbitMQ(),
+					ServerURL: testinfra.EnsureRabbitMQ(t),
 					Exchange:  exchange,
 					Queue:     queue,
 				},
@@ -200,7 +206,7 @@ func TestIntegrationMQInfra_RabbitMQ(t *testing.T) {
 			},
 			mq: mqs.QueueConfig{
 				RabbitMQ: &mqs.RabbitMQConfig{
-					ServerURL: testinfra.EnsureRabbitMQ(),
+					ServerURL: testinfra.EnsureRabbitMQ(t),
 					Exchange:  exchange,
 					Queue:     queue,
 				},
@@ -209,14 +215,14 @@ func TestIntegrationMQInfra_RabbitMQ(t *testing.T) {
 		&Config{
 			infra: mqinfra.MQInfraConfig{
 				RabbitMQ: &mqinfra.RabbitMQInfraConfig{
-					ServerURL: testinfra.EnsureRabbitMQ(),
+					ServerURL: testinfra.EnsureRabbitMQ(t),
 					Exchange:  exchange,
 					Queue:     queue + ".dlq",
 				},
 			},
 			mq: mqs.QueueConfig{
 				RabbitMQ: &mqs.RabbitMQConfig{
-					ServerURL: testinfra.EnsureRabbitMQ(),
+					ServerURL: testinfra.EnsureRabbitMQ(t),
 					Exchange:  exchange,
 					Queue:     queue + ".dlq",
 				},
@@ -225,15 +231,115 @@ func TestIntegrationMQInfra_RabbitMQ(t *testing.T) {
 	)
 }
 
+func TestIntegrationMQInfra_NATS(t *testing.T) {
+	testutil.CheckIntegrationTest(t)
+	stream := "test" + idgen.String()
+	subject := stream + ".events"
+	dlqSubject := mqinfra.DefaultNATSDLQName(subject)
+	dlqStream := mqinfra.DefaultNATSDLQStreamName(dlqSubject)
+
+	testMQInfra(t,
+		&Config{
+			infra: mqinfra.MQInfraConfig{
+				NATS: &mqinfra.NATSInfraConfig{
+					ServerURL: testinfra.EnsureNATS(t),
+					Stream:    stream,
+					Subject:   subject,
+				},
+				Policy: mqinfra.Policy{
+					RetryLimit: retryLimit,
+				},
+			},
+			mq: mqs.QueueConfig{
+				NATS: &mqs.NATSConfig{
+					ServerURL:  testinfra.EnsureNATS(t),
+					Stream:     stream,
+					Subject:    subject,
+					DLQSubject: dlqSubject,
+					// No MaxDeliver here: NATSQueue.Subscribe reads it from
+					// the live consumer mqinfra provisioned above instead,
+					// so this provider's app-visible attempt count matches
+					// every other provider's at the same RetryLimit, same
+					// as this shared test expects.
+				},
+			},
+		},
+		&Config{
+			infra: mqinfra.MQInfraConfig{
+				NATS: &mqinfra.NATSInfraConfig{
+					ServerURL: testinfra.EnsureNATS(t),
+					Stream:    dlqStream,
+					Subject:   dlqSubject,
+				},
+			},
+			mq: mqs.QueueConfig{
+				NATS: &mqs.NATSConfig{
+					ServerURL: testinfra.EnsureNATS(t),
+					Stream:    dlqStream,
+					Subject:   dlqSubject,
+				},
+			},
+		},
+	)
+}
+
+func TestIntegrationMQInfra_RabbitMQ_CustomDLQName(t *testing.T) {
+	testutil.CheckIntegrationTest(t)
+	testutil.SkipUnlessCompat(t)
+	exchange := idgen.String()
+	queue := idgen.String()
+	customDLQ := "dead_letter-" + queue
+
+	testMQInfra(t,
+		&Config{
+			infra: mqinfra.MQInfraConfig{
+				RabbitMQ: &mqinfra.RabbitMQInfraConfig{
+					ServerURL: testinfra.EnsureRabbitMQ(t),
+					Exchange:  exchange,
+					Queue:     queue,
+					DLQ:       customDLQ,
+				},
+				Policy: mqinfra.Policy{
+					RetryLimit: retryLimit,
+				},
+			},
+			mq: mqs.QueueConfig{
+				RabbitMQ: &mqs.RabbitMQConfig{
+					ServerURL: testinfra.EnsureRabbitMQ(t),
+					Exchange:  exchange,
+					Queue:     queue,
+				},
+			},
+		},
+		&Config{
+			infra: mqinfra.MQInfraConfig{
+				RabbitMQ: &mqinfra.RabbitMQInfraConfig{
+					ServerURL: testinfra.EnsureRabbitMQ(t),
+					Exchange:  exchange,
+					Queue:     customDLQ,
+				},
+			},
+			mq: mqs.QueueConfig{
+				RabbitMQ: &mqs.RabbitMQConfig{
+					ServerURL: testinfra.EnsureRabbitMQ(t),
+					Exchange:  exchange,
+					Queue:     customDLQ,
+				},
+			},
+		},
+	)
+}
+
 func TestIntegrationMQInfra_AWSSQS(t *testing.T) {
 	testutil.CheckIntegrationTest(t)
+	testutil.SkipUnlessCompat(t)
 	q := idgen.String()
 
 	testMQInfra(t,
 		&Config{
 			infra: mqinfra.MQInfraConfig{
 				AWSSQS: &mqinfra.AWSSQSInfraConfig{
-					Endpoint:                  testinfra.EnsureLocalStack(),
+					Endpoint:                  testinfra.EnsureLocalStack(t),
 					ServiceAccountCredentials: "test:test:",
 					Region:                    "us-east-1",
 					Topic:                     q,
@@ -245,7 +351,7 @@ func TestIntegrationMQInfra_AWSSQS(t *testing.T) {
 			},
 			mq: mqs.QueueConfig{
 				AWSSQS: &mqs.AWSSQSConfig{
-					Endpoint:                  testinfra.EnsureLocalStack(),
+					Endpoint:                  testinfra.EnsureLocalStack(t),
 					ServiceAccountCredentials: "test:test:",
 					Region:                    "us-east-1",
 					Topic:                     q,
@@ -256,7 +362,7 @@ func TestIntegrationMQInfra_AWSSQS(t *testing.T) {
 		&Config{
 			infra: mqinfra.MQInfraConfig{
 				AWSSQS: &mqinfra.AWSSQSInfraConfig{
-					Endpoint:                  testinfra.EnsureLocalStack(),
+					Endpoint:                  testinfra.EnsureLocalStack(t),
 					ServiceAccountCredentials: "test:test:",
 					Region:                    "us-east-1",
 					Topic:                     q + "-dlq",
@@ -264,7 +370,7 @@ func TestIntegrationMQInfra_AWSSQS(t *testing.T) {
 			},
 			mq: mqs.QueueConfig{
 				AWSSQS: &mqs.AWSSQSConfig{
-					Endpoint:                  testinfra.EnsureLocalStack(),
+					Endpoint:                  testinfra.EnsureLocalStack(t),
 					ServiceAccountCredentials: "test:test:",
 					Region:                    "us-east-1",
 					Topic:                     q + "-dlq",
@@ -275,10 +381,156 @@ func TestIntegrationMQInfra_AWSSQS(t *testing.T) {
 	)
 }
 
+func TestIntegrationMQInfra_AWSSQS_CustomDLQName(t *testing.T) {
+	testutil.CheckIntegrationTest(t)
+	testutil.SkipUnlessCompat(t)
+	q := idgen.String()
+	customDLQ := "dead_letter-" + q
+
+	testMQInfra(t,
+		&Config{
+			infra: mqinfra.MQInfraConfig{
+				AWSSQS: &mqinfra.AWSSQSInfraConfig{
+					Endpoint:                  testinfra.EnsureLocalStack(t),
+					ServiceAccountCredentials: "test:test:",
+					Region:                    "us-east-1",
+					Topic:                     q,
+					DLQ:                       customDLQ,
+				},
+				Policy: mqinfra.Policy{
+					RetryLimit:        retryLimit,
+					VisibilityTimeout: 1,
+				},
+			},
+			mq: mqs.QueueConfig{
+				AWSSQS: &mqs.AWSSQSConfig{
+					Endpoint:                  testinfra.EnsureLocalStack(t),
+					ServiceAccountCredentials: "test:test:",
+					Region:                    "us-east-1",
+					Topic:                     q,
+					WaitTime:                  1 * time.Second,
+				},
+			},
+		},
+		&Config{
+			infra: mqinfra.MQInfraConfig{
+				AWSSQS: &mqinfra.AWSSQSInfraConfig{
+					Endpoint:                  testinfra.EnsureLocalStack(t),
+					ServiceAccountCredentials: "test:test:",
+					Region:                    "us-east-1",
+					Topic:                     customDLQ,
+				},
+			},
+			mq: mqs.QueueConfig{
+				AWSSQS: &mqs.AWSSQSConfig{
+					Endpoint:                  testinfra.EnsureLocalStack(t),
+					ServiceAccountCredentials: "test:test:",
+					Region:                    "us-east-1",
+					Topic:                     customDLQ,
+					WaitTime:                  1 * time.Second,
+				},
+			},
+		},
+	)
+}
+
+// TestIntegrationMQInfra_AWSSQS_DefaultCredentialChain verifies that when no static
+// ServiceAccountCredentials are configured, the AWS SDK default credential chain is
+// used instead. Here the chain resolves credentials from environment variables (the
+// same mechanism an ECS/EKS task role or EC2 instance profile relies on further down
+// the chain). LocalStack accepts any credentials, so this proves the empty-credentials
+// path builds a working client and can declare/publish/receive.
+func TestIntegrationMQInfra_AWSSQS_DefaultCredentialChain(t *testing.T) {
+	testutil.CheckIntegrationTest(t)
+	testutil.SkipUnlessCompat(t)
+
+	// Provide credentials via the environment so the SDK default chain resolves them.
+	// t.Setenv is incompatible with t.Parallel, so this test runs serially.
+	t.Setenv("AWS_ACCESS_KEY_ID", "test")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "test")
+
+	endpoint := testinfra.EnsureLocalStack(t)
+	t.Cleanup(testinfra.Start(t))
+
+	q := idgen.String()
+	infraCfg := mqinfra.MQInfraConfig{
+		AWSSQS: &mqinfra.AWSSQSInfraConfig{
+			Endpoint:                  endpoint,
+			ServiceAccountCredentials: "", // no static creds → default credential chain
+			Region:                    "us-east-1",
+			Topic:                     q,
+		},
+		Policy: mqinfra.Policy{
+			RetryLimit:        retryLimit,
+			VisibilityTimeout: 1,
+		},
+	}
+	mqCfg := mqs.QueueConfig{
+		AWSSQS: &mqs.AWSSQSConfig{
+			Endpoint:                  endpoint,
+			ServiceAccountCredentials: "", // no static creds → default credential chain
+			Region:                    "us-east-1",
+			Topic:                     q,
+			WaitTime:                  1 * time.Second,
+		},
+	}
+
+	ctx := context.Background()
+	infra := mqinfra.New(&infraCfg)
+	require.NoError(t, infra.Declare(ctx))
+	t.Cleanup(func() {
+		require.NoError(t, infra.TearDown(ctx))
+	})
+
+	exists, err := infra.Exist(ctx)
+	require.NoError(t, err)
+	require.True(t, exists)
+
+	mq := mqs.NewQueue(&mqCfg)
+	cleanup, err := mq.Init(ctx)
+	require.NoError(t, err)
+	t.Cleanup(cleanup)
+
+	subscription, err := mq.Subscribe(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		subscription.Shutdown(ctx)
+	})
+
+	msgchan := make(chan *testutil.MockMsg)
+	go func() {
+		for {
+			msg, err := subscription.Receive(ctx)
+			if err != nil {
+				log.Println(err)
+				return
+			}
+			msg.Ack()
+			mockMsg := &testutil.MockMsg{}
+			if err := mockMsg.FromMessage(msg); err != nil {
+				log.Println("Error parsing message", err)
+			} else {
+				msgchan <- mockMsg
+			}
+		}
+	}()
+
+	msg := &testutil.MockMsg{ID: idgen.String()}
+	require.NoError(t, mq.Publish(ctx, msg))
+
+	select {
+	case receivedMsg := <-msgchan:
+		assert.Equal(t, msg.ID, receivedMsg.ID)
+	case <-time.After(1 * time.Second):
+		require.Fail(t, "timeout waiting for message")
+	}
+}
+
 func TestIntegrationMQInfra_GCPPubSub(t *testing.T) {
 	testutil.CheckIntegrationTest(t)
+	testutil.SkipUnlessCompat(t)
 	// Set PUBSUB_EMULATOR_HOST environment variable
-	testinfra.EnsureGCP()
+	testinfra.EnsureGCP(t)
 
 	topicID := "test-" + idgen.String()
 	subscriptionID := topicID + "-subscription"
@@ -322,6 +574,65 @@ func TestIntegrationMQInfra_GCPPubSub(t *testing.T) {
 					ProjectID:                 "test-project",
 					TopicID:                   topicID + "-dlq",
 					SubscriptionID:            topicID + "-dlq-sub",
+					ServiceAccountCredentials: "",
+				},
+			},
+		},
+	)
+}
+
+func TestIntegrationMQInfra_GCPPubSub_CustomDLQNames(t *testing.T) {
+	testutil.CheckIntegrationTest(t)
+	testutil.SkipUnlessCompat(t)
+	// Set PUBSUB_EMULATOR_HOST environment variable
+	testinfra.EnsureGCP(t)
+
+	topicID := "test-" + idgen.String()
+	subscriptionID := topicID + "-subscription"
+	customDLQTopic := "dead-letter-" + topicID
+	customDLQSub := customDLQTopic + "-consumer"
+
+	testMQInfra(t,
+		&Config{
+			infra: mqinfra.MQInfraConfig{
+				GCPPubSub: &mqinfra.GCPPubSubInfraConfig{
+					ProjectID:                 "test-project",
+					TopicID:                   topicID,
+					SubscriptionID:            subscriptionID,
+					DLQTopicID:                customDLQTopic,
+					DLQSubscriptionID:         customDLQSub,
+					ServiceAccountCredentials: "",
+					MinRetryBackoff:           1,
+					MaxRetryBackoff:           1,
+				},
+				Policy: mqinfra.Policy{
+					RetryLimit:        retryLimit,
+					VisibilityTimeout: 10,
+				},
+			},
+			mq: mqs.QueueConfig{
+				GCPPubSub: &mqs.GCPPubSubConfig{
+					ProjectID:                 "test-project",
+					TopicID:                   topicID,
+					SubscriptionID:            subscriptionID,
+					ServiceAccountCredentials: "",
+				},
+			},
+		},
+		&Config{
+			infra: mqinfra.MQInfraConfig{
+				GCPPubSub: &mqinfra.GCPPubSubInfraConfig{
+					ProjectID:                 "test-project",
+					TopicID:                   customDLQTopic,
+					SubscriptionID:            customDLQSub,
+					ServiceAccountCredentials: "",
+				},
+			},
+			mq: mqs.QueueConfig{
+				GCPPubSub: &mqs.GCPPubSubConfig{
+					ProjectID:                 "test-project",
+					TopicID:                   customDLQTopic,
+					SubscriptionID:            customDLQSub,
 					ServiceAccountCredentials: "",
 				},
 			},
@@ -401,4 +712,42 @@ func TestIntegrationMQInfra_AzureServiceBus(t *testing.T) {
 				}},
 		},
 	)
+}
+
+func TestIntegrationMQInfra_GCPPubSub_SubscriptionsNeverExpire(t *testing.T) {
+	testutil.CheckIntegrationTest(t)
+	testutil.SkipUnlessCompat(t)
+	emulatorHost := testinfra.EnsureGCP(t)
+	t.Cleanup(testinfra.Start(t))
+
+	ctx := context.Background()
+	topicID := "test-" + idgen.String()
+	subscriptionID := topicID + "-subscription"
+	infra := mqinfra.New(&mqinfra.MQInfraConfig{
+		GCPPubSub: &mqinfra.GCPPubSubInfraConfig{
+			ProjectID:      "test-project",
+			TopicID:        topicID,
+			SubscriptionID: subscriptionID,
+		},
+	})
+	require.NoError(t, infra.Declare(ctx))
+	t.Cleanup(func() {
+		require.NoError(t, infra.TearDown(ctx))
+	})
+
+	client, err := pubsubapi.NewSubscriberClient(ctx,
+		option.WithEndpoint(emulatorHost),
+		option.WithoutAuthentication(),
+		option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())))
+	require.NoError(t, err)
+	t.Cleanup(func() { client.Close() })
+
+	for _, subID := range []string{subscriptionID, mqinfra.DefaultGCPPubSubDLQSubscriptionName(mqinfra.DefaultGCPPubSubDLQTopicName(topicID))} {
+		sub, err := client.GetSubscription(ctx, &pubsubpb.GetSubscriptionRequest{
+			Subscription: "projects/test-project/subscriptions/" + subID,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, sub.ExpirationPolicy, "%s: expiration policy must be set explicitly", subID)
+		assert.Nil(t, sub.ExpirationPolicy.Ttl, "%s: expiration policy must be never (nil ttl)", subID)
+	}
 }

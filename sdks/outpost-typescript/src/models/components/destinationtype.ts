@@ -17,6 +17,9 @@ export const DestinationType = {
   AzureServicebus: "azure_servicebus",
   AwsS3: "aws_s3",
   GcpPubsub: "gcp_pubsub",
+  Kafka: "kafka",
+  CloudflareQueues: "cloudflare_queues",
+  AwsEventbridge: "aws_eventbridge",
 } as const;
 /**
  * Type of destination.

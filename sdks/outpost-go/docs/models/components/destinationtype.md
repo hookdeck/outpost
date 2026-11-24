@@ -15,13 +15,16 @@ value := components.DestinationTypeWebhook
 
 ## Values
 
-| Name                             | Value                            |
-| -------------------------------- | -------------------------------- |
-| `DestinationTypeWebhook`         | webhook                          |
-| `DestinationTypeAwsSqs`          | aws_sqs                          |
-| `DestinationTypeRabbitmq`        | rabbitmq                         |
-| `DestinationTypeHookdeck`        | hookdeck                         |
-| `DestinationTypeAwsKinesis`      | aws_kinesis                      |
-| `DestinationTypeAzureServicebus` | azure_servicebus                 |
-| `DestinationTypeAwsS3`           | aws_s3                           |
-| `DestinationTypeGcpPubsub`       | gcp_pubsub                       |
+| Name                              | Value                             |
+| --------------------------------- | --------------------------------- |
+| `DestinationTypeWebhook`          | webhook                           |
+| `DestinationTypeAwsSqs`           | aws_sqs                           |
+| `DestinationTypeRabbitmq`         | rabbitmq                          |
+| `DestinationTypeHookdeck`         | hookdeck                          |
+| `DestinationTypeAwsKinesis`       | aws_kinesis                       |
+| `DestinationTypeAzureServicebus`  | azure_servicebus                  |
+| `DestinationTypeAwsS3`            | aws_s3                            |
+| `DestinationTypeGcpPubsub`        | gcp_pubsub                        |
+| `DestinationTypeKafka`            | kafka                             |
+| `DestinationTypeCloudflareQueues` | cloudflare_queues                 |
+| `DestinationTypeAwsEventbridge`   | aws_eventbridge                   |

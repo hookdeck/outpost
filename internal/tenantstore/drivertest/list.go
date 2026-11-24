@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/cursor"
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/pagination/paginationtest"
@@ -319,6 +320,30 @@ func testListDestination(t *testing.T, newHarness HarnessMaker) {
 		})
 		require.NoError(t, err)
 		require.Len(t, destinations, 3)
+
+		for _, topics := range [][]string{{"user.*"}, {"*.created"}, {"user.deleted*"}} {
+			require.NoError(t, store.UpsertDestination(ctx, testutil.DestinationFactory.Any(
+				testutil.DestinationFactory.WithTenantID(data.tenant.ID),
+				testutil.DestinationFactory.WithTopics(topics),
+			)))
+		}
+
+		// The filter topic is treated as a concrete published topic. Destinations
+		// subscribed with wildcard patterns are included when they would receive it.
+		destinations, err = store.ListDestination(ctx, driver.ListDestinationRequest{
+			TenantID:       data.tenant.ID,
+			Topics:         []string{"user.created"},
+			AllowWildcards: true,
+		})
+		require.NoError(t, err)
+		require.Len(t, destinations, 5)
+
+		destinations, err = store.ListDestination(ctx, driver.ListDestinationRequest{
+			TenantID: data.tenant.ID,
+			Topics:   []string{"user.created"},
+		})
+		require.NoError(t, err)
+		require.Len(t, destinations, 3)
 	})
 }
 
@@ -406,6 +431,36 @@ func testListTenant(t *testing.T, newHarness HarnessMaker) {
 		})
 	})
 
+	t.Run("CountsInternalTopicsNotDestinations", func(t *testing.T) {
+		ctx := context.Background()
+		h, err := newHarness(ctx, t)
+		require.NoError(t, err)
+		t.Cleanup(h.Close)
+
+		store, err := h.MakeDriver(ctx)
+		require.NoError(t, err)
+		require.NoError(t, store.Init(ctx))
+
+		tenant := testutil.TenantFactory.Any()
+		require.NoError(t, store.UpsertTenant(ctx, tenant))
+		require.NoError(t, store.CreateDestination(ctx, testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithTenantID(tenant.ID),
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithTopics([]string{"user.created"}),
+		)))
+		require.NoError(t, store.CreateDestination(ctx, testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithTenantID(tenant.ID),
+			testutil.DestinationFactory.WithType(models.DestinationTypeMCP),
+			testutil.DestinationFactory.WithTopics([]string{"user.deleted"}),
+		)))
+
+		resp, err := store.ListTenant(ctx, driver.ListTenantRequest{ID: []string{tenant.ID}})
+		require.NoError(t, err)
+		require.Len(t, resp.Models, 1)
+		assert.Equal(t, 1, resp.Models[0].DestinationsCount)
+		assert.Equal(t, []string{"user.created", "user.deleted"}, resp.Models[0].Topics)
+	})
+
 	t.Run("ExcludesDeleted", func(t *testing.T) {
 		ctx := context.Background()
 		h, err := newHarness(ctx, t)
@@ -491,6 +546,7 @@ func testListTenant(t *testing.T, newHarness HarnessMaker) {
 			})
 			require.Error(t, err)
 			assert.ErrorIs(t, err, driver.ErrInvalidCursor)
+			assert.EqualError(t, err, "invalid cursor")
 		})
 
 		t.Run("invalid prev cursor returns error", func(t *testing.T) {
@@ -499,6 +555,7 @@ func testListTenant(t *testing.T, newHarness HarnessMaker) {
 			})
 			require.Error(t, err)
 			assert.ErrorIs(t, err, driver.ErrInvalidCursor)
+			assert.EqualError(t, err, "invalid cursor")
 		})
 
 		t.Run("malformed cursor format returns error", func(t *testing.T) {
@@ -507,6 +564,61 @@ func testListTenant(t *testing.T, newHarness HarnessMaker) {
 			})
 			require.Error(t, err)
 			assert.ErrorIs(t, err, driver.ErrInvalidCursor)
+			assert.EqualError(t, err, "invalid cursor")
+		})
+
+		t.Run("cursor of another version returns error", func(t *testing.T) {
+			_, err := store.ListTenant(ctx, driver.ListTenantRequest{
+				Next: cursor.Encode("tnt", 2, "1700000000000"),
+			})
+			require.Error(t, err)
+			assert.ErrorIs(t, err, driver.ErrInvalidCursor)
+			assert.EqualError(t, err, "invalid cursor: cursor version mismatch: expected version 01")
+		})
+
+		t.Run("cursor with a position that is not a timestamp returns error", func(t *testing.T) {
+			_, err := store.ListTenant(ctx, driver.ListTenantRequest{
+				Next: cursor.Encode("tnt", 1, "yesterday"),
+			})
+			require.Error(t, err)
+			assert.ErrorIs(t, err, driver.ErrInvalidCursor)
+			assert.EqualError(t, err, "invalid cursor: invalid timestamp")
+		})
+
+		t.Run("cursor with a timestamp outside years 0000-9999 returns error", func(t *testing.T) {
+			for _, position := range []string{"9223372036854775807", "-9223372036854775808"} {
+				for _, param := range []string{"next", "prev"} {
+					t.Run(position+" in "+param, func(t *testing.T) {
+						req := driver.ListTenantRequest{}
+						if param == "next" {
+							req.Next = cursor.Encode("tnt", 1, position)
+						} else {
+							req.Prev = cursor.Encode("tnt", 1, position)
+						}
+						_, err := store.ListTenant(ctx, req)
+						require.Error(t, err)
+						assert.ErrorIs(t, err, driver.ErrInvalidCursor)
+						assert.EqualError(t, err, "invalid cursor: invalid timestamp")
+					})
+				}
+			}
+		})
+
+		t.Run("cursor with an empty position returns error", func(t *testing.T) {
+			for _, param := range []string{"next", "prev"} {
+				t.Run(param, func(t *testing.T) {
+					req := driver.ListTenantRequest{}
+					if param == "next" {
+						req.Next = cursor.Encode("tnt", 1, "")
+					} else {
+						req.Prev = cursor.Encode("tnt", 1, "")
+					}
+					_, err := store.ListTenant(ctx, req)
+					require.Error(t, err)
+					assert.ErrorIs(t, err, driver.ErrInvalidCursor)
+					assert.EqualError(t, err, "invalid cursor")
+				})
+			}
 		})
 
 		t.Run("limit zero uses default", func(t *testing.T) {

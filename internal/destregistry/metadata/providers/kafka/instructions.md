@@ -20,4 +20,4 @@ To configure Kafka as a destination you must provide:
 ### Optional settings
 
 - **TLS** — Enable TLS encryption for the connection. Enabled by default.
-- **Partition Key Template** — A JMESPath expression to extract the message key from the event payload. If not set, the event ID is used as the message key.
+- **Partition Key Template** — A JMESPath expression to extract the message key from the event payload. If not set, the event ID is used as the message key. Templates may use field paths, string literals, `join`, `to_string`, `not_null` and `||`.

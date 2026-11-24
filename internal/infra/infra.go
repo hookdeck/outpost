@@ -44,6 +44,14 @@ type Config struct {
 	DeliveryMQ    *mqinfra.MQInfraConfig
 	LogMQ         *mqinfra.MQInfraConfig
 	AutoProvision *bool
+	DeploymentID  string
+}
+
+func LockKey(deploymentID string) string {
+	if deploymentID == "" {
+		return lockKey
+	}
+	return deploymentID + ":" + lockKey
 }
 
 func (cfg *Config) SetSensiblePolicyDefaults() {
@@ -168,7 +176,7 @@ func NewInfra(cfg Config, redisClient redis.Cmdable, logger *logging.Logger, mqT
 	}
 
 	return Infra{
-		lock:         redislock.New(redisClient, redislock.WithKey(lockKey), redislock.WithTTL(lockTTL)),
+		lock:         redislock.New(redisClient, redislock.WithKey(LockKey(cfg.DeploymentID)), redislock.WithTTL(lockTTL)),
 		provider:     provider,
 		shouldManage: shouldManage,
 		logger:       logger,

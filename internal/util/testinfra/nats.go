@@ -3,92 +3,131 @@ package testinfra
 import (
 	"context"
 	"log"
-	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/hookdeck/outpost/internal/mqinfra"
 	"github.com/hookdeck/outpost/internal/mqs"
-	"github.com/hookdeck/outpost/internal/util/testutil"
+	natsgo "github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-// NewMQNATSConfig spins up (if necessary) a NATS JetStream test container,
-// provisions one stream + consumer with random names, and returns a
-// QueueConfig with one account pointing at them. The stream/consumer are
-// torn down after the test.
+// NewMQNATSConfig provisions a fresh, uniquely-named stream/subject/consumer
+// via mqinfra (not a hand-rolled declare, unlike the RabbitMQ helper) —
+// NATSQueue.Subscribe now looks up a consumer mqinfra already provisioned
+// rather than creating one itself, so tests need that same real
+// provisioning path to get a working subscription at all.
 func NewMQNATSConfig(t *testing.T) mqs.QueueConfig {
-	stream := "test-" + uuid.New().String()
-	consumer := "test-" + uuid.New().String()
+	serverURL := EnsureNATS(t)
+	stream := "test" + uuid.New().String()[:8]
+	subject := stream + ".events"
 
-	cfg := mqs.QueueConfig{
-		NATS: &mqs.NATSConfig{
-			Servers: []string{EnsureNATS()},
-			Accounts: []mqs.NATSAccountConfig{{
-				Name:     "test",
-				Stream:   stream,
-				Consumer: consumer,
-			}},
+	infra := mqinfra.New(&mqinfra.MQInfraConfig{
+		NATS: &mqinfra.NATSInfraConfig{
+			ServerURL: serverURL,
+			Stream:    stream,
+			Subject:   subject,
 		},
-	}
-
+	})
 	ctx := context.Background()
-	if err := testutil.DeclareTestNATSInfrastructure(ctx, cfg.NATS); err != nil {
+	if err := infra.Declare(ctx); err != nil {
 		panic(err)
 	}
 	t.Cleanup(func() {
-		if err := testutil.TeardownTestNATSInfrastructure(ctx, cfg.NATS); err != nil {
-			log.Println("Failed to teardown NATS infrastructure", err)
+		if err := infra.TearDown(ctx); err != nil {
+			log.Println("Failed to teardown NATS infrastructure", err, stream)
 		}
 	})
-	return cfg
+
+	return mqs.QueueConfig{
+		NATS: &mqs.NATSConfig{
+			ServerURL: serverURL,
+			Stream:    stream,
+			Subject:   subject,
+		},
+	}
 }
 
-var natsOnce sync.Once
+// SetNATSAckWait sets how long the consumers of cfg's stream wait for an ack
+// before redelivering: NATS's counterpart of a queue's visibility timeout.
+// Outpost provisions 60 s, too long for a test that waits for a redelivery.
+func SetNATSAckWait(t testing.TB, cfg mqs.QueueConfig, ackWait time.Duration) {
+	t.Helper()
+	ctx := context.Background()
+	nc, err := natsgo.Connect(cfg.NATS.ServerURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer nc.Close()
+	js, err := jetstream.New(nc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stream, err := js.Stream(ctx, cfg.NATS.Stream)
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := stream.ConsumerNames(ctx)
+	for name := range names.Name() {
+		consumer, err := stream.Consumer(ctx, name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		consumerCfg := consumer.CachedInfo().Config
+		consumerCfg.AckWait = ackWait
+		if _, err := js.UpdateConsumer(ctx, cfg.NATS.Stream, consumerCfg); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := names.Err(); err != nil {
+		t.Fatal(err)
+	}
+}
 
-// EnsureNATS returns a NATS URL, starting a test container on first call
-// unless TEST_NATS_URL is set in the test environment.
-//
-// The check for an existing NATSURL is performed *inside* sync.Once.Do so
-// concurrent callers from t.Parallel() tests don't race against the
-// container-start path (which writes cfg.NATSURL).
-func EnsureNATS() string {
+var natsService = &service{name: "nats", startHint: hintTest}
+
+// EnsureNATS returns the URL of the test NATS server (JetStream enabled),
+// failing t if it isn't available.
+func EnsureNATS(t testing.TB) string {
+	t.Helper()
 	cfg := ReadConfig()
-	natsOnce.Do(func() {
-		if cfg.NATSURL == "" {
-			startNATSTestContainer(cfg)
-		}
-	})
-	return cfg.NATSURL
+	return natsService.ensure(t, cfg.NATSURL,
+		func() (string, error) { return startNATSTestContainer(cfg) },
+		func(endpoint string) error {
+			nc, err := natsgo.Connect(endpoint)
+			if err != nil {
+				return err
+			}
+			nc.Close()
+			return nil
+		})
 }
 
-func startNATSTestContainer(cfg *Config) {
+func startNATSTestContainer(cfg *Config) (string, error) {
 	ctx := context.Background()
 
 	req := testcontainers.ContainerRequest{
-		Image:        "nats:2.10-alpine",
+		Image:        cfg.Images.NATS,
 		ExposedPorts: []string{"4222/tcp"},
-		Cmd:          []string{"-js"},
+		Cmd:          []string{"-js"}, // enable JetStream; plain NATS has no persistence
 		WaitingFor:   wait.ForListeningPort("4222/tcp"),
 	}
 
-	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+	natsContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
 		Started:          true,
 	})
 	if err != nil {
-		panic(err)
+		return "", err
 	}
 
-	endpoint, err := container.PortEndpoint(ctx, "4222/tcp", "nats")
+	endpoint, err := natsContainer.PortEndpoint(ctx, "4222/tcp", "")
 	if err != nil {
-		panic(err)
+		return "", err
 	}
 	log.Printf("NATS running at %s", endpoint)
-	cfg.NATSURL = endpoint
-	cfg.cleanupFns = append(cfg.cleanupFns, func() {
-		if err := container.Terminate(ctx); err != nil {
-			log.Printf("failed to terminate nats container: %s", err)
-		}
-	})
+	return endpoint, nil
 }

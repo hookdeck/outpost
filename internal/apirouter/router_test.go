@@ -7,21 +7,24 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 	"github.com/hookdeck/outpost/internal/apirouter"
+	"github.com/hookdeck/outpost/internal/backoff"
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logstore"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/opevents"
 	"github.com/hookdeck/outpost/internal/portal"
 	"github.com/hookdeck/outpost/internal/publishmq"
 	"github.com/hookdeck/outpost/internal/telemetry"
 	"github.com/hookdeck/outpost/internal/tenantstore"
+	"github.com/hookdeck/outpost/internal/topicschema"
 	"github.com/hookdeck/outpost/internal/util/testutil"
-	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
 )
 
@@ -58,15 +61,55 @@ type apiTest struct {
 type apiTestOption func(*apiTestConfig)
 
 type apiTestConfig struct {
-	tenantStore         tenantstore.TenantStore
-	destRegistry        destregistry.Registry
-	subscriptionEmitter apirouter.SubscriptionEmitter
-	logger              *logging.Logger
+	tenantStore          tenantstore.TenantStore
+	logStore             logstore.LogStore
+	destRegistry         destregistry.Registry
+	subscriptionEmitter  apirouter.SubscriptionEmitter
+	logger               *logging.Logger
+	apiKey               string
+	topics               []string
+	topicsAllowWildcards bool
+	deploymentID         string
+	mcpVerifier          apirouter.MCPVerifier
+	mcpCatalog           *topicschema.Catalog
+	mcpEventsErr         error
+	mcpSubscribe         bool
+	maxEventSizeBytes    int64
+}
+
+func withMCPSubscribe() apiTestOption {
+	return func(cfg *apiTestConfig) {
+		cfg.mcpSubscribe = true
+	}
+}
+
+func withMCPCatalog(c *topicschema.Catalog) apiTestOption {
+	return func(cfg *apiTestConfig) {
+		cfg.mcpCatalog = c
+	}
+}
+
+func withMCPEventsError(err error) apiTestOption {
+	return func(cfg *apiTestConfig) {
+		cfg.mcpEventsErr = err
+	}
+}
+
+func withMCPVerifier(v apirouter.MCPVerifier) apiTestOption {
+	return func(cfg *apiTestConfig) {
+		cfg.mcpVerifier = v
+	}
 }
 
 func withTenantStore(ts tenantstore.TenantStore) apiTestOption {
 	return func(cfg *apiTestConfig) {
 		cfg.tenantStore = ts
+	}
+}
+
+func withLogStore(ls logstore.LogStore) apiTestOption {
+	return func(cfg *apiTestConfig) {
+		cfg.logStore = ls
 	}
 }
 
@@ -88,11 +131,44 @@ func withLogger(l *logging.Logger) apiTestOption {
 	}
 }
 
+func withAPIKeyConfig(apiKey string) apiTestOption {
+	return func(cfg *apiTestConfig) {
+		cfg.apiKey = apiKey
+	}
+}
+
+func withTopics(topics []string) apiTestOption {
+	return func(cfg *apiTestConfig) {
+		cfg.topics = topics
+	}
+}
+
+func withTopicsAllowWildcards(allow bool) apiTestOption {
+	return func(cfg *apiTestConfig) {
+		cfg.topicsAllowWildcards = allow
+	}
+}
+
+func withMaxEventSizeBytes(n int64) apiTestOption {
+	return func(cfg *apiTestConfig) {
+		cfg.maxEventSizeBytes = n
+	}
+}
+
+func withDeploymentID(id string) apiTestOption {
+	return func(cfg *apiTestConfig) {
+		cfg.deploymentID = id
+	}
+}
+
 func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 	t.Helper()
 
 	cfg := apiTestConfig{
 		tenantStore: tenantstore.NewMemTenantStore(),
+		logStore:    logstore.NewMemLogStore(),
+		apiKey:      testAPIKey,
+		topics:      testutil.TestTopics,
 	}
 	for _, o := range opts {
 		o(&cfg)
@@ -100,10 +176,10 @@ func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 
 	logger := cfg.logger
 	if logger == nil {
-		logger = &logging.Logger{Logger: otelzap.New(zap.NewNop())}
+		logger = logging.NewTestLogger(zap.NewNop())
 	}
 	ts := cfg.tenantStore
-	ls := logstore.NewMemLogStore()
+	ls := cfg.logStore
 	dp := &mockDeliveryPublisher{}
 	eh := &mockEventHandler{}
 	var se *mockSubscriptionEmitter
@@ -122,12 +198,17 @@ func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 
 	router := apirouter.NewRouter(
 		apirouter.RouterConfig{
-			ServiceName:  "test",
-			APIKey:       testAPIKey,
-			JWTSecret:    testJWTSecret,
-			Topics:       testutil.TestTopics,
-			Registry:     registry,
-			PortalConfig: portal.PortalConfig{},
+			ServiceName:          "test",
+			APIKey:               cfg.apiKey,
+			JWTSecret:            testJWTSecret,
+			DeploymentID:         cfg.deploymentID,
+			Topics:               cfg.topics,
+			TopicsAllowWildcards: cfg.topicsAllowWildcards,
+			Registry:             registry,
+			PortalConfig:         portal.PortalConfig{},
+
+			MCPSubscribe:      cfg.mcpSubscribe,
+			MaxEventSizeBytes: cfg.maxEventSizeBytes,
 		},
 		apirouter.RouterDeps{
 			TenantStore:         ts,
@@ -137,6 +218,9 @@ func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 			EventHandler:        eh,
 			Telemetry:           &telemetry.NoopTelemetry{},
 			SubscriptionEmitter: subEmitter,
+			MCPVerifier:         cfg.mcpVerifier,
+			MCPCatalog:          cfg.mcpCatalog,
+			MCPEventsError:      cfg.mcpEventsErr,
 		},
 	)
 
@@ -151,11 +235,13 @@ func newAPITest(t *testing.T, opts ...apiTestOption) *apiTest {
 	}
 }
 
-// do executes a request and returns the response recorder.
+// do executes a request and returns the response recorder. It fails the test
+// when the response is not JSON with a body: every API response must be.
 func (a *apiTest) do(req *http.Request) *httptest.ResponseRecorder {
 	a.t.Helper()
 	w := httptest.NewRecorder()
 	a.router.ServeHTTP(w, req)
+	testutil.RequireJSONResponse(a.t, req.Method+" "+req.URL.Path, w.Code, w.Header(), w.Body.Bytes())
 	return w
 }
 
@@ -237,8 +323,8 @@ type emitCall struct {
 	data     any
 }
 
-func (m *mockSubscriptionEmitter) Emit(_ context.Context, topic string, tenantID string, data any) error {
-	m.calls = append(m.calls, emitCall{topic: topic, tenantID: tenantID, data: data})
+func (m *mockSubscriptionEmitter) Emit(_ context.Context, ev opevents.Event) error {
+	m.calls = append(m.calls, emitCall{topic: ev.Topic, tenantID: ev.TenantID, data: ev.Data})
 	return nil
 }
 
@@ -267,6 +353,26 @@ func (r *stubRegistry) ResolvePublisher(context.Context, *models.Destination) (d
 }
 func (r *stubRegistry) MetadataLoader() metadata.MetadataLoader { return nil }
 func (r *stubRegistry) RetrieveProviderMetadata(string) (*metadata.ProviderMetadata, error) {
-	return nil, nil
+	return &metadata.ProviderMetadata{}, nil
 }
-func (r *stubRegistry) ListProviderMetadata() []*metadata.ProviderMetadata { return nil }
+func (r *stubRegistry) ListProviderMetadata() []*metadata.ProviderMetadata {
+	return []*metadata.ProviderMetadata{}
+}
+
+func (r *stubRegistry) RetryPolicy(string) (backoff.Backoff, int, bool) {
+	return nil, 0, false
+}
+
+// Fails under -race if NewRouter writes shared state without synchronization.
+func TestNewRouter_ConcurrentBuild(t *testing.T) {
+	const n = 8
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			newAPITest(t)
+		}()
+	}
+	wg.Wait()
+}

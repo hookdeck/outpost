@@ -165,7 +165,9 @@ const DestinationMetrics: React.FC<DestinationMetricsProps> = ({
         </div>
 
         {/* Row 2 — Error Breakdown (3 columns) */}
-        <div className={`metrics-container__cell metrics-container__cell--row2${destination.type !== "webhook" ? " metrics-container__cell--row2-half" : ""}`}>
+        <div
+          className={`metrics-container__cell metrics-container__cell--row2${destination.type !== "webhook" ? " metrics-container__cell--row2-half" : ""}`}
+        >
           <MetricsChart
             title="Errors"
             subtitle="rate"
@@ -208,13 +210,15 @@ const DestinationMetrics: React.FC<DestinationMetricsProps> = ({
               barColor={(code) => {
                 const n = Number(code);
                 if (n >= 200 && n < 300) return "success";
-                if (n >= 400) return "error";
+                if (n >= 300) return "error";
                 return undefined;
               }}
             />
           </div>
         )}
-        <div className={`metrics-container__cell metrics-container__cell--row2${destination.type !== "webhook" ? " metrics-container__cell--row2-half" : ""}`}>
+        <div
+          className={`metrics-container__cell metrics-container__cell--row2${destination.type !== "webhook" ? " metrics-container__cell--row2-half" : ""}`}
+        >
           <MetricsBreakdown
             title="Events count by topic"
             data={by_topic.data?.data}

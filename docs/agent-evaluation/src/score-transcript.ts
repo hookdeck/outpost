@@ -323,11 +323,13 @@ function scoreScenario02(corpus: string, assistant: string): TranscriptScore {
     detail: dest ? "Calls destinations.create" : "Expected destinations.create",
   });
 
-  const pub = /publish\.event|publish\?\.event/.test(t);
+  // TS SDK >=1.3.0 exposes `outpost.publish(...)` directly. Keep `publish.event`
+  // as a fallback so older transcripts (and stray references in comments) still match.
+  const pub = /\.publish\s*\(|publish\.event|publish\?\.event/.test(t);
   checks.push({
     id: "publish_event",
     pass: pub,
-    detail: pub ? "Calls publish.event" : "Expected publish.event",
+    detail: pub ? "Calls outpost.publish(…) or publish.event" : "Expected outpost.publish(…) or publish.event",
   });
 
   const hookUrl = /OUTPOST_TEST_WEBHOOK_URL/.test(t);

@@ -9,11 +9,11 @@ import { ClosedEnum } from "../../types/enums.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 import {
-  Destination,
-  Destination$inboundSchema,
-  Destination$Outbound,
-  Destination$outboundSchema,
-} from "./destination.js";
+  AttemptDestination,
+  AttemptDestination$inboundSchema,
+  AttemptDestination$Outbound,
+  AttemptDestination$outboundSchema,
+} from "./attemptdestination.js";
 
 /**
  * The attempt status.
@@ -26,6 +26,31 @@ export const Status = {
  * The attempt status.
  */
 export type Status = ClosedEnum<typeof Status>;
+
+/**
+ * Event object without data (returned when include=event).
+ */
+export type EventSummary = {
+  id?: string | undefined;
+  /**
+   * The tenant this event belongs to.
+   */
+  tenantId?: string | undefined;
+  /**
+   * The destination this event was delivered to.
+   */
+  destinationId?: string | undefined;
+  topic?: string | undefined;
+  /**
+   * Time the event was received.
+   */
+  time?: Date | undefined;
+  /**
+   * Whether this event can be retried.
+   */
+  eligibleForRetry?: boolean | undefined;
+  metadata?: { [k: string]: string } | null | undefined;
+};
 
 /**
  * Full event object with data (returned when include=event.data).
@@ -57,34 +82,9 @@ export type EventFull = {
 };
 
 /**
- * Event object without data (returned when include=event).
- */
-export type EventSummary = {
-  id?: string | undefined;
-  /**
-   * The tenant this event belongs to.
-   */
-  tenantId?: string | undefined;
-  /**
-   * The destination this event was delivered to.
-   */
-  destinationId?: string | undefined;
-  topic?: string | undefined;
-  /**
-   * Time the event was received.
-   */
-  time?: Date | undefined;
-  /**
-   * Whether this event can be retried.
-   */
-  eligibleForRetry?: boolean | undefined;
-  metadata?: { [k: string]: string } | null | undefined;
-};
-
-/**
  * The associated event object. Only present when include=event or include=event.data.
  */
-export type EventUnion = EventSummary | EventFull;
+export type EventUnion = EventFull | EventSummary;
 
 /**
  * An attempt represents a single delivery attempt of an event to a destination.
@@ -123,6 +123,10 @@ export type Attempt = {
    */
   manual?: boolean | undefined;
   /**
+   * Time in milliseconds from sending the attempt to receiving the destination's response (or the error), measured around the provider's publish call. Null for attempts that never reached the provider and for attempts recorded before latency was tracked.
+   */
+  latencyMs?: number | null | undefined;
+  /**
    * The ID of the associated event.
    */
   eventId?: string | undefined;
@@ -133,8 +137,11 @@ export type Attempt = {
   /**
    * The associated event object. Only present when include=event or include=event.data.
    */
-  event?: EventSummary | EventFull | null | undefined;
-  destination?: Destination | undefined;
+  event?: EventFull | EventSummary | null | undefined;
+  /**
+   * The destination an attempt was sent to, without credentials. Use the destination endpoints to retrieve credentials.
+   */
+  destination?: AttemptDestination | undefined;
 };
 
 /** @internal */
@@ -143,6 +150,72 @@ export const Status$inboundSchema: z.ZodNativeEnum<typeof Status> = z
 /** @internal */
 export const Status$outboundSchema: z.ZodNativeEnum<typeof Status> =
   Status$inboundSchema;
+
+/** @internal */
+export const EventSummary$inboundSchema: z.ZodType<
+  EventSummary,
+  z.ZodTypeDef,
+  unknown
+> = z.object({
+  id: z.string().optional(),
+  tenant_id: z.string().optional(),
+  destination_id: z.string().optional(),
+  topic: z.string().optional(),
+  time: z.string().datetime({ offset: true }).transform(v => new Date(v))
+    .optional(),
+  eligible_for_retry: z.boolean().optional(),
+  metadata: z.nullable(z.record(z.string())).optional(),
+}).transform((v) => {
+  return remap$(v, {
+    "tenant_id": "tenantId",
+    "destination_id": "destinationId",
+    "eligible_for_retry": "eligibleForRetry",
+  });
+});
+/** @internal */
+export type EventSummary$Outbound = {
+  id?: string | undefined;
+  tenant_id?: string | undefined;
+  destination_id?: string | undefined;
+  topic?: string | undefined;
+  time?: string | undefined;
+  eligible_for_retry?: boolean | undefined;
+  metadata?: { [k: string]: string } | null | undefined;
+};
+
+/** @internal */
+export const EventSummary$outboundSchema: z.ZodType<
+  EventSummary$Outbound,
+  z.ZodTypeDef,
+  EventSummary
+> = z.object({
+  id: z.string().optional(),
+  tenantId: z.string().optional(),
+  destinationId: z.string().optional(),
+  topic: z.string().optional(),
+  time: z.date().transform(v => v.toISOString()).optional(),
+  eligibleForRetry: z.boolean().optional(),
+  metadata: z.nullable(z.record(z.string())).optional(),
+}).transform((v) => {
+  return remap$(v, {
+    tenantId: "tenant_id",
+    destinationId: "destination_id",
+    eligibleForRetry: "eligible_for_retry",
+  });
+});
+
+export function eventSummaryToJSON(eventSummary: EventSummary): string {
+  return JSON.stringify(EventSummary$outboundSchema.parse(eventSummary));
+}
+export function eventSummaryFromJSON(
+  jsonString: string,
+): SafeParseResult<EventSummary, SDKValidationError> {
+  return safeParse(
+    jsonString,
+    (x) => EventSummary$inboundSchema.parse(JSON.parse(x)),
+    `Failed to parse 'EventSummary' from JSON`,
+  );
+}
 
 /** @internal */
 export const EventFull$inboundSchema: z.ZodType<
@@ -214,82 +287,16 @@ export function eventFullFromJSON(
 }
 
 /** @internal */
-export const EventSummary$inboundSchema: z.ZodType<
-  EventSummary,
-  z.ZodTypeDef,
-  unknown
-> = z.object({
-  id: z.string().optional(),
-  tenant_id: z.string().optional(),
-  destination_id: z.string().optional(),
-  topic: z.string().optional(),
-  time: z.string().datetime({ offset: true }).transform(v => new Date(v))
-    .optional(),
-  eligible_for_retry: z.boolean().optional(),
-  metadata: z.nullable(z.record(z.string())).optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "tenant_id": "tenantId",
-    "destination_id": "destinationId",
-    "eligible_for_retry": "eligibleForRetry",
-  });
-});
-/** @internal */
-export type EventSummary$Outbound = {
-  id?: string | undefined;
-  tenant_id?: string | undefined;
-  destination_id?: string | undefined;
-  topic?: string | undefined;
-  time?: string | undefined;
-  eligible_for_retry?: boolean | undefined;
-  metadata?: { [k: string]: string } | null | undefined;
-};
-
-/** @internal */
-export const EventSummary$outboundSchema: z.ZodType<
-  EventSummary$Outbound,
-  z.ZodTypeDef,
-  EventSummary
-> = z.object({
-  id: z.string().optional(),
-  tenantId: z.string().optional(),
-  destinationId: z.string().optional(),
-  topic: z.string().optional(),
-  time: z.date().transform(v => v.toISOString()).optional(),
-  eligibleForRetry: z.boolean().optional(),
-  metadata: z.nullable(z.record(z.string())).optional(),
-}).transform((v) => {
-  return remap$(v, {
-    tenantId: "tenant_id",
-    destinationId: "destination_id",
-    eligibleForRetry: "eligible_for_retry",
-  });
-});
-
-export function eventSummaryToJSON(eventSummary: EventSummary): string {
-  return JSON.stringify(EventSummary$outboundSchema.parse(eventSummary));
-}
-export function eventSummaryFromJSON(
-  jsonString: string,
-): SafeParseResult<EventSummary, SDKValidationError> {
-  return safeParse(
-    jsonString,
-    (x) => EventSummary$inboundSchema.parse(JSON.parse(x)),
-    `Failed to parse 'EventSummary' from JSON`,
-  );
-}
-
-/** @internal */
 export const EventUnion$inboundSchema: z.ZodType<
   EventUnion,
   z.ZodTypeDef,
   unknown
 > = z.union([
-  z.lazy(() => EventSummary$inboundSchema),
   z.lazy(() => EventFull$inboundSchema),
+  z.lazy(() => EventSummary$inboundSchema),
 ]);
 /** @internal */
-export type EventUnion$Outbound = EventSummary$Outbound | EventFull$Outbound;
+export type EventUnion$Outbound = EventFull$Outbound | EventSummary$Outbound;
 
 /** @internal */
 export const EventUnion$outboundSchema: z.ZodType<
@@ -297,8 +304,8 @@ export const EventUnion$outboundSchema: z.ZodType<
   z.ZodTypeDef,
   EventUnion
 > = z.union([
-  z.lazy(() => EventSummary$outboundSchema),
   z.lazy(() => EventFull$outboundSchema),
+  z.lazy(() => EventSummary$outboundSchema),
 ]);
 
 export function eventUnionToJSON(eventUnion: EventUnion): string {
@@ -326,20 +333,22 @@ export const Attempt$inboundSchema: z.ZodType<Attempt, z.ZodTypeDef, unknown> =
     response_data: z.nullable(z.record(z.any())).optional(),
     attempt_number: z.number().int().optional(),
     manual: z.boolean().optional(),
+    latency_ms: z.nullable(z.number().int()).optional(),
     event_id: z.string().optional(),
     destination_id: z.string().optional(),
     event: z.nullable(
       z.union([
-        z.lazy(() => EventSummary$inboundSchema),
         z.lazy(() => EventFull$inboundSchema),
+        z.lazy(() => EventSummary$inboundSchema),
       ]),
     ).optional(),
-    destination: Destination$inboundSchema.optional(),
+    destination: AttemptDestination$inboundSchema.optional(),
   }).transform((v) => {
     return remap$(v, {
       "tenant_id": "tenantId",
       "response_data": "responseData",
       "attempt_number": "attemptNumber",
+      "latency_ms": "latencyMs",
       "event_id": "eventId",
       "destination_id": "destinationId",
     });
@@ -354,10 +363,11 @@ export type Attempt$Outbound = {
   response_data?: { [k: string]: any } | null | undefined;
   attempt_number?: number | undefined;
   manual?: boolean | undefined;
+  latency_ms?: number | null | undefined;
   event_id?: string | undefined;
   destination_id?: string | undefined;
-  event?: EventSummary$Outbound | EventFull$Outbound | null | undefined;
-  destination?: Destination$Outbound | undefined;
+  event?: EventFull$Outbound | EventSummary$Outbound | null | undefined;
+  destination?: AttemptDestination$Outbound | undefined;
 };
 
 /** @internal */
@@ -374,20 +384,22 @@ export const Attempt$outboundSchema: z.ZodType<
   responseData: z.nullable(z.record(z.any())).optional(),
   attemptNumber: z.number().int().optional(),
   manual: z.boolean().optional(),
+  latencyMs: z.nullable(z.number().int()).optional(),
   eventId: z.string().optional(),
   destinationId: z.string().optional(),
   event: z.nullable(
     z.union([
-      z.lazy(() => EventSummary$outboundSchema),
       z.lazy(() => EventFull$outboundSchema),
+      z.lazy(() => EventSummary$outboundSchema),
     ]),
   ).optional(),
-  destination: Destination$outboundSchema.optional(),
+  destination: AttemptDestination$outboundSchema.optional(),
 }).transform((v) => {
   return remap$(v, {
     tenantId: "tenant_id",
     responseData: "response_data",
     attemptNumber: "attempt_number",
+    latencyMs: "latency_ms",
     eventId: "event_id",
     destinationId: "destination_id",
   });

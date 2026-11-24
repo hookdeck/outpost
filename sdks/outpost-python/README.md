@@ -13,6 +13,8 @@ Developer-friendly & type-safe Python SDK specifically catered to leverage the O
 ## Summary
 
 Outpost API: The Outpost API is a REST-based JSON API for managing tenants, destinations, and publishing events.
+
+Outpost runs in two deployment models: **managed** (hosted by Hookdeck) and **self-hosted**. They differ in where the API is served and in which API key authenticates server-side calls. On managed Outpost, use a Hookdeck project API key from your Outpost project. On self-hosted Outpost, use the key set in the `API_KEY` environment variable. A few endpoints exist in one model only and say so in their description.
 <!-- End Summary [summary] -->
 
 <!-- Start Table of Contents [toc] -->
@@ -24,7 +26,6 @@ Outpost API: The Outpost API is a REST-based JSON API for managing tenants, dest
   * [SDK Example Usage](#sdk-example-usage)
   * [Authentication](#authentication)
   * [Available Resources and Operations](#available-resources-and-operations)
-  * [Pagination](#pagination)
   * [Retries](#retries)
   * [Error Handling](#error-handling)
   * [Server Selection](#server-selection)
@@ -268,6 +269,23 @@ with Outpost(
 * [get_event_metrics](docs/sdks/metrics/README.md#get_event_metrics) - Get Event Metrics
 * [get_attempt_metrics](docs/sdks/metrics/README.md#get_attempt_metrics) - Get Attempt Metrics
 
+### [OperatorEvents](docs/sdks/operatorevents/README.md)
+
+* [list_destination_types](docs/sdks/operatorevents/README.md#list_destination_types) - List Operator Event Destination Type Schemas
+* [list_destinations](docs/sdks/operatorevents/README.md#list_destinations) - List Operator Event Destinations
+* [create_destination](docs/sdks/operatorevents/README.md#create_destination) - Create Operator Event Destination
+* [get_destination](docs/sdks/operatorevents/README.md#get_destination) - Get Operator Event Destination
+* [update_destination](docs/sdks/operatorevents/README.md#update_destination) - Update Operator Event Destination
+* [delete_destination](docs/sdks/operatorevents/README.md#delete_destination) - Delete Operator Event Destination
+* [enable_destination](docs/sdks/operatorevents/README.md#enable_destination) - Enable Operator Event Destination
+* [disable_destination](docs/sdks/operatorevents/README.md#disable_destination) - Disable Operator Event Destination
+* [list_events](docs/sdks/operatorevents/README.md#list_events) - List Operator Events
+* [get_event](docs/sdks/operatorevents/README.md#get_event) - Get Operator Event
+* [list_event_attempts](docs/sdks/operatorevents/README.md#list_event_attempts) - List Attempts for an Operator Event
+* [list_attempts](docs/sdks/operatorevents/README.md#list_attempts) - List Operator Event Attempts
+* [get_attempt](docs/sdks/operatorevents/README.md#get_attempt) - Get Operator Event Attempt
+* [retry](docs/sdks/operatorevents/README.md#retry) - Retry Operator Event Delivery
+
 ### [Schemas](docs/sdks/schemas/README.md)
 
 * [list_destination_types](docs/sdks/schemas/README.md#list_destination_types) - List Destination Type Schemas
@@ -288,32 +306,6 @@ with Outpost(
 
 </details>
 <!-- End Available Resources and Operations [operations] -->
-
-<!-- Start Pagination [pagination] -->
-## Pagination
-
-Some of the endpoints in this SDK support pagination. To use pagination, you make your SDK calls as usual, but the
-returned response object will have a `Next` method that can be called to pull down the next group of results. If the
-return value of `Next` is `None`, then there are no more pages to be fetched.
-
-Here's an example of one such pagination call:
-```python
-from outpost_sdk import Outpost
-
-
-with Outpost(
-    api_key="<YOUR_BEARER_TOKEN_HERE>",
-) as outpost:
-
-    res = outpost.tenants.list(request={})
-
-    while res is not None:
-        # Handle items
-
-        res = res.next()
-
-```
-<!-- End Pagination [pagination] -->
 
 <!-- Start Retries [retries] -->
 ## Retries
@@ -455,12 +447,12 @@ with Outpost(
 
 
 **Inherit from [`OutpostError`](./src/outpost_sdk/errors/outposterror.py)**:
-* [`NotFoundError`](./src/outpost_sdk/errors/notfounderror.py): Status codes relating to the resource/entity they are requesting not being found or endpoints/routes not existing. Applicable to 21 of 29 methods.*
-* [`BadRequestError`](./src/outpost_sdk/errors/badrequesterror.py): A collection of codes that generally means the end user got something wrong in making the request. Applicable to 9 of 29 methods.*
-* [`APIErrorResponse`](./src/outpost_sdk/errors/apierrorresponse.py): Standard error response format. Applicable to 6 of 29 methods.*
-* [`TimeoutErrorT`](./src/outpost_sdk/errors/timeouterrort.py): Timeouts occurred with the request. Applicable to 5 of 29 methods.*
-* [`RateLimitedError`](./src/outpost_sdk/errors/ratelimitederror.py): Status codes relating to the client being rate limited by the server. Status code `429`. Applicable to 5 of 29 methods.*
-* [`NotImplementedErrorT`](./src/outpost_sdk/errors/notimplementederrort.py): List Tenants feature is not available. Requires Redis with RediSearch module. Status code `501`. Applicable to 1 of 29 methods.*
+* [`NotFoundError`](./src/outpost_sdk/errors/notfounderror.py): Status codes relating to the resource/entity they are requesting not being found or endpoints/routes not existing. Applicable to 29 of 43 methods.*
+* [`APIErrorResponse`](./src/outpost_sdk/errors/apierrorresponse.py): Standard error response format. Applicable to 26 of 43 methods.*
+* [`BadRequestError`](./src/outpost_sdk/errors/badrequesterror.py): A collection of codes that generally means the end user got something wrong in making the request. Applicable to 16 of 43 methods.*
+* [`TimeoutErrorT`](./src/outpost_sdk/errors/timeouterrort.py): Timeouts occurred with the request. Applicable to 5 of 43 methods.*
+* [`RateLimitedError`](./src/outpost_sdk/errors/ratelimitederror.py): Status codes relating to the client being rate limited by the server. Status code `429`. Applicable to 5 of 43 methods.*
+* [`NotImplementedErrorT`](./src/outpost_sdk/errors/notimplementederrort.py): List Tenants feature is not available. Requires Redis with RediSearch module. Status code `501`. Applicable to 1 of 43 methods.*
 * [`ResponseValidationError`](./src/outpost_sdk/errors/responsevalidationerror.py): Type mismatch between the response data and the expected Pydantic model. Provides access to the Pydantic validation error via the `cause` attribute.
 
 </details>
@@ -475,10 +467,10 @@ with Outpost(
 
 You can override the default server globally by passing a server index to the `server_idx: int` optional parameter when initializing the SDK client instance. The selected server will then be used as the default on the operations that use it. This table lists the indexes associated with the available servers:
 
-| #   | Server                                        | Description                        |
-| --- | --------------------------------------------- | ---------------------------------- |
-| 0   | `https://api.outpost.hookdeck.com/2025-07-01` | Outpost API (production)           |
-| 1   | `http://localhost:3333/api/v1`                | Local development server base path |
+| #   | Server                                        | Description                                                                                                                                |
+| --- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| 0   | `https://api.outpost.hookdeck.com/2025-07-01` | Managed Outpost, hosted by Hookdeck at `api.outpost.hookdeck.com`. The Hookdeck Event Gateway API at `api.hookdeck.com` is a separate API. |
+| 1   | `http://localhost:3333/api/v1`                | Self-hosted Outpost, at its default local address. A deployed instance serves the same paths under its own host.                           |
 
 #### Example
 
@@ -621,6 +613,20 @@ class CustomClient(AsyncHttpClient):
 
 s = Outpost(async_client=CustomClient(httpx.AsyncClient()))
 ```
+### httpx2 (Pydantic's httpx fork)
+
+[httpx2](https://httpx2.pydantic.dev/) is Pydantic's maintained fork of `httpx`. To run this SDK on httpx2, call `alias_httpx()` at your program's entry point, before importing the SDK, so every `import httpx` — including the ones inside the SDK — resolves to `httpx2`:
+```python
+import httpx2
+
+httpx2.alias_httpx()
+
+from outpost_sdk import Outpost
+
+s = Outpost()
+```
+
+An SDK can also be generated against httpx2 directly, so it depends on the fork instead of `httpx`, by setting `python.httpClientLibrary: httpx2` in `gen.yaml`.
 <!-- End Custom HTTP Client [http-client] -->
 
 <!-- Start Resource Management [resource-management] -->
@@ -638,6 +644,7 @@ def main():
         api_key="<YOUR_BEARER_TOKEN_HERE>",
     ) as outpost:
         # Rest of application here...
+        pass
 
 
 # Or when using async:
@@ -647,6 +654,7 @@ async def amain():
         api_key="<YOUR_BEARER_TOKEN_HERE>",
     ) as outpost:
         # Rest of application here...
+        pass
 ```
 <!-- End Resource Management [resource-management] -->
 

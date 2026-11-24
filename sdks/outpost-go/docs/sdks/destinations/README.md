@@ -76,6 +76,7 @@ func main() {
 | Error Type                    | Status Code                   | Content Type                  |
 | ----------------------------- | ----------------------------- | ----------------------------- |
 | apierrors.UnauthorizedError   | 401                           | application/json              |
+| apierrors.APIErrorResponse    | 403                           | application/json              |
 | apierrors.NotFoundError       | 404                           | application/json              |
 | apierrors.InternalServerError | 500                           | application/json              |
 | apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |
@@ -141,6 +142,10 @@ func main() {
                 // res.Destination.DestinationGCPPubSub is populated
             case components.DestinationUnionTypeKafka:
                 // res.Destination.DestinationKafka is populated
+            case components.DestinationUnionTypeCloudflareQueues:
+                // res.Destination.DestinationCloudflareQueues is populated
+            case components.DestinationUnionTypeAwsEventbridge:
+                // res.Destination.DestinationAWSEventBridge is populated
         }
 
     }
@@ -207,6 +212,10 @@ func main() {
                 // res.Destination.DestinationGCPPubSub is populated
             case components.DestinationUnionTypeKafka:
                 // res.Destination.DestinationKafka is populated
+            case components.DestinationUnionTypeCloudflareQueues:
+                // res.Destination.DestinationCloudflareQueues is populated
+            case components.DestinationUnionTypeAwsEventbridge:
+                // res.Destination.DestinationAWSEventBridge is populated
         }
 
     }
@@ -230,9 +239,10 @@ func main() {
 
 | Error Type                    | Status Code                   | Content Type                  |
 | ----------------------------- | ----------------------------- | ----------------------------- |
+| apierrors.BadRequestError     | 400                           | application/json              |
 | apierrors.UnauthorizedError   | 401                           | application/json              |
 | apierrors.NotFoundError       | 404                           | application/json              |
-| apierrors.APIErrorResponse    | 422                           | application/json              |
+| apierrors.APIErrorResponse    | 403, 413, 422                 | application/json              |
 | apierrors.InternalServerError | 500                           | application/json              |
 | apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |
 
@@ -284,6 +294,10 @@ func main() {
                 // res.Destination.DestinationGCPPubSub is populated
             case components.DestinationUnionTypeKafka:
                 // res.Destination.DestinationKafka is populated
+            case components.DestinationUnionTypeCloudflareQueues:
+                // res.Destination.DestinationCloudflareQueues is populated
+            case components.DestinationUnionTypeAwsEventbridge:
+                // res.Destination.DestinationAWSEventBridge is populated
         }
 
     }
@@ -308,6 +322,7 @@ func main() {
 | Error Type                    | Status Code                   | Content Type                  |
 | ----------------------------- | ----------------------------- | ----------------------------- |
 | apierrors.UnauthorizedError   | 401                           | application/json              |
+| apierrors.APIErrorResponse    | 403                           | application/json              |
 | apierrors.NotFoundError       | 404                           | application/json              |
 | apierrors.InternalServerError | 500                           | application/json              |
 | apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |
@@ -337,20 +352,9 @@ func main() {
         outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
     )
 
-    res, err := s.Destinations.Update(ctx, "<id>", "<id>", components.CreateDestinationUpdateDestinationUpdateRabbitMQ(
-        components.DestinationUpdateRabbitMQ{
-            Topics: outpostgo.Pointer(components.CreateTopicsTopicsEnum(
-                components.TopicsEnumWildcard,
-            )),
-            Config: &components.RabbitMQConfig{
-                ServerURL: "localhost:5672",
-                Exchange: "my-exchange",
-                TLS: components.RabbitMQConfigTLSFalse.ToPointer(),
-            },
-            Credentials: &components.RabbitMQCredentials{
-                Username: "guest",
-                Password: "guest",
-            },
+    res, err := s.Destinations.Update(ctx, "<id>", "<id>", components.CreateDestinationUpdateKafka(
+        components.DestinationUpdateKafka{
+            Type: components.DestinationUpdateKafkaTypeKafka,
         },
     ))
     if err != nil {
@@ -386,16 +390,9 @@ func main() {
         outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
     )
 
-    res, err := s.Destinations.Update(ctx, "<id>", "<id>", components.CreateDestinationUpdateDestinationUpdateWebhook(
-        components.DestinationUpdateWebhook{
-            Topics: outpostgo.Pointer(components.CreateTopicsArrayOfStr(
-                []string{
-                    "user.created",
-                },
-            )),
-            Config: &components.WebhookConfig{
-                URL: "https://my-service.com/webhook/new-handler",
-            },
+    res, err := s.Destinations.Update(ctx, "<id>", "<id>", components.CreateDestinationUpdateHookdeck(
+        components.DestinationUpdateHookdeck{
+            Type: components.DestinationUpdateHookdeckTypeHookdeck,
         },
     ))
     if err != nil {
@@ -431,7 +428,7 @@ func main() {
 | ----------------------------- | ----------------------------- | ----------------------------- |
 | apierrors.UnauthorizedError   | 401                           | application/json              |
 | apierrors.NotFoundError       | 404                           | application/json              |
-| apierrors.APIErrorResponse    | 422                           | application/json              |
+| apierrors.APIErrorResponse    | 403, 409, 413, 422            | application/json              |
 | apierrors.InternalServerError | 500                           | application/json              |
 | apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |
 
@@ -486,6 +483,7 @@ func main() {
 | Error Type                    | Status Code                   | Content Type                  |
 | ----------------------------- | ----------------------------- | ----------------------------- |
 | apierrors.UnauthorizedError   | 401                           | application/json              |
+| apierrors.APIErrorResponse    | 403                           | application/json              |
 | apierrors.NotFoundError       | 404                           | application/json              |
 | apierrors.InternalServerError | 500                           | application/json              |
 | apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |
@@ -538,6 +536,10 @@ func main() {
                 // res.Destination.DestinationGCPPubSub is populated
             case components.DestinationUnionTypeKafka:
                 // res.Destination.DestinationKafka is populated
+            case components.DestinationUnionTypeCloudflareQueues:
+                // res.Destination.DestinationCloudflareQueues is populated
+            case components.DestinationUnionTypeAwsEventbridge:
+                // res.Destination.DestinationAWSEventBridge is populated
         }
 
     }
@@ -563,6 +565,7 @@ func main() {
 | ----------------------------- | ----------------------------- | ----------------------------- |
 | apierrors.UnauthorizedError   | 401                           | application/json              |
 | apierrors.NotFoundError       | 404                           | application/json              |
+| apierrors.APIErrorResponse    | 403, 409                      | application/json              |
 | apierrors.InternalServerError | 500                           | application/json              |
 | apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |
 
@@ -614,6 +617,10 @@ func main() {
                 // res.Destination.DestinationGCPPubSub is populated
             case components.DestinationUnionTypeKafka:
                 // res.Destination.DestinationKafka is populated
+            case components.DestinationUnionTypeCloudflareQueues:
+                // res.Destination.DestinationCloudflareQueues is populated
+            case components.DestinationUnionTypeAwsEventbridge:
+                // res.Destination.DestinationAWSEventBridge is populated
         }
 
     }
@@ -639,12 +646,16 @@ func main() {
 | ----------------------------- | ----------------------------- | ----------------------------- |
 | apierrors.UnauthorizedError   | 401                           | application/json              |
 | apierrors.NotFoundError       | 404                           | application/json              |
+| apierrors.APIErrorResponse    | 403, 409                      | application/json              |
 | apierrors.InternalServerError | 500                           | application/json              |
 | apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |
 
 ## ListAttempts
 
 Retrieves a paginated list of attempts scoped to a specific destination.
+
+Returns `404` if the destination does not exist or has been deleted. The attempts of a deleted destination remain available from `GET /attempts?destination_id=`.
+
 
 ### Example Usage
 
@@ -674,19 +685,7 @@ func main() {
         log.Fatal(err)
     }
     if res.AttemptPaginatedResult != nil {
-        for {
-            // handle items
-
-            res, err = res.Next()
-
-            if err != nil {
-                // handle error
-            }
-
-            if res == nil {
-                break
-            }
-        }
+        // handle response
     }
 }
 ```
@@ -707,14 +706,19 @@ func main() {
 
 | Error Type                    | Status Code                   | Content Type                  |
 | ----------------------------- | ----------------------------- | ----------------------------- |
+| apierrors.BadRequestError     | 400                           | application/json              |
 | apierrors.UnauthorizedError   | 401                           | application/json              |
 | apierrors.NotFoundError       | 404                           | application/json              |
+| apierrors.APIErrorResponse    | 403, 422                      | application/json              |
 | apierrors.InternalServerError | 500                           | application/json              |
 | apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |
 
 ## GetAttempt
 
 Retrieves details for a specific attempt scoped to a destination.
+
+Returns `404` if the destination does not exist or has been deleted, or if the destination has no attempt with this ID. An attempt of a deleted destination remains available from `GET /attempts/{attempt_id}`.
+
 
 ### Example Usage
 
@@ -742,10 +746,10 @@ func main() {
     }
     if res.Attempt != nil {
         switch res.Attempt.Event.Type {
-            case components.EventUnionTypeEventSummary:
-                // res.Attempt.Event.EventSummary is populated
             case components.EventUnionTypeEventFull:
                 // res.Attempt.Event.EventFull is populated
+            case components.EventUnionTypeEventSummary:
+                // res.Attempt.Event.EventSummary is populated
         }
 
     }
@@ -754,14 +758,14 @@ func main() {
 
 ### Parameters
 
-| Parameter                                                                                                                                                                                                                                                                                                                         | Type                                                                                                                                                                                                                                                                                                                              | Required                                                                                                                                                                                                                                                                                                                          | Description                                                                                                                                                                                                                                                                                                                       |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ctx`                                                                                                                                                                                                                                                                                                                             | [context.Context](https://pkg.go.dev/context#Context)                                                                                                                                                                                                                                                                             | :heavy_check_mark:                                                                                                                                                                                                                                                                                                                | The context to use for the request.                                                                                                                                                                                                                                                                                               |
-| `tenantID`                                                                                                                                                                                                                                                                                                                        | `string`                                                                                                                                                                                                                                                                                                                          | :heavy_check_mark:                                                                                                                                                                                                                                                                                                                | The ID of the tenant. Required when using AdminApiKey authentication.                                                                                                                                                                                                                                                             |
-| `destinationID`                                                                                                                                                                                                                                                                                                                   | `string`                                                                                                                                                                                                                                                                                                                          | :heavy_check_mark:                                                                                                                                                                                                                                                                                                                | The ID of the destination.                                                                                                                                                                                                                                                                                                        |
-| `attemptID`                                                                                                                                                                                                                                                                                                                       | `string`                                                                                                                                                                                                                                                                                                                          | :heavy_check_mark:                                                                                                                                                                                                                                                                                                                | The ID of the attempt.                                                                                                                                                                                                                                                                                                            |
-| `include`                                                                                                                                                                                                                                                                                                                         | []`string`                                                                                                                                                                                                                                                                                                                        | :heavy_minus_sign:                                                                                                                                                                                                                                                                                                                | Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).<br/>- `event`: Include event summary<br/>- `event.data`: Include full event with payload data<br/>- `response_data`: Include response body and headers<br/>- `destination`: Include the full destination object<br/> |
-| `opts`                                                                                                                                                                                                                                                                                                                            | [][operations.Option](../../models/operations/option.md)                                                                                                                                                                                                                                                                          | :heavy_minus_sign:                                                                                                                                                                                                                                                                                                                | The options for this request.                                                                                                                                                                                                                                                                                                     |
+| Parameter                                                                                                                                                                                                                                                                                                                                         | Type                                                                                                                                                                                                                                                                                                                                              | Required                                                                                                                                                                                                                                                                                                                                          | Description                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ctx`                                                                                                                                                                                                                                                                                                                                             | [context.Context](https://pkg.go.dev/context#Context)                                                                                                                                                                                                                                                                                             | :heavy_check_mark:                                                                                                                                                                                                                                                                                                                                | The context to use for the request.                                                                                                                                                                                                                                                                                                               |
+| `tenantID`                                                                                                                                                                                                                                                                                                                                        | `string`                                                                                                                                                                                                                                                                                                                                          | :heavy_check_mark:                                                                                                                                                                                                                                                                                                                                | The ID of the tenant. Required when using AdminApiKey authentication.                                                                                                                                                                                                                                                                             |
+| `destinationID`                                                                                                                                                                                                                                                                                                                                   | `string`                                                                                                                                                                                                                                                                                                                                          | :heavy_check_mark:                                                                                                                                                                                                                                                                                                                                | The ID of the destination.                                                                                                                                                                                                                                                                                                                        |
+| `attemptID`                                                                                                                                                                                                                                                                                                                                       | `string`                                                                                                                                                                                                                                                                                                                                          | :heavy_check_mark:                                                                                                                                                                                                                                                                                                                                | The ID of the attempt.                                                                                                                                                                                                                                                                                                                            |
+| `include`                                                                                                                                                                                                                                                                                                                                         | []`string`                                                                                                                                                                                                                                                                                                                                        | :heavy_minus_sign:                                                                                                                                                                                                                                                                                                                                | Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).<br/>- `event`: Include event summary<br/>- `event.data`: Include full event with payload data<br/>- `response_data`: Include response body and headers<br/>- `destination`: Include the destination object, without credentials<br/> |
+| `opts`                                                                                                                                                                                                                                                                                                                                            | [][operations.Option](../../models/operations/option.md)                                                                                                                                                                                                                                                                                          | :heavy_minus_sign:                                                                                                                                                                                                                                                                                                                                | The options for this request.                                                                                                                                                                                                                                                                                                                     |
 
 ### Response
 
@@ -772,6 +776,7 @@ func main() {
 | Error Type                    | Status Code                   | Content Type                  |
 | ----------------------------- | ----------------------------- | ----------------------------- |
 | apierrors.UnauthorizedError   | 401                           | application/json              |
+| apierrors.APIErrorResponse    | 403                           | application/json              |
 | apierrors.NotFoundError       | 404                           | application/json              |
 | apierrors.InternalServerError | 500                           | application/json              |
 | apierrors.APIError            | 4XX, 5XX                      | \*/\*                         |

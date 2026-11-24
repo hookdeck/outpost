@@ -1,6 +1,7 @@
 package apirouter
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"slices"
@@ -50,6 +51,26 @@ func ParseCursors(c *gin.Context) (CursorParams, *ErrorResponse) {
 	}
 
 	return CursorParams{Next: next, Prev: prev}, nil
+}
+
+// ParseLimit parses the "limit" query parameter.
+// Returns 0 if not provided; caller/store should apply the default.
+// Returns an error response if the value is not an integer between 1 and maxLimit.
+func ParseLimit(c *gin.Context, maxLimit int) (int, *ErrorResponse) {
+	limitStr := c.Query("limit")
+	if limitStr == "" {
+		return 0, nil
+	}
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil {
+		errResp := NewErrBadRequest(errors.New("invalid limit: must be an integer"))
+		return 0, &errResp
+	}
+	if limit < 1 || limit > maxLimit {
+		errResp := NewErrBadRequest(fmt.Errorf("invalid limit: must be between 1 and %d", maxLimit))
+		return 0, &errResp
+	}
+	return limit, nil
 }
 
 // ParseDir parses the "dir" query parameter for sort direction.

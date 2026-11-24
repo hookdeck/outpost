@@ -17,7 +17,6 @@ func TestEvaluate(t *testing.T) {
 		payload     map[string]interface{}
 		fallbackKey string
 		expected    string
-		expectError bool
 	}{
 		{
 			name:        "empty template returns fallback",
@@ -68,11 +67,11 @@ func TestEvaluate(t *testing.T) {
 			expected:    "fallback-123",
 		},
 		{
-			name:        "invalid template syntax returns error",
+			name:        "template that does not parse returns the fallback",
 			template:    "metadata.topic[",
 			payload:     map[string]interface{}{},
 			fallbackKey: "fallback",
-			expectError: true,
+			expected:    "fallback",
 		},
 		{
 			name:     "numeric value",
@@ -106,13 +105,28 @@ func TestEvaluate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			result, err := partitionkey.Evaluate(tt.template, tt.payload, tt.fallbackKey)
-			if tt.expectError {
-				assert.Error(t, err)
-				return
-			}
+			template, err := partitionkey.New(tt.template)
+			require.NoError(t, err)
+			result, err := template.Evaluate(tt.payload, tt.fallbackKey)
 			require.NoError(t, err)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func TestNew_Validate(t *testing.T) {
+	t.Parallel()
+
+	assert.NoError(t, partitionkey.Validate(""))
+	assert.NoError(t, partitionkey.Validate(`not_null(data.a, 'x')`))
+	for _, template := range []string{`map(&a, data.b)`, `data[*].a`, `data.`} {
+		assert.Error(t, partitionkey.Validate(template), template)
+	}
+
+	// Stored: a template that does not parse falls back, one outside the
+	// accepted forms is refused.
+	_, err := partitionkey.New(`data.`)
+	assert.NoError(t, err)
+	_, err = partitionkey.New(`map(&a, data.b)`)
+	assert.Error(t, err)
 }

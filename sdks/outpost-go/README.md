@@ -13,6 +13,8 @@ Developer-friendly & type-safe Go client specifically catered to leverage the Ou
 ## Summary
 
 Outpost API: The Outpost API is a REST-based JSON API for managing tenants, destinations, and publishing events.
+
+Outpost runs in two deployment models: **managed** (hosted by Hookdeck) and **self-hosted**. They differ in where the API is served and in which API key authenticates server-side calls. On managed Outpost, use a Hookdeck project API key from your Outpost project. On self-hosted Outpost, use the key set in the `API_KEY` environment variable. A few endpoints exist in one model only and say so in their description.
 <!-- End Summary [summary] -->
 
 <!-- Start Table of Contents [toc] -->
@@ -23,7 +25,6 @@ Outpost API: The Outpost API is a REST-based JSON API for managing tenants, dest
   * [SDK Example Usage](#sdk-example-usage)
   * [Authentication](#authentication)
   * [Available Resources and Operations](#available-resources-and-operations)
-  * [Pagination](#pagination)
   * [Retries](#retries)
   * [Error Handling](#error-handling)
   * [Server Selection](#server-selection)
@@ -189,6 +190,23 @@ func main() {
 * [GetEventMetrics](docs/sdks/metrics/README.md#geteventmetrics) - Get Event Metrics
 * [GetAttemptMetrics](docs/sdks/metrics/README.md#getattemptmetrics) - Get Attempt Metrics
 
+### [OperatorEvents](docs/sdks/operatorevents/README.md)
+
+* [ListDestinationTypes](docs/sdks/operatorevents/README.md#listdestinationtypes) - List Operator Event Destination Type Schemas
+* [ListDestinations](docs/sdks/operatorevents/README.md#listdestinations) - List Operator Event Destinations
+* [CreateDestination](docs/sdks/operatorevents/README.md#createdestination) - Create Operator Event Destination
+* [GetDestination](docs/sdks/operatorevents/README.md#getdestination) - Get Operator Event Destination
+* [UpdateDestination](docs/sdks/operatorevents/README.md#updatedestination) - Update Operator Event Destination
+* [DeleteDestination](docs/sdks/operatorevents/README.md#deletedestination) - Delete Operator Event Destination
+* [EnableDestination](docs/sdks/operatorevents/README.md#enabledestination) - Enable Operator Event Destination
+* [DisableDestination](docs/sdks/operatorevents/README.md#disabledestination) - Disable Operator Event Destination
+* [ListEvents](docs/sdks/operatorevents/README.md#listevents) - List Operator Events
+* [GetEvent](docs/sdks/operatorevents/README.md#getevent) - Get Operator Event
+* [ListEventAttempts](docs/sdks/operatorevents/README.md#listeventattempts) - List Attempts for an Operator Event
+* [ListAttempts](docs/sdks/operatorevents/README.md#listattempts) - List Operator Event Attempts
+* [GetAttempt](docs/sdks/operatorevents/README.md#getattempt) - Get Operator Event Attempt
+* [Retry](docs/sdks/operatorevents/README.md#retry) - Retry Operator Event Delivery
+
 ### [Schemas](docs/sdks/schemas/README.md)
 
 * [ListDestinationTypes](docs/sdks/schemas/README.md#listdestinationtypes) - List Destination Type Schemas
@@ -209,55 +227,6 @@ func main() {
 
 </details>
 <!-- End Available Resources and Operations [operations] -->
-
-<!-- Start Pagination [pagination] -->
-## Pagination
-
-Some of the endpoints in this SDK support pagination. To use pagination, you make your SDK calls as usual, but the
-returned response object will have a `Next` method that can be called to pull down the next group of results. If the
-return value of `Next` is `nil`, then there are no more pages to be fetched.
-
-Here's an example of one such pagination call:
-```go
-package main
-
-import (
-	"context"
-	outpostgo "github.com/hookdeck/outpost/sdks/outpost-go"
-	"github.com/hookdeck/outpost/sdks/outpost-go/models/operations"
-	"log"
-)
-
-func main() {
-	ctx := context.Background()
-
-	s := outpostgo.New(
-		outpostgo.WithSecurity("<YOUR_BEARER_TOKEN_HERE>"),
-	)
-
-	res, err := s.Tenants.List(ctx, operations.ListTenantsRequest{})
-	if err != nil {
-		log.Fatal(err)
-	}
-	if res.TenantPaginatedResult != nil {
-		for {
-			// handle items
-
-			res, err = res.Next()
-
-			if err != nil {
-				// handle error
-			}
-
-			if res == nil {
-				break
-			}
-		}
-	}
-}
-
-```
-<!-- End Pagination [pagination] -->
 
 <!-- Start Retries [retries] -->
 ## Retries
@@ -385,6 +354,7 @@ For example, the `Publish` function may return the following errors:
 | apierrors.NotFoundError       | 404                          | application/json |
 | apierrors.UnauthorizedError   | 401, 403, 407                | application/json |
 | apierrors.TimeoutError        | 408                          | application/json |
+| apierrors.APIErrorResponse    | 409                          | application/json |
 | apierrors.RateLimitedError    | 429                          | application/json |
 | apierrors.BadRequestError     | 413, 414, 415, 422, 431      | application/json |
 | apierrors.TimeoutError        | 504                          | application/json |
@@ -443,6 +413,12 @@ func main() {
 		}
 
 		var e *apierrors.TimeoutError
+		if errors.As(err, &e) {
+			// handle error
+			log.Fatal(e.Error())
+		}
+
+		var e *apierrors.APIErrorResponse
 		if errors.As(err, &e) {
 			// handle error
 			log.Fatal(e.Error())
@@ -508,10 +484,10 @@ func main() {
 
 You can override the default server globally using the `WithServerIndex(serverIndex int)` option when initializing the SDK client instance. The selected server will then be used as the default on the operations that use it. This table lists the indexes associated with the available servers:
 
-| #   | Server                                        | Description                        |
-| --- | --------------------------------------------- | ---------------------------------- |
-| 0   | `https://api.outpost.hookdeck.com/2025-07-01` | Outpost API (production)           |
-| 1   | `http://localhost:3333/api/v1`                | Local development server base path |
+| #   | Server                                        | Description                                                                                                                                |
+| --- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| 0   | `https://api.outpost.hookdeck.com/2025-07-01` | Managed Outpost, hosted by Hookdeck at `api.outpost.hookdeck.com`. The Hookdeck Event Gateway API at `api.hookdeck.com` is a separate API. |
+| 1   | `http://localhost:3333/api/v1`                | Self-hosted Outpost, at its default local address. A deployed instance serves the same paths under its own host.                           |
 
 #### Example
 

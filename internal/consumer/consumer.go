@@ -9,6 +9,7 @@ import (
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/mqs"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -27,8 +28,9 @@ import (
 //	10     15s (cap)  70.4s      ← worker dies (~1 min total)
 //
 // Backoff formula: initialBackoff * 2^(attempt-1), capped at maxBackoff.
-// After maxConsecutiveErrors the worker dies permanently (supervisor does
-// not restart it), so these values must tolerate transient infra outages
+// After maxConsecutiveErrors the run ends. Unless the worker is registered
+// with a restart policy, the supervisor does not restart it, so these values
+// must tolerate transient infra outages
 // (e.g. brief MQ broker restarts, GCP OAuth/DNS blips) without killing the
 // worker. ~1 min is sufficient for managed broker recovery from routine
 // restarts or short network blips.
@@ -45,6 +47,9 @@ type Consumer interface {
 type MessageHandler interface {
 	Handle(context.Context, *mqs.Message) error
 }
+
+// Option configures a consumer created with New.
+type Option = func(*consumerImplOptions)
 
 type consumerImplOptions struct {
 	name                 string
@@ -184,16 +189,7 @@ recvLoop:
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-
-			handlerCtx, span := tracer.Start(context.Background(), c.actionWithName("Consumer.Handle"))
-			defer span.End()
-
-			if err := c.handler.Handle(handlerCtx, msg); err != nil {
-				span.RecordError(err)
-				if c.logger != nil {
-					c.logger.Ctx(handlerCtx).Error("consumer handler error", zap.String("name", c.name), zap.Error(err))
-				}
-			}
+			c.handleMessage(tracer, msg)
 		}()
 	}
 
@@ -201,7 +197,9 @@ recvLoop:
 	return subscriptionErr
 }
 
-// runWithSemaphore limits concurrency via a channel-based semaphore.
+// runWithSemaphore limits concurrency via a channel-based semaphore. The slot
+// is taken before receiving: a received message must not wait for a handler
+// while its visibility timeout runs.
 func (c *consumerImpl) runWithSemaphore(ctx context.Context) error {
 	tracer := otel.GetTracerProvider().Tracer("github.com/hookdeck/outpost/internal/consumer")
 
@@ -211,30 +209,22 @@ func (c *consumerImpl) runWithSemaphore(ctx context.Context) error {
 	sem := make(chan struct{}, c.concurrency)
 recvLoop:
 	for {
-		msg, err := c.receiveWithRetry(ctx, &consecutiveErrors)
-		if err != nil {
-			subscriptionErr = err
-			break recvLoop
-		}
-
 		select {
 		case sem <- struct{}{}:
 		case <-ctx.Done():
 			break recvLoop
 		}
 
+		msg, err := c.receiveWithRetry(ctx, &consecutiveErrors)
+		if err != nil {
+			<-sem
+			subscriptionErr = err
+			break recvLoop
+		}
+
 		go func() {
 			defer func() { <-sem }() // Release the semaphore.
-
-			handlerCtx, span := tracer.Start(context.Background(), c.actionWithName("Consumer.Handle"))
-			defer span.End()
-
-			if err := c.handler.Handle(handlerCtx, msg); err != nil {
-				span.RecordError(err)
-				if c.logger != nil {
-					c.logger.Ctx(handlerCtx).Error("consumer handler error", zap.String("name", c.name), zap.Error(err))
-				}
-			}
+			c.handleMessage(tracer, msg)
 		}()
 	}
 
@@ -245,6 +235,49 @@ recvLoop:
 	}
 
 	return subscriptionErr
+}
+
+func (c *consumerImpl) handleMessage(tracer trace.Tracer, msg *mqs.Message) {
+	handlerCtx, span := tracer.Start(context.Background(), c.actionWithName("Consumer.Handle"))
+	defer span.End()
+
+	defer func() {
+		if rec := recover(); rec != nil {
+			span.RecordError(fmt.Errorf("consumer handler panic: %v", rec))
+			if c.logger != nil {
+				c.logger.Ctx(handlerCtx).Error("consumer handler panic",
+					zap.String("name", c.name),
+					zap.String("message_id", msg.LoggableID),
+					zap.Any("panic", rec),
+					zap.Stack("stack"),
+				)
+			}
+			c.nackUnsettled(handlerCtx, msg)
+		}
+	}()
+
+	if err := c.handler.Handle(handlerCtx, msg); err != nil {
+		span.RecordError(err)
+		if c.logger != nil {
+			c.logger.Ctx(handlerCtx).Error("consumer handler error", zap.String("name", c.name), zap.Error(err))
+		}
+	}
+}
+
+func (c *consumerImpl) nackUnsettled(ctx context.Context, msg *mqs.Message) {
+	if msg.Settled() {
+		return
+	}
+	defer func() {
+		if rec := recover(); rec != nil && c.logger != nil {
+			c.logger.Ctx(ctx).Error("consumer nack panic",
+				zap.String("name", c.name),
+				zap.Any("panic", rec),
+				zap.Stack("stack"),
+			)
+		}
+	}()
+	msg.Nack()
 }
 
 func (c *consumerImpl) actionWithName(action string) string {

@@ -26,6 +26,14 @@ GCP Pub/Sub messages should have the same payload structure as the [Publish API 
 
 Once you have these in place, you can configure Outpost to subscribe to receive events and then publish them to subscribed Outpost Destinations.
 
+## Failed messages
+
+When Outpost fails to process a message, it nacks the message and Pub/Sub redelivers it without limit. This includes messages that can never succeed, such as invalid JSON, `data` that is not a JSON object, or a missing `topic` when `TOPICS` is set. A message larger than `MAX_EVENT_SIZE_BYTES` is the exception: Outpost acks it on its first delivery, so it never reaches your dead-letter topic.
+
+Dead-lettering, redelivery limits and backoff are configured on your subscription, not in Outpost. Set a [dead-letter topic](https://cloud.google.com/pubsub/docs/handling-failures) with `max_delivery_attempts`, and a retry policy with exponential backoff to space out redeliveries. Without a retry policy, Pub/Sub redelivers a nacked message immediately.
+
+`PUBLISH_MAX_REDELIVERIES` sets a limit on the Outpost side instead: once a message has been redelivered that many times, Outpost acks it and it is lost. `0` acks a message on its first failure. To keep those messages, set `max_delivery_attempts` no higher than `PUBLISH_MAX_REDELIVERIES` so your dead-letter topic receives them first.
+
 ## Configuration
 
 Provide Outpost with credentials, topic, and subscription for your GCP Pub/Sub instance used for publishing events.
@@ -69,6 +77,10 @@ publishmq:
     topic: "outpost-publish" # Pub/Sub to read for published events
     subscription: "outpost-publish-sub" # Pub/Sub subscription for published events
 ```
+
+### Health
+
+In a self-hosted deployment, if the publish consumer fails (it can't subscribe, or 10 receives fail in a row, about 70 seconds), `/healthz` reports it `failed` (HTTP 503) until the process restarts. You can turn on restarts instead by adding `publishmq` to `SUPERVISOR_RESTART_WORKERS`: Outpost then restarts the consumer with a backoff and reports it `degraded` while it retries. See [Supervisor](/docs/outpost/self-hosting/configuration#supervisor) for the limits after which it reports `failed`.
 
 ### Troubleshooting
 

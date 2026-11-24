@@ -17,6 +17,10 @@ These variables must be set for Outpost to start:
 | `REDIS_HOST` | Hostname of the Redis server (default: `127.0.0.1`) |
 | `REDIS_PORT` | Port of the Redis server (default: `6379`) |
 | `REDIS_DATABASE` | Redis database number (default: `0`) |
+| `REDIS_TLS_ENABLED` | Optional. Enable TLS for the Redis connection (default: `false`). |
+| `REDIS_TLS_VERIFY` | Optional. Verify the Redis server's TLS certificate against the system CA pool (default: `false`, i.e. the certificate is not verified). For self-signed certificates, point `SSL_CERT_FILE` or `SSL_CERT_DIR` at your CA. |
+| `REDIS_CLUSTER_ENABLED` | Optional. Enable Redis cluster mode (default: `false`). |
+| `REDIS_POOL_SIZE` | Optional. Connection pool size per Redis client (per node in cluster mode); default `0` uses go-redis's default of 10 per `GOMAXPROCS`. Raise it when Redis round-trip latency limits throughput; lower it to shrink the pool on hosts with many CPUs. |
 
 ## Message Queue
 
@@ -29,13 +33,28 @@ Choose one message queue provider. The selected provider is used for both event 
 | `RABBITMQ_SERVER_URL` | RabbitMQ connection URL (e.g., `amqp://user:pass@host/vhost`) |
 | `RABBITMQ_EXCHANGE` | Exchange name (default: `outpost`) |
 
+**NATS JetStream:**
+
+| Variable | Description |
+|----------|-------------|
+| `NATS_SERVER_URL` | NATS server connection URL (e.g., `nats://host:4222`) |
+| `NATS_STREAM` | Stream name (default: `outpost`) |
+| `NATS_DELIVERY_SUBJECT` | Subject for delivery events (default: `outpost.delivery`) |
+| `NATS_LOG_SUBJECT` | Subject for log events (default: `outpost.log`) |
+| `NATS_DELIVERY_DLQ` | Subject for delivery messages that exhaust all delivery attempts (default: `dlq.outpost-delivery`) |
+| `NATS_LOG_DLQ` | Subject for log messages that exhaust all delivery attempts (default: `dlq.outpost-log`) |
+
+`NATS_DELIVERY_SUBJECT` and `NATS_LOG_SUBJECT` must start with `NATS_STREAM` followed by a `.` — the main stream only claims subjects under `<stream>.>`. NATS servers default `max_payload` to 1 MiB; raise it in your server configuration if you deliver larger events.
+
 **AWS SQS:**
 
 | Variable | Description |
 |----------|-------------|
-| `AWS_SQS_ACCESS_KEY_ID` | AWS Access Key ID |
-| `AWS_SQS_SECRET_ACCESS_KEY` | AWS Secret Access Key |
+| `AWS_SQS_ACCESS_KEY_ID` | AWS Access Key ID (optional; omit to use the AWS SDK default credential chain, e.g. an IAM role) |
+| `AWS_SQS_SECRET_ACCESS_KEY` | AWS Secret Access Key (optional; omit to use the AWS SDK default credential chain, e.g. an IAM role) |
 | `AWS_SQS_REGION` | AWS Region |
+
+Whichever way you authenticate, the principal needs these actions on the Outpost queues: `sqs:GetQueueUrl`, `sqs:SendMessage`, `sqs:ReceiveMessage`, `sqs:DeleteMessage`, and `sqs:ChangeMessageVisibility` (the batch API variants are covered by the same actions). With auto-provisioning enabled (the default, `MQS_AUTO_PROVISION=true`), it also needs `sqs:CreateQueue` and `sqs:GetQueueAttributes`. If you [manage the queues yourself](/docs/outpost/self-hosting/guides/byo-mqs), the first list is sufficient.
 
 **GCP Pub/Sub:**
 
@@ -53,6 +72,15 @@ Choose one message queue provider. The selected provider is used for both event 
 | `AZURE_SERVICEBUS_CLIENT_ID` | Service principal client ID |
 | `AZURE_SERVICEBUS_CLIENT_SECRET` | Service principal client secret |
 
+## Publish Queue
+
+Optional. Configures the queue Outpost consumes published events from; see [Publishing Events](/docs/outpost/publishing/events) for each provider's variables.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PUBLISH_MAX_REDELIVERIES` | `-1` | Maximum number of times a failed message is redelivered before Outpost stops redelivering it. `-1` (or unset) redelivers without limit; `0` never redelivers. It counts attempts, not time: without backoff on the queue, a short outage can use it up. RabbitMQ and Azure Service Bus reject the message (dead-lettered if configured); AWS SQS and GCP Pub/Sub have no reject, so Outpost acks it and it is deleted. Invalid messages are rejected on the first failure regardless on RabbitMQ and Azure Service Bus. A broker-side delivery limit also applies, and the lower one fires first. See the Failed messages section of each publish guide, e.g. [Publish from RabbitMQ](/docs/outpost/publishing/publish-from-rabbitmq#failed-messages). |
+| `PUBLISH_PROXY_URL` | — | HTTP `CONNECT` forward proxy for the publish queue connection, e.g. `http://user:pass@proxy:8080`. Multiple whitespace-separated URLs are tunneled in order. RabbitMQ only; other providers connect directly and ignore it. See [Publish from RabbitMQ](/docs/outpost/publishing/publish-from-rabbitmq#connecting-through-a-proxy). |
+
 ## Log Storage
 
 Choose one for event log persistence:
@@ -61,6 +89,13 @@ Choose one for event log persistence:
 |----------|-------------|
 | `POSTGRES_URL` | PostgreSQL connection URL |
 | `CLICKHOUSE_ADDR` | ClickHouse address (e.g., `localhost:9000`) |
+| `CLICKHOUSE_MAX_OPEN_CONNS` | Max open connections in the ClickHouse pool (default: `0`, the client default of `10`) |
+| `CLICKHOUSE_DIAL_TIMEOUT_SECONDS` | Seconds to wait to open a ClickHouse connection or to get a free one from the pool (default: `10`) |
+| `CLICKHOUSE_READ_TIMEOUT_SECONDS` | Seconds to wait for a ClickHouse query's response (default: `30`) |
+| `CLICKHOUSE_IDLE_CLOSE_SECONDS` | Seconds without any ClickHouse call after which the connection pool is closed; the next call reconnects (default: `300`) |
+| `CLICKHOUSE_LOG_RETENTION_TTL_DAYS` | Days to retain event and delivery logs in ClickHouse (default: `0`, retained indefinitely). No PostgreSQL equivalent; see the [Event & Delivery Log](/docs/outpost/self-hosting/guides/event-delivery-log) guide. |
+| `LOG_BATCH_SIZE` | Max delivery attempts written to the log store in one batch (default: `1000`) |
+| `LOG_BATCH_THRESHOLD_SECONDS` | Max seconds delivery attempts are buffered before they are written to the log store (default: `10`). Also the minimum retry delay; retries at this minimum can run up to about this long late while the attempt is written. A lower value allows shorter retries in exchange for more frequent, smaller writes, and `0` writes each attempt right away with no minimum. |
 
 ## Delivery
 
@@ -70,13 +105,19 @@ Choose one for event log persistence:
 | `DELIVERY_TIMEOUT_SECONDS` | `5` | HTTP request timeout for webhook delivery |
 | `MAX_RETRY_LIMIT` | `10` | Max retry attempts before giving up |
 | `RETRY_INTERVAL_SECONDS` | `30` | Base interval for exponential backoff retries |
-| `RETRY_SCHEDULE` | — | Comma-separated retry delays in seconds (overrides interval/limit) |
+| `RETRY_SCHEDULE` | — | Comma-separated retry delays in seconds (overrides interval/limit). Delays shorter than `LOG_BATCH_THRESHOLD_SECONDS` are raised to it. |
+| `RETRY_MAX_CONCURRENCY` | `100` | Max retries starting at once per process. `0` is unbounded. |
+| `RETRY_MAX_RECEIVE_COUNT` | `5` | Times starting a retry (attempt lookup and publish) may fail before the task moves to the dead-letter queue. Separate from `MAX_RETRY_LIMIT`. Minimum `1`. |
+| `RETRY_LOOKUP_BATCH_SIZE` | `0` | Max retry attempt lookups combined into one log store query. `0` or `1` looks each retry up on its own. Maximum `100`, capped at `RETRY_MAX_CONCURRENCY`. Most efficient on ClickHouse 25.x and later. |
+| `RETRY_LOOKUP_BATCH_WAIT_MS` | `50` | Milliseconds a retry lookup waits for others to join its batch. Applies when `RETRY_LOOKUP_BATCH_SIZE` is above `1`. Minimum `1`. |
+| `RETRY_POLL_BACKOFF_MS` | `0` (auto) | Maximum time the retry monitor sleeps between polls while idle. `0` sleeps until the next retry comes due, capped at the shorter of 30 seconds and your shortest configured retry delay, so a retry is never late. An explicit positive value is honored as a fixed maximum, which can delay a retry scheduled while the monitor is already sleeping by up to that much. |
 
 ## Topics
 
-| Variable | Description |
-|----------|-------------|
-| `TOPICS` | Comma-separated list of topics your instance supports |
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TOPICS` | — | Comma-separated list of topics your instance supports |
+| `TOPICS_ALLOW_WILDCARDS` | `false` | Allow `*` inside destination topic subscriptions, such as `user.*`. When disabled, stored wildcard patterns are ignored but not deleted. |
 
 ## Portal
 
@@ -98,35 +139,115 @@ Choose one for event log persistence:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ALERT_CALLBACK_URL` | — | URL to POST to when an alert fires |
-| `ALERT_CONSECUTIVE_FAILURE_COUNT` | `20` | Consecutive failures before alert triggers |
-| `ALERT_AUTO_DISABLE_DESTINATION` | `true` | Auto-disable destination when failure count reaches 100% |
+| `ALERT_CONSECUTIVE_FAILURE_COUNT` | `100` | Consecutive delivery failures before alerting on a destination (and disabling it when `ALERT_AUTO_DISABLE_DESTINATION` is `true`). Leave unset for the default of `100`; set to an empty string to disable consecutive-failure alerting entirely. |
+| `ALERT_AUTO_DISABLE_DESTINATION` | `false` | Auto-disable a destination once `ALERT_CONSECUTIVE_FAILURE_COUNT` is reached. Has no effect when consecutive-failure alerting is disabled. |
+| `ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS` | `3600` | Suppression window (seconds) for `exhausted_retries` alerts: the first exhaustion per destination alerts and subsequent ones within the window are suppressed (`0` = no suppression, alert on every exhaustion). Leave unset for the default of `3600`; set to an empty string to disable `exhausted_retries` alerting entirely. |
 
 ## Destinations
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `MAX_DESTINATIONS_PER_TENANT` | `20` | Maximum destinations each tenant may create. Set as low as is practical for your product to limit abuse and load; lowering this value later does **not** remove destinations that already exist. |
+| `MAX_EVENT_SIZE_BYTES` | `1048576` (1 MiB) | Maximum event size in bytes. A larger publish request gets a `413`. A larger publish queue message is never redelivered: RabbitMQ and Azure Service Bus reject it (dead-lettered if configured); other brokers ack it and it is deleted. Keep it well under your message queue's per-message size limit. Set to `0` for no limit. |
+| `DESTINATIONS_PROXY_URL` | — | HTTP `CONNECT` forward proxy for destination connections, e.g. `http://user:pass@proxy:8080`. Multiple whitespace-separated URLs are tunneled in order. Applies to webhook, RabbitMQ, Kafka and MCP Events subscriptions; other destination types connect directly. The proxy must refuse private addresses itself. The deprecated `DESTINATIONS_WEBHOOK_PROXY_URL`, when set, takes precedence for webhooks; there is no way to proxy RabbitMQ, Kafka and MCP Events without also proxying webhooks. See [Webhook Forward Proxy](/docs/outpost/self-hosting/guides/webhook-proxy#other-destination-types). |
 | `DESTINATIONS_METADATA_PATH` | — | Optional. Filesystem path to a directory of [custom destination metadata](https://github.com/hookdeck/outpost/tree/main/internal/destregistry/metadata/providers) (per-type `metadata.json` and `instructions.md`). Non-core fields such as `label`, `description`, `icon`, and `instructions` can be customized; `config_fields` and `credential_fields` cannot be overridden. |
+| `DESTINATIONS_AWS_EVENTBRIDGE_SOURCE` | `outpost` | `Source` set on every event published by [AWS EventBridge](/docs/outpost/destinations/aws-eventbridge) destinations. Must not be empty or start with `aws.`. |
+| `DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS` | `false` | If `true`, AWS and GCP Pub/Sub destinations may set `config.endpoint` (and `aws_sqs` a non-AWS `queue_url`) to send events to a server the destination owner chooses instead of the cloud service, such as S3-compatible storage, LocalStack or the Pub/Sub emulator (Pub/Sub connects to it without TLS or authentication); leave it off when people outside your organization create destinations. See [Outbound Network Access](/docs/outpost/self-hosting/deployment#outbound-network-access). |
+| `DESTINATIONS_BLOCK_PRIVATE_ADDRESSES` | `false` | If `true`, webhook destinations only connect to public addresses and those in `DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST`. See [Outbound Network Access](/docs/outpost/self-hosting/deployment#outbound-network-access). |
+| `DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST` | — | Comma-separated IPs and CIDR ranges destinations may still reach while `DESTINATIONS_BLOCK_PRIVATE_ADDRESSES` is on (MCP Events subscriptions always apply it), e.g. `10.0.0.0/8,192.168.1.5`. |
 
 ## Webhook Behavior
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DESTINATIONS_WEBHOOK_MODE` | `default` | Set to `standard` for Standard Webhooks compliance |
+| `DESTINATIONS_WEBHOOK_PROXY_URL` | — | **Deprecated**: use `DESTINATIONS_PROXY_URL`. Forward proxy for webhook deliveries, e.g. `http://user:pass@proxy:8080`; when set, it overrides `DESTINATIONS_PROXY_URL` for webhooks. See [Webhook Forward Proxy](/docs/outpost/self-hosting/guides/webhook-proxy). |
 | `DESTINATIONS_WEBHOOK_HEADER_PREFIX` | `x-outpost-` / `webhook-` | Prefix for system webhook headers (event id, topic, timestamp, signature). Unless overridden, defaults to **`x-outpost-`** when `DESTINATIONS_WEBHOOK_MODE` is `default` and **`webhook-`** when `standard`. |
-| `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER` | `false` | Disable the event ID header |
-| `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TIMESTAMP_HEADER` | `false` | Disable the timestamp header |
-| `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER` | `false` | Disable the topic header |
-| `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER` | `false` | Disable the signature header |
-| `DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM` | `hmac-sha256` | Signature algorithm |
-| `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING` | `hex` | Encoding: `hex` or `base64` |
+| `DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME` | — | Complete name of the event ID header. Unset uses the default `<prefix>event-id`; an explicit value pins that exact name; an empty string disables the header. Only applies to `default` mode. |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME` | — | Complete name of the signature header. Unset uses the default `<prefix>signature`; an explicit value pins that exact name; an empty string disables the header. Only applies to `default` mode. |
+| `DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME` | — | Complete name of the timestamp header. Unset uses the default `<prefix>timestamp`; an explicit value pins that exact name; an empty string disables the header. Only applies to `default` mode. |
+| `DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME` | — | Complete name of the topic header. Unset uses the default `<prefix>topic`; an explicit value pins that exact name; an empty string disables the header. |
+| `DESTINATIONS_WEBHOOK_TIMESTAMP_FORMAT` | `rfc3339` / `unix` | Format of the timestamp header: `rfc3339`, `unix` (seconds since the epoch) or `iso8601_milli_no_offset` (UTC with milliseconds and no offset, e.g. `2026-10-05T15:02:25.447`). Only applies to `default` mode. |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM` | `hmac-sha256` | Signature algorithm. Only applies to `default` mode. |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_ENCODING` | `hex` | Encoding: `hex` or `base64`. Only applies to `default` mode. |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING` | `raw` | How the HMAC key is derived from the destination secret: `raw` uses the secret string as-is, `base64` and `hex` decode it. Only applies to `default` mode. |
+| `DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_PREFIX` | — | Prefix stripped from the destination secret before decoding, e.g. `whsec_`. Ignored when the secret encoding is `raw`. Only applies to `default` mode. |
+| `DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_NAME` | — | Name of the compat signature header. Setting it enables the compat signature: a second signature in your previous format, sent alongside the primary one while receivers migrate. See [Change Webhook Signature Scheme](/docs/outpost/guides/change-webhook-signature-scheme). |
+| `DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_CONTENT_TEMPLATE` | `{{.Body}}` | Template for the content signed by the compat signature |
+| `DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_TEMPLATE` | `v0={{.Signatures \| join ","}}` | Template for the compat signature header value |
+| `DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ENCODING` | `hex` | Compat signature encoding: `hex` or `base64` |
+| `DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ALGORITHM` | `hmac-sha256` | Compat signature algorithm |
+| `DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_ENCODING` | `raw` | How the compat signature derives its HMAC key from the destination secret: `raw`, `base64` or `hex` |
+| `DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_PREFIX` | — | Prefix stripped from the destination secret before decoding for the compat signature |
+| `DESTINATIONS_WEBHOOK_COMPAT_HEADERS` | — | Extra headers sent with the compat signature, as comma-separated `name=template` pairs (`{{.EventID}}`, `{{.Topic}}`, `{{.Timestamp}}`). `\,` is a literal comma. |
+| `DESTINATIONS_WEBHOOK_MAX_RESPONSE_BODY_BYTES` | `131072` (128 KiB) | Max bytes of a destination response body stored on the delivery attempt. Larger responses are replaced with a placeholder so the attempt log stays under the event queue's per-message size limit. Set to `0` to disable the cap. |
+| `DESTINATIONS_WEBHOOK_FOLLOW_REDIRECTS` | `false` | Follow redirects (up to 10) on webhook deliveries. A 301, 302 or 303 is followed as a GET without the body, and a 2xx on that GET marks the attempt successful. Only 307 and 308 re-send the POST. Custom and signature headers are sent to the redirect target, including on another host. When `false`, a 3xx response fails the attempt. |
+
+{% callout type="warning" %}
+The `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_EVENT_ID_HEADER`, `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER`, `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TIMESTAMP_HEADER`, and `DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER` flags are deprecated and will be removed in a future version. Disable a header by setting its corresponding `*_HEADER_NAME` variable to an empty string instead. A set `*_HEADER_NAME` always takes precedence over the matching deprecated flag.
+{% /callout %}
+
+## Supervisor
+
+The supervisor can restart a worker whose run fails, such as a queue consumer losing its connection to the broker. Restarts are off by default: a worker is reported `failed` on its first failure and `/healthz` returns HTTP 503 until the process restarts.
+
+To turn restarts on, list the workers in `SUPERVISOR_RESTART_WORKERS`, for example `SUPERVISOR_RESTART_WORKERS=publishmq,deliverymq`. The workers that support restarts are:
+
+- `publishmq`: the publish queue consumer, shown as `publishmq-consumer` in `/healthz`
+- `deliverymq`: the delivery queue consumer, shown as `deliverymq-consumer`
+- `logmq`: the log queue consumer, shown as `logmq-consumer`
+- `retrymq`: the retry scheduler, shown as `retrymq-consumer`
+
+The HTTP server (`http-server`) is never restarted: it fails when it can't bind its port, which a restart doesn't fix.
+
+The limits cover a worker's runs, which start by subscribing to the queue. Connecting to the internal queues when Outpost boots happens before the workers start: if it fails, the process exits, whatever these settings are.
+
+With restarts on, `/healthz` reports a failing worker as `degraded` (HTTP 200) while it is within its restart budget. Once the budget is spent, it reports `failed` (HTTP 503). The supervisor keeps restarting a failed worker every 60 seconds, so it returns to `healthy` once the cause is fixed, without a process restart.
+
+A worker is `healthy` again once a restarted run has stayed connected for 30 seconds. Until then it keeps its `degraded` or `failed` status, so `/healthz` can return 503 for up to 30 seconds after the worker has recovered. If a liveness probe checks `/healthz`, allow for that in its failure threshold.
+
+A worker is in the *startup* phase until it has stayed connected for 30 seconds once, and in the *recovery* phase after that. Each phase has two limits, and the first one reached ends the budget. `-1` disables a limit. Restarts back off from 1 second, doubling up to 60 seconds.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SUPERVISOR_RESTART_WORKERS` | empty | Comma-separated names of the workers to restart instead of reporting them `failed` at once. An unknown name fails startup. |
+| `SUPERVISOR_STARTUP_MAX_ATTEMPTS` | `5` | Restarts allowed in the startup phase. With the backoff, `5` reports a worker that can't start as `failed` about 31 seconds after its first failure, plus the time each failed attempt takes. |
+| `SUPERVISOR_STARTUP_MAX_DURATION_SECONDS` | `-1` | In the startup phase, the worker is reported `failed` if no restart has succeeded within this many seconds of its first failure. |
+| `SUPERVISOR_RECOVERY_MAX_ATTEMPTS` | `-1` | Restarts allowed in the recovery phase. |
+| `SUPERVISOR_RECOVERY_MAX_DURATION_SECONDS` | `120` | In the recovery phase, the worker is reported `failed` if no restart has succeeded within this many seconds of its first failure. Restarts are at most 60 seconds apart, so a broker that is back after 70 seconds may not be retried until after this limit: allow for that when you set it. |
+
+These timings assume a failed run ends quickly. With restarts on, a queue consumer ends a run after 3 consecutive receive errors instead of 10. The retry scheduler keeps retrying Redis for about a minute inside each run, so during a Redis outage it shows `degraded` after about a minute and reaches `failed` later than the limits suggest: about 3 to 3.5 minutes in recovery and about 6 minutes at startup with the defaults.
+
+Each listed worker can override any of these limits. Replace `<WORKER>` with the worker's name in uppercase, for example `SUPERVISOR_PUBLISHMQ_RECOVERY_MAX_DURATION_SECONDS`. An unset override inherits the global value. Overrides only apply to workers listed in `SUPERVISOR_RESTART_WORKERS`; for other workers they have no effect.
+
+| Variable | Overrides |
+|----------|-----------|
+| `SUPERVISOR_<WORKER>_STARTUP_MAX_ATTEMPTS` | `SUPERVISOR_STARTUP_MAX_ATTEMPTS` |
+| `SUPERVISOR_<WORKER>_STARTUP_MAX_DURATION_SECONDS` | `SUPERVISOR_STARTUP_MAX_DURATION_SECONDS` |
+| `SUPERVISOR_<WORKER>_RECOVERY_MAX_ATTEMPTS` | `SUPERVISOR_RECOVERY_MAX_ATTEMPTS` |
+| `SUPERVISOR_<WORKER>_RECOVERY_MAX_DURATION_SECONDS` | `SUPERVISOR_RECOVERY_MAX_DURATION_SECONDS` |
+
+Setting a listed worker's four limits to `-1` keeps its failures from ever failing `/healthz`. For example, with all four `SUPERVISOR_PUBLISHMQ_*` limits at `-1`, the publish queue consumer is still restarted and shows as `degraded` with the error in the logs, but your orchestrator won't restart or unroute the instance because of it.
+
+## MCP Events (Experimental)
+
+Off by default. When `EXPERIMENTAL_MCP_ENABLED` is `true`, the experimental [MCP Events subscribe endpoints](/docs/outpost/features/mcp-events#connect-your-mcp-server) are available, with the Admin API key. In YAML, these options sit under `experimental.mcp` (for example `experimental.mcp.enabled`).
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `EXPERIMENTAL_MCP_ENABLED` | `false` | Enables the MCP subscribe endpoints. While it is off, stored subscriptions receive no events. Those with an expiry lapse at it; those without stay until unsubscribed or their tenant is deleted. |
+| `EXPERIMENTAL_MCP_ALLOW_INSECURE_CALLBACKS` | `false` | The MCP Events spec requires `https` callback URLs. When `true`, `http` is also accepted for addresses that are all in `DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST`: an exception outside the spec, for development only. |
+| `EXPERIMENTAL_MCP_VERIFICATION_TTL_SECONDS` | `86400` | How long, in seconds, a passed callback verification is cached per tenant and callback URL. |
+| `EXPERIMENTAL_MCP_EVENTS_SCHEMA` | — | Event definitions MCP subscriptions can target, in the MCP `events/list` format: `{"events": [...]}`, each event with a `name`, a `payloadSchema` and an optional `inputSchema` (JSON Schema 2020-12 objects; without it, every string, number, integer or boolean top-level payload property is an optional argument). A file path to JSON or YAML, or in the environment inline JSON (a value starting with `{`); in the YAML config (`experimental.mcp.events_schema`) a mapping sets the definitions inline, and a string is always a path. URLs are refused. Unset, no events are defined and every subscription is refused. See [Define your events](/docs/outpost/features/mcp-events#define-your-events) for the format. Every name must be in `TOPICS` when `TOPICS` is set. Invalid definitions don't stop Outpost: it logs the error and MCP Events answers `503`. |
+
+MCP Events subscriptions always refuse non-public addresses that aren't in `DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST`. With `DESTINATIONS_PROXY_URL` set, connections are not checked and the proxy must refuse them.
 
 ## Observability
 
 | Variable | Description |
 |----------|-------------|
-| `OTEL_SERVICE_NAME` | Enables OpenTelemetry metrics export when set |
+| `OTEL_SERVICE_NAME` | Enables OpenTelemetry when set. All three signals (traces, metrics, and logs) are exported by default; see [OpenTelemetry](/docs/outpost/features/opentelemetry) for per-signal control |
+| `OTEL_ENABLED_INSTRUMENTATIONS` | Third-party instrumentation to export, comma-separated: `redis` (Redis command spans), `mq` (internal message queue client spans and metrics). Default: none |
 | `LOG_LEVEL` | Log verbosity: `trace`, `debug`, `info`, `warn`, `error` (default: `info`) |
 | `DISABLE_TELEMETRY` | Set to `true` to disable anonymous usage telemetry to Hookdeck |
 
@@ -159,7 +280,22 @@ portal:
   organization_name: "Acme Corp"
   accent_color: "#6122E7"
 
-alerts:
-  callback_url: "https://yourapp.com/api/outpost-alerts"
+alert:
   consecutive_failure_count: 50
+  exhausted_retries_window_seconds: 3600
+
+supervisor:
+  restart_workers:
+    - publishmq
+    - deliverymq
+  startup:
+    max_attempts: 5
+    max_duration_seconds: -1
+  recovery:
+    max_attempts: -1
+    max_duration_seconds: 120
+  workers:
+    publishmq:
+      recovery:
+        max_duration_seconds: 300
 ```

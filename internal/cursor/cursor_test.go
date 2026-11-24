@@ -143,12 +143,22 @@ func TestDecode(t *testing.T) {
 		_, err := cursor.Decode(encoded, "evt", 2)
 		require.Error(t, err)
 		assert.True(t, errors.Is(err, cursor.ErrVersionMismatch))
+		assert.True(t, errors.Is(err, cursor.ErrInvalidCursor))
+		assert.EqualError(t, err, "invalid cursor: cursor version mismatch: expected version 02")
 	})
 
 	t.Run("invalid base62 returns ErrInvalidCursor", func(t *testing.T) {
 		_, err := cursor.Decode("!!!invalid!!!", "evt", 1)
 		require.Error(t, err)
 		assert.True(t, errors.Is(err, cursor.ErrInvalidCursor))
+	})
+
+	t.Run("NUL byte or invalid UTF-8 in the data returns ErrInvalidCursor", func(t *testing.T) {
+		for _, data := range []string{"1700000000000::evt\x00", "1700000000000::\xff\xfe", "\x00"} {
+			_, err := cursor.Decode(cursor.Encode("evt", 1, data), "evt", 1)
+			require.Error(t, err, "data %q", data)
+			assert.True(t, errors.Is(err, cursor.ErrInvalidCursor))
+		}
 	})
 
 	t.Run("completely malformed cursor returns ErrInvalidCursor", func(t *testing.T) {
@@ -193,5 +203,59 @@ func TestVersionMismatchMessage(t *testing.T) {
 		_, err := cursor.Decode(encoded, "evt", 5)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "05")
+	})
+}
+
+func TestParseTimeMs(t *testing.T) {
+	t.Run("timestamp within years 0000-9999", func(t *testing.T) {
+		for _, tc := range []struct {
+			in   string
+			want int64
+		}{
+			{"1700000000000", 1700000000000},
+			{"0", 0},
+			{"-1", -1},
+			{"-62167219200000", -62167219200000},
+			{"253402300799999", 253402300799999},
+		} {
+			got, err := cursor.ParseTimeMs(tc.in)
+			require.NoError(t, err, tc.in)
+			assert.Equal(t, tc.want, got)
+		}
+	})
+
+	t.Run("anything else is an invalid cursor", func(t *testing.T) {
+		for _, in := range []string{"", "yesterday", "1700000000000.5", "99999999999999999999", "9223372036854775807", "-9223372036854775808"} {
+			_, err := cursor.ParseTimeMs(in)
+			require.ErrorIs(t, err, cursor.ErrInvalidCursor, in)
+			assert.EqualError(t, err, "invalid cursor: invalid timestamp", in)
+		}
+	})
+}
+
+func TestParseTimeMicro(t *testing.T) {
+	t.Run("timestamp within years 0000-9999", func(t *testing.T) {
+		for _, tc := range []struct {
+			in   string
+			want int64
+		}{
+			{"1700000000000123", 1700000000000123},
+			{"0", 0},
+			{"-1", -1},
+			{"-62167219200000000", -62167219200000000},
+			{"253402300799999999", 253402300799999999},
+		} {
+			got, err := cursor.ParseTimeMicro(tc.in)
+			require.NoError(t, err, tc.in)
+			assert.Equal(t, tc.want, got)
+		}
+	})
+
+	t.Run("anything else is an invalid cursor", func(t *testing.T) {
+		for _, in := range []string{"", "yesterday", "1700000000000123.5", "99999999999999999999", "9223372036854775807", "-9223372036854775808"} {
+			_, err := cursor.ParseTimeMicro(in)
+			require.ErrorIs(t, err, cursor.ErrInvalidCursor, in)
+			assert.EqualError(t, err, "invalid cursor: invalid timestamp", in)
+		}
 	})
 }

@@ -8,7 +8,6 @@ sources:
             - location: ./sdks/schemas/speakeasy-modifications-overlay.yaml
             - location: ./sdks/schemas/security-collapse-overlay.yaml
             - location: ./sdks/schemas/error-types.yaml
-            - location: ./sdks/schemas/pagination-config-overlay.yaml
         registry:
             location: registry.speakeasyapi.dev/hookdeck-dev/outpost/outpost-api
     Outpost API (Go):
@@ -18,7 +17,6 @@ sources:
             - location: ./sdks/schemas/speakeasy-modifications-overlay.yaml
             - location: ./sdks/schemas/security-collapse-overlay.yaml
             - location: ./sdks/schemas/error-types.yaml
-            - location: ./sdks/schemas/pagination-config-overlay.yaml
             - location: ./sdks/schemas/go-array-params-overlay.yaml
         registry:
             location: registry.speakeasyapi.dev/hookdeck-dev/outpost/outpost-api
@@ -29,7 +27,6 @@ sources:
             - location: ./sdks/schemas/speakeasy-modifications-overlay.yaml
             - location: ./sdks/schemas/security-collapse-overlay.yaml
             - location: ./sdks/schemas/error-types.yaml
-            - location: ./sdks/schemas/pagination-config-overlay.yaml
             - location: ./sdks/schemas/python-pagination-fixes-overlay.yaml
         registry:
             location: registry.speakeasyapi.dev/hookdeck-dev/outpost/outpost-api

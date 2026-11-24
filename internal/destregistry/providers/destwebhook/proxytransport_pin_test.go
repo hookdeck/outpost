@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
+	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/stretchr/testify/require"
 )
 
@@ -57,6 +57,6 @@ func TestProxyTransport_PinProxyconnectWording(t *testing.T) {
 	wrappedClient := makeProxiedClient(t, unreachable)
 	_, err = wrappedClient.Get("https://example.invalid/")
 	require.Error(t, err)
-	require.True(t, destwebhook.IsProxyInfraError(err),
+	require.True(t, destregistry.IsProxyInfraError(err),
 		"wrapper failed to identify proxy-unreachable as infra; err = %v", err)
 }

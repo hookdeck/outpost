@@ -13,7 +13,7 @@ import (
 )
 
 func TestComputeTarget(t *testing.T) {
-	provider, err := destgcppubsub.New(testutil.Registry.MetadataLoader(), nil)
+	provider, err := destgcppubsub.New(testutil.Registry.MetadataLoader(), nil, destgcppubsub.WithAllowCustomEndpoints(true))
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -78,7 +78,7 @@ func TestComputeTarget(t *testing.T) {
 }
 
 func TestValidate(t *testing.T) {
-	provider, err := destgcppubsub.New(testutil.Registry.MetadataLoader(), nil)
+	provider, err := destgcppubsub.New(testutil.Registry.MetadataLoader(), nil, destgcppubsub.WithAllowCustomEndpoints(true))
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -187,6 +187,18 @@ func TestValidate(t *testing.T) {
 			},
 			credentials: map[string]string{
 				"service_account_json": `{"project_id":"my-project","client_email":"test@test.iam.gserviceaccount.com"}`,
+			},
+			wantErr:     true,
+			errContains: "credentials.service_account_json",
+		},
+		{
+			name: "credential type other than service_account",
+			config: map[string]string{
+				"project_id": "my-project",
+				"topic":      "my-topic",
+			},
+			credentials: map[string]string{
+				"service_account_json": `{"type":"authorized_user"}`,
 			},
 			wantErr:     true,
 			errContains: "credentials.service_account_json",

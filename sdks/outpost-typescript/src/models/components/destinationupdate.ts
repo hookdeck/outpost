@@ -7,6 +7,12 @@ import { safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 import {
+  DestinationUpdateAWSEventBridge,
+  DestinationUpdateAWSEventBridge$inboundSchema,
+  DestinationUpdateAWSEventBridge$Outbound,
+  DestinationUpdateAWSEventBridge$outboundSchema,
+} from "./destinationupdateawseventbridge.js";
+import {
   DestinationUpdateAWSKinesis,
   DestinationUpdateAWSKinesis$inboundSchema,
   DestinationUpdateAWSKinesis$Outbound,
@@ -30,6 +36,12 @@ import {
   DestinationUpdateAzureServiceBus$Outbound,
   DestinationUpdateAzureServiceBus$outboundSchema,
 } from "./destinationupdateazureservicebus.js";
+import {
+  DestinationUpdateCloudflareQueues,
+  DestinationUpdateCloudflareQueues$inboundSchema,
+  DestinationUpdateCloudflareQueues$Outbound,
+  DestinationUpdateCloudflareQueues$outboundSchema,
+} from "./destinationupdatecloudflarequeues.js";
 import {
   DestinationUpdateGCPPubSub,
   DestinationUpdateGCPPubSub$inboundSchema,
@@ -63,14 +75,16 @@ import {
 
 export type DestinationUpdate =
   | DestinationUpdateWebhook
-  | DestinationUpdateHookdeck
   | DestinationUpdateAWSSQS
-  | DestinationUpdateAWSKinesis
-  | DestinationUpdateAwss3
-  | DestinationUpdateAzureServiceBus
-  | DestinationUpdateGCPPubSub
   | DestinationUpdateRabbitMQ
-  | DestinationUpdateKafka;
+  | DestinationUpdateHookdeck
+  | DestinationUpdateAWSKinesis
+  | DestinationUpdateAzureServiceBus
+  | DestinationUpdateAwss3
+  | DestinationUpdateGCPPubSub
+  | DestinationUpdateKafka
+  | DestinationUpdateCloudflareQueues
+  | DestinationUpdateAWSEventBridge;
 
 /** @internal */
 export const DestinationUpdate$inboundSchema: z.ZodType<
@@ -79,26 +93,30 @@ export const DestinationUpdate$inboundSchema: z.ZodType<
   unknown
 > = z.union([
   DestinationUpdateWebhook$inboundSchema,
-  DestinationUpdateHookdeck$inboundSchema,
   DestinationUpdateAWSSQS$inboundSchema,
-  DestinationUpdateAWSKinesis$inboundSchema,
-  DestinationUpdateAwss3$inboundSchema,
-  DestinationUpdateAzureServiceBus$inboundSchema,
-  DestinationUpdateGCPPubSub$inboundSchema,
   DestinationUpdateRabbitMQ$inboundSchema,
+  DestinationUpdateHookdeck$inboundSchema,
+  DestinationUpdateAWSKinesis$inboundSchema,
+  DestinationUpdateAzureServiceBus$inboundSchema,
+  DestinationUpdateAwss3$inboundSchema,
+  DestinationUpdateGCPPubSub$inboundSchema,
   DestinationUpdateKafka$inboundSchema,
+  DestinationUpdateCloudflareQueues$inboundSchema,
+  DestinationUpdateAWSEventBridge$inboundSchema,
 ]);
 /** @internal */
 export type DestinationUpdate$Outbound =
   | DestinationUpdateWebhook$Outbound
-  | DestinationUpdateHookdeck$Outbound
   | DestinationUpdateAWSSQS$Outbound
-  | DestinationUpdateAWSKinesis$Outbound
-  | DestinationUpdateAwss3$Outbound
-  | DestinationUpdateAzureServiceBus$Outbound
-  | DestinationUpdateGCPPubSub$Outbound
   | DestinationUpdateRabbitMQ$Outbound
-  | DestinationUpdateKafka$Outbound;
+  | DestinationUpdateHookdeck$Outbound
+  | DestinationUpdateAWSKinesis$Outbound
+  | DestinationUpdateAzureServiceBus$Outbound
+  | DestinationUpdateAwss3$Outbound
+  | DestinationUpdateGCPPubSub$Outbound
+  | DestinationUpdateKafka$Outbound
+  | DestinationUpdateCloudflareQueues$Outbound
+  | DestinationUpdateAWSEventBridge$Outbound;
 
 /** @internal */
 export const DestinationUpdate$outboundSchema: z.ZodType<
@@ -107,14 +125,16 @@ export const DestinationUpdate$outboundSchema: z.ZodType<
   DestinationUpdate
 > = z.union([
   DestinationUpdateWebhook$outboundSchema,
-  DestinationUpdateHookdeck$outboundSchema,
   DestinationUpdateAWSSQS$outboundSchema,
-  DestinationUpdateAWSKinesis$outboundSchema,
-  DestinationUpdateAwss3$outboundSchema,
-  DestinationUpdateAzureServiceBus$outboundSchema,
-  DestinationUpdateGCPPubSub$outboundSchema,
   DestinationUpdateRabbitMQ$outboundSchema,
+  DestinationUpdateHookdeck$outboundSchema,
+  DestinationUpdateAWSKinesis$outboundSchema,
+  DestinationUpdateAzureServiceBus$outboundSchema,
+  DestinationUpdateAwss3$outboundSchema,
+  DestinationUpdateGCPPubSub$outboundSchema,
   DestinationUpdateKafka$outboundSchema,
+  DestinationUpdateCloudflareQueues$outboundSchema,
+  DestinationUpdateAWSEventBridge$outboundSchema,
 ]);
 
 export function destinationUpdateToJSON(

@@ -15,10 +15,37 @@ import (
 const (
 	defaultMinRetryBackoffSeconds = 10
 	defaultMaxRetryBackoffSeconds = 120
+
+	// Pub/Sub deletes subscriptions after 31 days without subscriber activity
+	// unless the expiration policy is explicitly disabled. A zero duration
+	// means never expire.
+	neverExpire = time.Duration(0)
 )
 
 type infraGCPPubSub struct {
 	cfg *MQInfraConfig
+}
+
+func DefaultGCPPubSubDLQTopicName(topicID string) string {
+	return topicID + "-dlq"
+}
+
+func DefaultGCPPubSubDLQSubscriptionName(dlqTopicID string) string {
+	return dlqTopicID + "-sub"
+}
+
+func (infra *infraGCPPubSub) dlqTopicID() string {
+	if infra.cfg.GCPPubSub.DLQTopicID != "" {
+		return infra.cfg.GCPPubSub.DLQTopicID
+	}
+	return DefaultGCPPubSubDLQTopicName(infra.cfg.GCPPubSub.TopicID)
+}
+
+func (infra *infraGCPPubSub) dlqSubscriptionID() string {
+	if infra.cfg.GCPPubSub.DLQSubscriptionID != "" {
+		return infra.cfg.GCPPubSub.DLQSubscriptionID
+	}
+	return DefaultGCPPubSubDLQSubscriptionName(infra.dlqTopicID())
 }
 
 func (infra *infraGCPPubSub) Exist(ctx context.Context) (bool, error) {
@@ -47,7 +74,7 @@ func (infra *infraGCPPubSub) Exist(ctx context.Context) (bool, error) {
 		return false, nil
 	}
 
-	dlqTopicID := topicID + "-dlq"
+	dlqTopicID := infra.dlqTopicID()
 	dlqTopic := client.Topic(dlqTopicID)
 	dlqTopicExists, err := dlqTopic.Exists(ctx)
 	if err != nil {
@@ -57,7 +84,7 @@ func (infra *infraGCPPubSub) Exist(ctx context.Context) (bool, error) {
 		return false, nil
 	}
 
-	dlqSubID := dlqTopicID + "-sub"
+	dlqSubID := infra.dlqSubscriptionID()
 	dlqSub := client.Subscription(dlqSubID)
 	dlqSubExists, err := dlqSub.Exists(ctx)
 	if err != nil {
@@ -115,7 +142,7 @@ func (infra *infraGCPPubSub) Declare(ctx context.Context) error {
 		}
 	}
 
-	dlqTopicID := topicID + "-dlq"
+	dlqTopicID := infra.dlqTopicID()
 	dlqTopic := client.Topic(dlqTopicID)
 	dlqTopicExists, err := dlqTopic.Exists(ctx)
 	if err != nil {
@@ -134,7 +161,7 @@ func (infra *infraGCPPubSub) Declare(ctx context.Context) error {
 		}
 	}
 
-	dlqSubID := dlqTopicID + "-sub"
+	dlqSubID := infra.dlqSubscriptionID()
 	dlqSub := client.Subscription(dlqSubID)
 	dlqSubExists, err := dlqSub.Exists(ctx)
 	if err != nil {
@@ -143,7 +170,8 @@ func (infra *infraGCPPubSub) Declare(ctx context.Context) error {
 
 	if !dlqSubExists {
 		dlqSubConfig := pubsub.SubscriptionConfig{
-			Topic: dlqTopic,
+			Topic:            dlqTopic,
+			ExpirationPolicy: neverExpire,
 		}
 		_, err = client.CreateSubscription(ctx, dlqSubID, dlqSubConfig)
 		if err != nil {
@@ -181,8 +209,9 @@ func (infra *infraGCPPubSub) Declare(ctx context.Context) error {
 	if !subExists {
 		// Create new subscription with DLQ and retry settings
 		subConfig := pubsub.SubscriptionConfig{
-			Topic:       topic,
-			AckDeadline: getDuration(ackDeadline),
+			Topic:            topic,
+			AckDeadline:      getDuration(ackDeadline),
+			ExpirationPolicy: neverExpire,
 			DeadLetterPolicy: &pubsub.DeadLetterPolicy{
 				DeadLetterTopic:     dlqTopic.String(),
 				MaxDeliveryAttempts: maxDeliveryAttempts,
@@ -233,8 +262,8 @@ func (infra *infraGCPPubSub) TearDown(ctx context.Context) error {
 		}
 	}
 
-	dlqTopicID := infra.cfg.GCPPubSub.TopicID + "-dlq"
-	dlqSubID := dlqTopicID + "-sub"
+	dlqTopicID := infra.dlqTopicID()
+	dlqSubID := infra.dlqSubscriptionID()
 	dlqSub := client.Subscription(dlqSubID)
 	dlqSubExists, err := dlqSub.Exists(ctx)
 	if err != nil {

@@ -1,0 +1,20 @@
+# ListOperatorEventAttemptsRequest
+
+## Example Usage
+
+```typescript
+import { ListOperatorEventAttemptsRequest } from "@hookdeck/outpost-sdk/models/operations";
+
+let value: ListOperatorEventAttemptsRequest = {};
+```
+
+## Fields
+
+| Field                                                                                                            | Type                                                                                                             | Required                                                                                                         | Description                                                                                                      |
+| ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `eventId`                                                                                                        | *string*                                                                                                         | :heavy_minus_sign:                                                                                               | Filter attempts by operator event ID.                                                                            |
+| `destinationId`                                                                                                  | *string*                                                                                                         | :heavy_minus_sign:                                                                                               | Filter attempts by operator event destination ID.                                                                |
+| `status`                                                                                                         | [operations.ListOperatorEventAttemptsStatus](../../models/operations/listoperatoreventattemptsstatus.md)         | :heavy_minus_sign:                                                                                               | Filter attempts by status.                                                                                       |
+| `topic`                                                                                                          | *string*                                                                                                         | :heavy_minus_sign:                                                                                               | Filter attempts by operator event topic.                                                                         |
+| `time`                                                                                                           | [components.Operator](../../models/components/operator.md)                                                       | :heavy_minus_sign:                                                                                               | Filter attempts by the time of the attempt, using comparison operators (e.g., `time[gte]=2024-01-01T00:00:00Z`). |
+| `limit`                                                                                                          | *number*                                                                                                         | :heavy_minus_sign:                                                                                               | Number of items per page (1-1000, default 100). A value outside this range returns a 400.                        |

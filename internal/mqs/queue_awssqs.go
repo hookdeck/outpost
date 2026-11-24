@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
-	"github.com/aws/aws-sdk-go/aws"
 	"gocloud.dev/pubsub"
 	"gocloud.dev/pubsub/awssnssqs"
 	"gocloud.dev/pubsub/batcher"
@@ -29,7 +29,14 @@ type AWSSQSConfig struct {
 	WaitTime                  time.Duration // optional - defaults to 20s if not set
 }
 
+// ToCredentials returns a static credentials provider, or (nil, nil) when no
+// static credentials are set so the caller falls back to the AWS SDK default
+// credential chain.
 func (c *AWSSQSConfig) ToCredentials() (*credentials.StaticCredentialsProvider, error) {
+	// An empty or all-empty ("::") credential string means no static credentials.
+	if strings.Trim(c.ServiceAccountCredentials, ":") == "" {
+		return nil, nil
+	}
 	creds := strings.Split(c.ServiceAccountCredentials, ":")
 	if len(creds) != 3 {
 		return nil, errors.New("invalid AWS Service Account Credentials")
@@ -39,7 +46,8 @@ func (c *AWSSQSConfig) ToCredentials() (*credentials.StaticCredentialsProvider, 
 }
 
 type AWSQueue struct {
-	once        *sync.Once
+	mu          sync.Mutex
+	initialized bool
 	base        *wrappedBaseQueue
 	sqsQueueURL string
 	sqsClient   *sqs.Client
@@ -50,16 +58,24 @@ type AWSQueue struct {
 var _ Queue = &AWSQueue{}
 
 func NewAWSQueue(config *AWSSQSConfig) *AWSQueue {
-	var once sync.Once
-	return &AWSQueue{config: config, once: &once, base: newWrappedBaseQueue()}
+	return &AWSQueue{config: config, base: newWrappedBaseQueue()}
+}
+
+func (q *AWSQueue) ensureSDK(ctx context.Context) error {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if q.initialized {
+		return nil
+	}
+	if err := q.InitSDK(ctx); err != nil {
+		return err
+	}
+	q.initialized = true
+	return nil
 }
 
 func (q *AWSQueue) Init(ctx context.Context) (func(), error) {
-	var err error
-	q.once.Do(func() {
-		err = q.InitSDK(ctx)
-	})
-	if err != nil {
+	if err := q.ensureSDK(ctx); err != nil {
 		return nil, err
 	}
 	q.topic = awssnssqs.OpenSQSTopicV2(ctx, q.sqsClient, q.sqsQueueURL, &awssnssqs.TopicOptions{
@@ -77,11 +93,7 @@ func (q *AWSQueue) Publish(ctx context.Context, incomingMessage IncomingMessage)
 }
 
 func (q *AWSQueue) Subscribe(ctx context.Context, opts ...SubscribeOption) (Subscription, error) {
-	var err error
-	q.once.Do(func() {
-		err = q.InitSDK(ctx)
-	})
-	if err != nil {
+	if err := q.ensureSDK(ctx); err != nil {
 		return nil, err
 	}
 	waitTime := q.config.WaitTime
@@ -100,10 +112,14 @@ func (q *AWSQueue) InitSDK(ctx context.Context) error {
 		return err
 	}
 
-	sdkConfig, err := config.LoadDefaultConfig(ctx,
+	opts := []func(*config.LoadOptions) error{
 		config.WithRegion(q.config.Region),
-		config.WithCredentialsProvider(creds),
-	)
+	}
+	if creds != nil {
+		opts = append(opts, config.WithCredentialsProvider(creds))
+	}
+
+	sdkConfig, err := config.LoadDefaultConfig(ctx, opts...)
 	if err != nil {
 		return err
 	}

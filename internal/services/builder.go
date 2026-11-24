@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -10,14 +11,18 @@ import (
 	"github.com/hookdeck/outpost/internal/alert"
 	apirouter "github.com/hookdeck/outpost/internal/apirouter"
 	"github.com/hookdeck/outpost/internal/config"
+	"github.com/hookdeck/outpost/internal/consumer"
 	"github.com/hookdeck/outpost/internal/deliverymq"
 	"github.com/hookdeck/outpost/internal/destregistry"
 	destregistrydefault "github.com/hookdeck/outpost/internal/destregistry/providers"
+	"github.com/hookdeck/outpost/internal/destregistry/providers/destmcp"
 	"github.com/hookdeck/outpost/internal/eventtracer"
 	"github.com/hookdeck/outpost/internal/idempotence"
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/hookdeck/outpost/internal/logmq"
 	"github.com/hookdeck/outpost/internal/logstore"
+	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/opevents"
 	"github.com/hookdeck/outpost/internal/publishmq"
 	"github.com/hookdeck/outpost/internal/redis"
@@ -38,6 +43,10 @@ type ServiceBuilder struct {
 
 	// Track service instances for cleanup
 	services []*serviceInstance
+
+	// mcpNet is the MCP callback network stack, shared by the services of
+	// the process; nil until built, and while MCP is disabled.
+	mcpNet *mcpNetwork
 }
 
 // serviceInstance represents a single service with its cleanup functions and common dependencies
@@ -78,7 +87,7 @@ func (b *ServiceBuilder) BuildWorkers() (*worker.WorkerSupervisor, error) {
 
 	// Create base router with health check that all services will extend
 	b.logger.Debug("creating base router with health check")
-	baseRouter := NewBaseRouter(b.supervisor, b.cfg.GinMode)
+	baseRouter := NewBaseRouter(b.supervisor, b.cfg.GinMode, b.cfg.PprofEnabled)
 
 	if serviceType == config.ServiceTypeAPI || serviceType == config.ServiceTypeAll {
 		if err := b.BuildAPIWorkers(baseRouter); err != nil {
@@ -157,14 +166,18 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 	}
 	b.services = append(b.services, svc)
 
-	// Initialize common infrastructure
-	if err := svc.initDestRegistry(b.cfg, b.logger); err != nil {
+	// Redis comes first: the mcp verifier caches in it.
+	if err := svc.initRedis(b.ctx, b.cfg, b.logger); err != nil {
+		return err
+	}
+	mcpProvider, mcpVerifier, err := b.mcpProvider(svc.redisClient)
+	if err != nil {
+		return err
+	}
+	if err := svc.initDestRegistry(b.cfg, b.logger, mcpProvider); err != nil {
 		return err
 	}
 	if err := svc.initDeliveryMQ(b.ctx, b.cfg, b.logger); err != nil {
-		return err
-	}
-	if err := svc.initRedis(b.ctx, b.cfg, b.logger); err != nil {
 		return err
 	}
 	if err := svc.initLogStore(b.ctx, b.cfg, b.logger); err != nil {
@@ -189,7 +202,15 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 		idempotence.WithSuccessfulTTL(time.Duration(b.cfg.PublishIdempotencyKeyTTL)*time.Second),
 		idempotence.WithDeploymentID(b.cfg.DeploymentID),
 	)
-	eventHandler := publishmq.NewEventHandler(b.logger, svc.deliveryMQ, svc.tenantStore, svc.eventTracer, b.cfg.Topics, publishIdempotence)
+	eventHandler := publishmq.NewEventHandler(
+		b.logger,
+		svc.deliveryMQ,
+		svc.tenantStore,
+		svc.eventTracer,
+		b.cfg.Topics,
+		b.cfg.TopicsAllowWildcards,
+		publishIdempotence,
+	)
 
 	// Create operator events emitter for subscription updates
 	oeCfg := b.cfg.OperatorEvents.ToConfig()
@@ -197,18 +218,34 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 	if err != nil {
 		return fmt.Errorf("failed to create operator events sink: %w", err)
 	}
-	subscriptionEmitter := opevents.NewEmitter(oeSink, b.cfg.DeploymentID, oeCfg.Topics)
+	err = oeSink.Init(b.ctx)
+	if err != nil {
+		return fmt.Errorf("failed to initialize operator events sink: %w", err)
+	}
+	svc.cleanupFuncs = append(svc.cleanupFuncs, func(ctx context.Context, logger *logging.LoggerWithCtx) {
+		oeSink.Close()
+	})
+	subscriptionEmitter := opevents.NewEmitter(oeSink, b.cfg.DeploymentID, oeCfg.Topics, b.logger)
+
+	var routerMCPVerifier apirouter.MCPVerifier
+	if mcpVerifier != nil {
+		routerMCPVerifier = mcpVerifier
+	}
 
 	apiHandler := apirouter.NewRouter(
 		apirouter.RouterConfig{
-			ServiceName:  b.cfg.OpenTelemetry.GetServiceName(),
-			APIKey:       b.cfg.APIKey,
-			JWTSecret:    b.cfg.APIJWTSecret,
-			DeploymentID: b.cfg.DeploymentID,
-			Topics:       b.cfg.Topics,
-			Registry:     svc.destRegistry,
-			PortalConfig: b.cfg.GetPortalConfig(),
-			GinMode:      b.cfg.GinMode,
+			ServiceName:          b.cfg.OpenTelemetry.GetServiceName(),
+			APIKey:               b.cfg.APIKey,
+			JWTSecret:            b.cfg.APIJWTSecret,
+			DeploymentID:         b.cfg.DeploymentID,
+			Topics:               b.cfg.Topics,
+			TopicsAllowWildcards: b.cfg.TopicsAllowWildcards,
+			Registry:             svc.destRegistry,
+			PortalConfig:         b.cfg.GetPortalConfig(),
+			GinMode:              b.cfg.GinMode,
+
+			MCPSubscribe:      b.cfg.Experimental.MCP.Enabled,
+			MaxEventSizeBytes: int64(b.cfg.MaxEventSizeBytes),
 		},
 		apirouter.RouterDeps{
 			TenantStore:         svc.tenantStore,
@@ -218,6 +255,9 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 			EventHandler:        eventHandler,
 			Telemetry:           b.telemetry,
 			SubscriptionEmitter: subscriptionEmitter,
+			MCPVerifier:         routerMCPVerifier,
+			MCPCatalog:          b.cfg.MCPCatalog(),
+			MCPEventsError:      b.cfg.MCPEventsError(),
 		},
 	)
 
@@ -228,24 +268,63 @@ func (b *ServiceBuilder) BuildAPIWorkers(baseRouter *gin.Engine) error {
 
 	// Worker 1: RetryMQ Consumer
 	retryWorker := NewRetryMQWorker(svc.retryScheduler, b.logger)
-	b.supervisor.Register(retryWorker)
+	_, retryRegisterOpts := restartOptions(b.cfg, config.SupervisorWorkerRetryMQ)
+	b.supervisor.Register(retryWorker, retryRegisterOpts...)
 
 	// Worker 2: PublishMQ Consumer (optional)
-	if b.cfg.PublishMQ.GetQueueConfig() != nil {
-		publishMQ := publishmq.New(publishmq.WithQueue(b.cfg.PublishMQ.GetQueueConfig()))
-		messageHandler := publishmq.NewMessageHandler(eventHandler)
-		publishMQWorker := NewConsumerWorker(
-			"publishmq-consumer",
-			publishMQ.Subscribe,
-			messageHandler,
-			b.cfg.PublishMaxConcurrency,
-			b.logger,
-		)
-		b.supervisor.Register(publishMQWorker)
+	if publishQueueConfig := b.cfg.PublishMQ.GetQueueConfig(); publishQueueConfig != nil {
+		if b.cfg.PublishMQ.ProxyIgnored() {
+			b.logger.Info("PUBLISH_PROXY_URL is ignored: only the RabbitMQ publish queue connects through a proxy",
+				zap.String("publishmq_type", b.cfg.PublishMQ.GetInfraType()))
+		}
+		publishMQ := publishmq.New(publishmq.WithQueue(publishQueueConfig))
+		messageHandlerOpts := []publishmq.MessageHandlerOption{publishmq.WithMaxEventSize(b.cfg.MaxEventSizeBytes)}
+		if b.cfg.PublishMaxRedeliveries >= 0 {
+			messageHandlerOpts = append(messageHandlerOpts, publishmq.WithMaxRedeliveries(
+				b.cfg.PublishMaxRedeliveries,
+				publishmq.NewRedisRedeliveryCounter(svc.redisClient, b.cfg.DeploymentID),
+			))
+		}
+		messageHandler := publishmq.NewMessageHandler(eventHandler, messageHandlerOpts...)
+		publishMQWorker, registerOpts := newSupervisedConsumerWorker(b.cfg, config.SupervisorWorkerPublishMQ,
+			"publishmq-consumer", publishMQ.Subscribe, messageHandler, b.cfg.PublishMaxConcurrency, b.logger)
+		b.supervisor.Register(publishMQWorker, registerOpts...)
 	}
 
 	b.logger.Info("API service workers built successfully")
 	return nil
+}
+
+// restartOptions returns the supervisor options for the worker named key: a
+// restart policy when it is in supervisor.restart_workers, none otherwise.
+func restartOptions(cfg *config.Config, key string) (bool, []worker.RegisterOption) {
+	policy, enabled := cfg.Supervisor.RestartPolicy(key)
+	if !enabled {
+		return false, nil
+	}
+	return true, []worker.RegisterOption{worker.WithRestartPolicy(policy)}
+}
+
+// newSupervisedConsumerWorker builds a consumer worker and how the supervisor
+// runs it. With restarts disabled it is a plain consumer worker.
+func newSupervisedConsumerWorker(
+	cfg *config.Config,
+	key, name string,
+	subscribe func(ctx context.Context, opts ...mqs.SubscribeOption) (mqs.Subscription, error),
+	handler consumer.MessageHandler,
+	concurrency int,
+	logger *logging.Logger,
+) (worker.Worker, []worker.RegisterOption) {
+	enabled, registerOpts := restartOptions(cfg, key)
+	if !enabled {
+		return NewConsumerWorker(name, subscribe, handler, concurrency, logger), nil
+	}
+	w := NewConsumerWorker(name, subscribe, handler, concurrency, logger,
+		// gocloud replays a hard receive error, so retrying Receive is
+		// wasted; end the run fast and let the supervisor restart it.
+		WithMaxConsecutiveErrors(3),
+	)
+	return w, registerOpts
 }
 
 // BuildDeliveryWorker creates and registers the delivery worker.
@@ -268,7 +347,11 @@ func (b *ServiceBuilder) BuildDeliveryWorker(baseRouter *gin.Engine) error {
 	if err := svc.initDeliveryMQ(b.ctx, b.cfg, b.logger); err != nil {
 		return err
 	}
-	if err := svc.initDestRegistry(b.cfg, b.logger); err != nil {
+	mcpProvider, _, err := b.mcpProvider(nil)
+	if err != nil {
+		return err
+	}
+	if err := svc.initDestRegistry(b.cfg, b.logger, mcpProvider); err != nil {
 		return err
 	}
 	if err := svc.initEventTracer(b.cfg, b.logger); err != nil {
@@ -304,19 +387,16 @@ func (b *ServiceBuilder) BuildDeliveryWorker(baseRouter *gin.Engine) error {
 		retryBackoff,
 		retryMaxLimit,
 		deliveryIdempotence,
+		deliverymq.WithRetryPolicyResolver(svc.destRegistry),
+		deliverymq.WithExcludedDestinationTypes(excludedDestinationTypes(b.cfg)...),
 	)
 
 	svc.router = baseRouter
 
 	// Create DeliveryMQ worker
-	deliveryWorker := NewConsumerWorker(
-		"deliverymq-consumer",
-		svc.deliveryMQ.Subscribe,
-		handler,
-		b.cfg.DeliveryMaxConcurrency,
-		b.logger,
-	)
-	b.supervisor.Register(deliveryWorker)
+	deliveryWorker, deliveryRegisterOpts := newSupervisedConsumerWorker(b.cfg, config.SupervisorWorkerDeliveryMQ,
+		"deliverymq-consumer", svc.deliveryMQ.Subscribe, handler, b.cfg.DeliveryMaxConcurrency, b.logger)
+	b.supervisor.Register(deliveryWorker, deliveryRegisterOpts...)
 
 	b.logger.Info("delivery service worker built successfully")
 	return nil
@@ -349,26 +429,52 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 	if err != nil {
 		return fmt.Errorf("failed to create operator events sink: %w", err)
 	}
-	emitter := opevents.NewEmitter(sink, b.cfg.DeploymentID, oeCfg.Topics)
+	err = sink.Init(b.ctx)
+	if err != nil {
+		return fmt.Errorf("failed to initialize operator events sink: %w", err)
+	}
+	svc.cleanupFuncs = append(svc.cleanupFuncs, func(ctx context.Context, logger *logging.LoggerWithCtx) {
+		sink.Close()
+	})
+	emitter := opevents.NewEmitter(sink, b.cfg.DeploymentID, oeCfg.Topics, b.logger)
 
-	var disabler alert.DestinationDisabler
-	if b.cfg.Alert.AutoDisableDestination {
+	alertSettings, err := b.cfg.Alert.ToConfig()
+	if err != nil {
+		return fmt.Errorf("failed to resolve alert config: %w", err)
+	}
+
+	var disabler logmq.DestinationDisabler
+	if alertSettings.AutoDisableDestination {
 		disabler = newDestinationDisabler(svc.tenantStore)
 	}
-	exhaustedRetriesIdemp := idempotence.New(svc.redisClient,
-		idempotence.WithSuccessfulTTL(time.Duration(b.cfg.Alert.ExhaustedRetriesWindowSeconds)*time.Second),
+
+	// Per-attempt replay gate: a replay of a fully processed failed attempt is
+	// skipped. The default 24h TTL matches the alert store's failure-set TTL.
+	processedIdemp := idempotence.New(svc.redisClient,
 		idempotence.WithDeploymentID(b.cfg.DeploymentID),
 	)
+
+	// Build a suppression window only when exhausted-retries alerting is enabled
+	// with a positive window. A zero window means "alert on every exhaustion"
+	// (no suppression), so we leave the window nil.
+	var exhaustedRetriesWindow logmq.SuppressionWindow
+	if alertSettings.ExhaustedRetries.Enabled && alertSettings.ExhaustedRetries.WindowSeconds > 0 {
+		exhaustedRetriesWindow = logmq.NewRedisSuppressionWindow(svc.redisClient, b.cfg.DeploymentID,
+			time.Duration(alertSettings.ExhaustedRetries.WindowSeconds)*time.Second)
+	}
 	_, retryMaxLimit := b.cfg.GetRetryBackoff()
-	alertMonitor := alert.NewAlertMonitor(
-		b.logger,
-		svc.redisClient,
-		emitter,
+	alertOpts := []alert.Option{
+		alert.WithConsecutiveFailureEnabled(alertSettings.ConsecutiveFailure.Enabled),
+		alert.WithAutoDisableFailureCount(alertSettings.ConsecutiveFailure.Count),
+		alert.WithExhaustedRetriesEnabled(alertSettings.ExhaustedRetries.Enabled),
+	}
+	if b.cfg.Experimental.MCP.Enabled {
+		alertOpts = append(alertOpts, alert.WithPerAttemptRetryLimits())
+	}
+	alertEvaluator := alert.NewEvaluator(
+		alert.NewRedisAlertStore(svc.redisClient, b.cfg.DeploymentID),
 		retryMaxLimit,
-		alert.WithDisabler(disabler),
-		alert.WithExhaustedRetriesIdempotence(exhaustedRetriesIdemp),
-		alert.WithAutoDisableFailureCount(b.cfg.Alert.ConsecutiveFailureCount),
-		alert.WithDeploymentID(b.cfg.DeploymentID),
+		alertOpts...,
 	)
 
 	// Create batcher for batching log writes
@@ -386,7 +492,13 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 	}
 
 	b.logger.Debug("creating log batcher")
-	batchProcessor, err := logmq.NewBatchProcessor(b.ctx, b.logger, svc.logStore, alertMonitor, logmq.BatchProcessorConfig{
+	batchProcessor, err := logmq.NewBatchProcessor(b.ctx, b.logger, svc.logStore, logmq.AlertPipeline{
+		Evaluator:      alertEvaluator,
+		Emitter:        emitter,
+		Disabler:       disabler,
+		ProcessedIdemp: processedIdemp,
+		ExhaustedIdemp: exhaustedRetriesWindow,
+	}, logmq.BatchProcessorConfig{
 		ItemCountThreshold: batcherCfg.ItemCountThreshold,
 		DelayThreshold:     batcherCfg.DelayThreshold,
 	})
@@ -414,39 +526,48 @@ func (b *ServiceBuilder) BuildLogWorker(baseRouter *gin.Engine) error {
 	svc.router = baseRouter
 
 	// Create LogMQ worker
-	logWorker := NewConsumerWorker(
-		"logmq-consumer",
-		logMQ.Subscribe,
-		handler,
-		b.cfg.LogMaxConcurrency,
-		b.logger,
-	)
-	b.supervisor.Register(logWorker)
+	logWorker, logRegisterOpts := newSupervisedConsumerWorker(b.cfg, config.SupervisorWorkerLogMQ,
+		"logmq-consumer", logMQ.Subscribe, handler, b.cfg.LogMaxConcurrency, b.logger)
+	b.supervisor.Register(logWorker, logRegisterOpts...)
 
 	b.logger.Info("log service worker built successfully")
 	return nil
 }
 
-// destinationDisabler implements alert.DestinationDisabler by setting DisabledAt on the destination.
+// destinationDisabler implements logmq.DestinationDisabler by setting DisabledAt on the destination.
 type destinationDisabler struct {
 	tenantStore tenantstore.TenantStore
 }
 
-func newDestinationDisabler(tenantStore tenantstore.TenantStore) alert.DestinationDisabler {
+func newDestinationDisabler(tenantStore tenantstore.TenantStore) logmq.DestinationDisabler {
 	return &destinationDisabler{tenantStore: tenantStore}
 }
 
 func (d *destinationDisabler) DisableDestination(ctx context.Context, tenantID, destinationID string) error {
-	destination, err := d.tenantStore.RetrieveDestination(ctx, tenantID, destinationID)
-	if err != nil {
-		return err
+	var err error
+	for attempt := 0; attempt < tenantstore.MaxDestinationWriteAttempts; attempt++ {
+		var destination *models.Destination
+		destination, err = d.tenantStore.RetrieveDestination(ctx, tenantID, destinationID)
+		if errors.Is(err, tenantstore.ErrDestinationDeleted) || (err == nil && destination == nil) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if destination.DisabledAt != nil {
+			return nil
+		}
+		now := time.Now()
+		destination.DisabledAt = &now
+		err = d.tenantStore.UpdateDestination(ctx, *destination)
+		if !errors.Is(err, tenantstore.ErrDestinationConflict) {
+			break
+		}
 	}
-	if destination == nil {
+	if errors.Is(err, tenantstore.ErrDestinationNotFound) {
 		return nil
 	}
-	now := time.Now()
-	destination.DisabledAt = &now
-	return d.tenantStore.UpsertDestination(ctx, *destination)
+	return err
 }
 
 // Helper methods for serviceInstance to initialize common dependencies
@@ -498,6 +619,7 @@ func (s *serviceInstance) initTenantStore(ctx context.Context, cfg *config.Confi
 		AvailableTopics:          cfg.Topics,
 		MaxDestinationsPerTenant: cfg.MaxDestinationsPerTenant,
 		DeploymentID:             cfg.DeploymentID,
+		ExcludedTypes:            excludedDestinationTypes(cfg),
 	})
 	if err := s.tenantStore.Init(ctx); err != nil {
 		return fmt.Errorf("failed to initialize tenant store: %w", err)
@@ -505,13 +627,18 @@ func (s *serviceInstance) initTenantStore(ctx context.Context, cfg *config.Confi
 	return nil
 }
 
-func (s *serviceInstance) initDestRegistry(cfg *config.Config, logger *logging.Logger) error {
+func (s *serviceInstance) initDestRegistry(cfg *config.Config, logger *logging.Logger, mcp *destmcp.Config) error {
 	logger.Debug("initializing destination registry", zap.String("service", s.name))
 	registry := destregistry.NewRegistry(&destregistry.Config{
 		DestinationMetadataPath: cfg.Destinations.MetadataPath,
 		DeliveryTimeout:         time.Duration(cfg.DeliveryTimeoutSeconds) * time.Second,
 	}, logger)
-	if err := destregistrydefault.RegisterDefault(registry, cfg.Destinations.ToConfig(cfg)); err != nil {
+	destCfg := cfg.Destinations.ToConfig(cfg)
+	destCfg.MCP = mcp
+	if destregistrydefault.WebhookEnvProxyIgnored(destCfg) {
+		logger.Warn("HTTP_PROXY/HTTPS_PROXY are ignored for webhook destinations while DESTINATIONS_BLOCK_PRIVATE_ADDRESSES is on; set DESTINATIONS_PROXY_URL to deliver through a proxy (the proxy must then refuse private addresses)", zap.String("service", s.name))
+	}
+	if err := destregistrydefault.RegisterDefault(registry, destCfg); err != nil {
 		logger.Error("destination registry setup failed", zap.String("service", s.name), zap.Error(err))
 		return err
 	}
@@ -577,8 +704,13 @@ func (s *serviceInstance) initRetryScheduler(ctx context.Context, cfg *config.Co
 		return fmt.Errorf("log store must be initialized before retry scheduler")
 	}
 	logger.Debug("creating delivery MQ retry scheduler", zap.String("service", s.name))
-	pollBackoff := time.Duration(cfg.RetryPollBackoffMs) * time.Millisecond
-	var retrySchedulerOpts []deliverymq.RetrySchedulerOption
+	pollBackoff := cfg.GetRetryPollBackoff()
+	retrySchedulerOpts := []deliverymq.RetrySchedulerOption{
+		deliverymq.WithRetryMaxConcurrency(cfg.RetryMaxConcurrency),
+		deliverymq.WithRetryMaxReceiveCount(uint64(cfg.RetryMaxReceiveCount)),
+		deliverymq.WithRetryNotReadyDelay(time.Duration(cfg.LogBatchThresholdSeconds) * time.Second),
+		deliverymq.WithRetryLookupBatch(cfg.RetryLookupBatchSize, time.Duration(cfg.RetryLookupBatchWaitMs)*time.Millisecond),
+	}
 	if cfg.RetryVisibilityTimeoutSeconds > 0 {
 		retrySchedulerOpts = append(retrySchedulerOpts, deliverymq.WithRetryVisibilityTimeout(uint(cfg.RetryVisibilityTimeoutSeconds)))
 	}
@@ -597,4 +729,11 @@ func (s *serviceInstance) initRetryScheduler(ctx context.Context, cfg *config.Co
 	})
 	s.retryScheduler = retryScheduler
 	return nil
+}
+
+func excludedDestinationTypes(cfg *config.Config) []string {
+	if cfg.Experimental.MCP.Enabled {
+		return nil
+	}
+	return []string{models.DestinationTypeMCP}
 }

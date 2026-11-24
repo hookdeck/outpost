@@ -3,17 +3,17 @@ package testinfra
 import (
 	"context"
 	"log"
-	"sync"
 	"testing"
 
 	"github.com/hookdeck/outpost/internal/clickhouse"
 	"github.com/hookdeck/outpost/internal/util/testutil"
+	"github.com/testcontainers/testcontainers-go"
 	chTestcontainer "github.com/testcontainers/testcontainers-go/modules/clickhouse"
 )
 
 func NewClickHouseConfig(t *testing.T) clickhouse.ClickHouseConfig {
 	chConfig := clickhouse.ClickHouseConfig{
-		Addr:     ensureClickHouse(),
+		Addr:     ensureClickHouse(t),
 		Username: "default",
 		Password: "",
 		Database: "default",
@@ -49,40 +49,45 @@ func clearDB(chConfig clickhouse.ClickHouseConfig, database string) {
 	}
 }
 
-var chOnce sync.Once
+var clickhouseService = &service{name: "clickhouse", startHint: hintTest}
 
-func ensureClickHouse() string {
+func ensureClickHouse(t testing.TB) string {
+	t.Helper()
 	cfg := ReadConfig()
-	if cfg.ClickHouseURL == "" {
-		chOnce.Do(func() {
-			startCHTestcontainer(cfg)
+	return clickhouseService.ensure(t, cfg.ClickHouseURL,
+		func() (string, error) { return startCHTestcontainer(cfg) },
+		func(endpoint string) error {
+			chDB, err := clickhouse.New(&clickhouse.ClickHouseConfig{
+				Addr:     endpoint,
+				Username: "default",
+				Database: "default",
+			})
+			if err != nil {
+				return err
+			}
+			return chDB.Exec(context.Background(), "SELECT 1")
 		})
-	}
-	return cfg.ClickHouseURL
 }
 
-func startCHTestcontainer(cfg *Config) {
+func startCHTestcontainer(cfg *Config) (string, error) {
 	ctx := context.Background()
 
 	clickHouseContainer, err := chTestcontainer.Run(ctx,
-		"clickhouse/clickhouse-server:latest",
+		cfg.Images.ClickHouse,
 		chTestcontainer.WithUsername("default"),
 		chTestcontainer.WithPassword(""),
 		chTestcontainer.WithDatabase("default"),
+		// Keep the passwordless default user reachable over the network.
+		testcontainers.WithEnv(map[string]string{"CLICKHOUSE_SKIP_USER_SETUP": "1"}),
 	)
 	if err != nil {
-		panic(err)
+		return "", err
 	}
 
 	endpoint, err := clickHouseContainer.PortEndpoint(ctx, "9000/tcp", "")
 	if err != nil {
-		panic(err)
+		return "", err
 	}
 	log.Printf("ClickHouse running at %s", endpoint)
-	cfg.ClickHouseURL = endpoint
-	cfg.cleanupFns = append(cfg.cleanupFns, func() {
-		if err := clickHouseContainer.Terminate(ctx); err != nil {
-			log.Printf("failed to terminate container: %s", err)
-		}
-	})
+	return endpoint, nil
 }

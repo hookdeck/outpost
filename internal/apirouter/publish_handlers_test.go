@@ -11,6 +11,7 @@ import (
 	"github.com/hookdeck/outpost/internal/idempotence"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/publishmq"
+	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -158,7 +159,7 @@ func TestAPI_Publish(t *testing.T) {
 			})
 			resp := h.do(h.withAPIKey(req))
 
-			require.Equal(t, http.StatusConflict, resp.Code)
+			testutil.RequireErrorResponse(t, resp, http.StatusConflict, "event conflict, retry later")
 		})
 
 		t.Run("required topic returns 422 with detail", func(t *testing.T) {
@@ -209,7 +210,7 @@ func TestAPI_Publish(t *testing.T) {
 			})
 			resp := h.do(h.withAPIKey(req))
 
-			require.Equal(t, http.StatusInternalServerError, resp.Code)
+			testutil.RequireErrorResponse(t, resp, http.StatusInternalServerError, "internal server error")
 		})
 	})
 
@@ -402,6 +403,23 @@ func TestAPI_Publish(t *testing.T) {
 			require.Equal(t, http.StatusAccepted, resp.Code)
 			require.Len(t, h.eventHandler.calls, 1)
 			assert.Equal(t, models.Metadata{"env": "prod"}, h.eventHandler.calls[0].Metadata)
+		})
+
+		t.Run("defaults missing metadata to non-nil empty map", func(t *testing.T) {
+			// metadata is jsonb NOT NULL downstream; the event built from a
+			// request without metadata must never carry a nil map.
+			h := newAPITest(t)
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/publish", map[string]any{
+				"tenant_id": "t1",
+				"data":      map[string]any{"key": "value"},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusAccepted, resp.Code)
+			require.Len(t, h.eventHandler.calls, 1)
+			assert.NotNil(t, h.eventHandler.calls[0].Metadata, "metadata should be normalized to a non-nil map")
+			assert.Empty(t, h.eventHandler.calls[0].Metadata)
 		})
 
 		t.Run("metadata with non-string values returns 422", func(t *testing.T) {

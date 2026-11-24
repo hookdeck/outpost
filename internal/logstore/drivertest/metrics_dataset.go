@@ -61,6 +61,7 @@ import (
 //   attempt_number:     1  (each entry is a unique event, not a retry)
 //   manual:             i % 10 == 9
 //   eligible_for_retry: i % 3 != 2
+//   latency_ms:         manual (i%10==9) → nil, otherwise 100 + (i%10)*50
 //
 // ── Derived Totals (Tenant 1, all 300) ───────────────────────────────────
 //
@@ -83,6 +84,11 @@ import (
 //   retry (attempt_number>1):                      0
 //   manual (i%10==9):              30
 //   avg_attempt_number:            1.0
+//   latency (270 recorded, 30 nil): nine values 100..500, 30 each
+//     avg_latency:                 300
+//     p50_latency:                 300   (rank 0.5*269=134.5, both neighbours 300)
+//     p95_latency:                 500   (rank 255.55)
+//     p99_latency:                 500
 //
 // Dense day — Jan 15 (250 events, indices 50..299):
 //   hourly buckets:  10:00→25, 11:00→50, 12:00→100, 13:00→50, 14:00→25
@@ -90,7 +96,7 @@ import (
 // ── Tenant 2 ─────────────────────────────────────────────────────────────
 //
 //   5 events, all topic=user.created, dest=dest_2.1, status=success, code=200,
-//   attempt_number=1, manual=false, eligible_for_retry=true
+//   attempt_number=1, manual=false, eligible_for_retry=true, no latency
 //
 //   Jan 5 09:00, Jan 10 09:00, Jan 15 12:15, Jan 22 09:00, Jan 27 09:00
 //
@@ -178,6 +184,10 @@ func buildMetricsDataset() *metricsDataset {
 		attemptNum := 1 // Each entry is a unique event, not a retry
 		manual := idx%10 == 9
 		eligible := idx%3 != 2
+		var attemptOpts []func(*models.Attempt)
+		if !manual {
+			attemptOpts = append(attemptOpts, testutil.AttemptFactory.WithLatencyMs(int64(100+(idx%10)*50)))
+		}
 
 		event := testutil.EventFactory.AnyPointer(
 			testutil.EventFactory.WithID(fmt.Sprintf("m_evt_1_%d", idx)),
@@ -199,6 +209,9 @@ func buildMetricsDataset() *metricsDataset {
 			testutil.AttemptFactory.WithAttemptNumber(attemptNum),
 			testutil.AttemptFactory.WithManual(manual),
 		)
+		for _, opt := range attemptOpts {
+			opt(attempt)
+		}
 
 		idx++
 		return &models.LogEntry{Event: event, Attempt: attempt}

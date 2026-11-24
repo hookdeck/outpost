@@ -2,6 +2,7 @@ package driver
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/models"
@@ -19,6 +20,11 @@ type TimeFilter struct {
 type Records interface {
 	ListEvent(context.Context, ListEventRequest) (ListEventResponse, error)
 	ListAttempt(context.Context, ListAttemptRequest) (ListAttemptResponse, error)
+	// ListLatestAttempts returns the latest attempt of each key, not older than the
+	// key's NotBefore. Keys without a match are absent from the result. When some
+	// keys' attempts can't be read, it returns the other keys' results with a
+	// KeyErrors error.
+	ListLatestAttempts(context.Context, []LatestAttemptLookup) (map[AttemptKey]*AttemptRecord, error)
 	RetrieveEvent(ctx context.Context, request RetrieveEventRequest) (*models.Event, error)
 	RetrieveAttempt(ctx context.Context, request RetrieveAttemptRequest) (*AttemptRecord, error)
 	InsertMany(context.Context, []*models.LogEntry) error
@@ -48,6 +54,18 @@ type ListEventResponse struct {
 	Prev string
 }
 
+// Field names a payload field that a read may include.
+type Field string
+
+const (
+	FieldEventData     Field = "event.data"
+	FieldEventMetadata Field = "event.metadata"
+	FieldResponseData  Field = "response_data"
+)
+
+// AllFields reads the full record.
+var AllFields = []Field{FieldEventData, FieldEventMetadata, FieldResponseData}
+
 type ListAttemptRequest struct {
 	Next             string
 	Prev             string
@@ -60,12 +78,37 @@ type ListAttemptRequest struct {
 	Status           string     // optional: "success", "failed"
 	Topics           []string   // optional
 	SortOrder        string     // optional: "asc", "desc" (default: "desc")
+	Include          []Field    // optional - payload fields to read; nil reads none of them, so callers that need event data/metadata or response data must ask
 }
 
 type ListAttemptResponse struct {
 	Data []*AttemptRecord
 	Next string
 	Prev string
+}
+
+// AttemptKey identifies the attempts of one event delivered to one destination.
+type AttemptKey struct {
+	TenantID      string
+	EventID       string
+	DestinationID string
+}
+
+// KeyErrors holds the error of each key whose attempt couldn't be read.
+type KeyErrors map[AttemptKey]error
+
+func (e KeyErrors) Error() string {
+	for key, err := range e {
+		return fmt.Sprintf("%d attempt reads failed, e.g. event %s destination %s: %v", len(e), key.EventID, key.DestinationID, err)
+	}
+	return "no keys failed"
+}
+
+// LatestAttemptLookup asks for the latest attempt of Key. A zero NotBefore
+// means no lower bound on the attempt time.
+type LatestAttemptLookup struct {
+	Key       AttemptKey
+	NotBefore time.Time
 }
 
 type RetrieveEventRequest struct {
@@ -82,4 +125,25 @@ type RetrieveAttemptRequest struct {
 type AttemptRecord struct {
 	Attempt *models.Attempt
 	Event   *models.Event // optionally populated for query results
+}
+
+// DedupeEntriesByAttemptID collapses intra-batch duplicates (same Attempt.ID)
+// to a single entry. Duplicates arise from MQ redelivery and producer
+// re-publish, so they can carry different MQ message IDs; copies are
+// byte-identical, so the last occurrence wins at the first occurrence's
+// position. InsertMany implementations must tolerate intra-batch duplicates
+// regardless of caller — e.g. PostgreSQL rejects the same conflict key twice
+// in one INSERT ... ON CONFLICT DO UPDATE statement (SQLSTATE 21000).
+func DedupeEntriesByAttemptID(entries []*models.LogEntry) []*models.LogEntry {
+	deduped := make([]*models.LogEntry, 0, len(entries))
+	index := make(map[string]int, len(entries))
+	for _, entry := range entries {
+		if i, ok := index[entry.Attempt.ID]; ok {
+			deduped[i] = entry
+			continue
+		}
+		index[entry.Attempt.ID] = len(deduped)
+		deduped = append(deduped, entry)
+	}
+	return deduped
 }

@@ -3,16 +3,20 @@ package config
 import (
 	"errors"
 	"fmt"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/caarlos0/env/v9"
+	"github.com/hookdeck/outpost/internal/alert"
 	"github.com/hookdeck/outpost/internal/backoff"
 	"github.com/hookdeck/outpost/internal/clickhouse"
 	"github.com/hookdeck/outpost/internal/migrator"
 	"github.com/hookdeck/outpost/internal/opevents"
 	"github.com/hookdeck/outpost/internal/redis"
 	"github.com/hookdeck/outpost/internal/telemetry"
+	"github.com/hookdeck/outpost/internal/topicschema"
 	"github.com/hookdeck/outpost/internal/version"
 	"github.com/joho/godotenv"
 	"gopkg.in/yaml.v3"
@@ -21,6 +25,9 @@ import (
 const (
 	Namespace = "Outpost"
 )
+
+// DefaultMaxEventSizeBytes is the default maximum event size: 1 MiB.
+const DefaultMaxEventSizeBytes = 1 << 20
 
 func getConfigLocations() []string {
 	return []string{
@@ -39,12 +46,14 @@ func getConfigLocations() []string {
 }
 
 type Config struct {
-	validated  bool   // tracks whether Validate() has been called successfully
-	configPath string // stores the path of the config file used
+	validated    bool        // tracks whether Validate() has been called successfully
+	configPath   string      // stores the path of the config file used
+	osInterface  OSInterface // the OS the config was parsed with; nil means the real OS
+	mcpCatalog   *topicschema.Catalog
+	mcpEventsErr error
 
 	Service       string              `yaml:"service" env:"SERVICE" desc:"Specifies the service type to run. Valid values: 'api', 'log', 'delivery', or empty/all for singular mode (runs all services)." required:"N"`
 	LogLevel      string              `yaml:"log_level" env:"LOG_LEVEL" desc:"Defines the verbosity of application logs. Common values: 'trace', 'debug', 'info', 'warn', 'error'." required:"N"`
-	AuditLog      bool                `yaml:"audit_log" env:"AUDIT_LOG" desc:"Enables or disables audit logging for significant events." required:"N"`
 	OpenTelemetry OpenTelemetryConfig `yaml:"otel"`
 	Telemetry     TelemetryConfig     `yaml:"telemetry"`
 
@@ -53,12 +62,14 @@ type Config struct {
 	APIKey       string `yaml:"api_key" env:"API_KEY" desc:"API key for authenticating requests to the Outpost API." required:"Y"`
 	APIJWTSecret string `yaml:"api_jwt_secret" env:"API_JWT_SECRET" desc:"Secret key for signing and verifying JWTs if JWT authentication is used for the API." required:"Y"`
 	GinMode      string `yaml:"gin_mode" env:"GIN_MODE" desc:"Sets the Gin framework mode (e.g., 'debug', 'release', 'test'). See Gin documentation for details." required:"N"`
+	PprofEnabled bool   `yaml:"pprof_enabled" env:"PPROF_ENABLED" desc:"If true, exposes Go pprof profiling endpoints under /debug/pprof/ on the service's HTTP port (every service type). Unauthenticated; enable only when the port is not publicly reachable." required:"N" default:"false"`
 
 	// Application
-	DeploymentID        string   `yaml:"deployment_id" env:"DEPLOYMENT_ID" desc:"Optional deployment identifier for multi-tenancy. Enables multiple deployments to share the same infrastructure while maintaining data isolation." required:"N"`
-	AESEncryptionSecret string   `yaml:"aes_encryption_secret" env:"AES_ENCRYPTION_SECRET" desc:"A 16, 24, or 32 byte secret key used for AES encryption of sensitive data at rest." required:"Y"`
-	Topics              []string `yaml:"topics" env:"TOPICS" envSeparator:"," desc:"Comma-separated list of topics that this Outpost instance should subscribe to for event processing." required:"N"`
-	HTTPUserAgent       string   `yaml:"http_user_agent" env:"HTTP_USER_AGENT" desc:"Custom HTTP User-Agent string for outgoing webhook deliveries. If unset, defaults to 'Outpost/{version}'." required:"N"`
+	DeploymentID         string   `yaml:"deployment_id" env:"DEPLOYMENT_ID" desc:"Optional deployment identifier for multi-tenancy. Enables multiple deployments to share the same infrastructure while maintaining data isolation." required:"N"`
+	AESEncryptionSecret  string   `yaml:"aes_encryption_secret" env:"AES_ENCRYPTION_SECRET" desc:"A 16, 24, or 32 byte secret key used for AES encryption of sensitive data at rest." required:"Y"`
+	Topics               []string `yaml:"topics" env:"TOPICS" envSeparator:"," desc:"Comma-separated list of topics that this Outpost instance should subscribe to for event processing." required:"N"`
+	TopicsAllowWildcards bool     `yaml:"topics_allow_wildcards" env:"TOPICS_ALLOW_WILDCARDS" desc:"If true, destination topic subscriptions can use '*' inside topic strings as a wildcard pattern. If false, stored wildcard patterns are ignored without being deleted." required:"N" default:"false"`
+	HTTPUserAgent        string   `yaml:"http_user_agent" env:"HTTP_USER_AGENT" desc:"Custom HTTP User-Agent string for outgoing webhook deliveries. If unset, defaults to 'Outpost/{version}'." required:"N"`
 
 	// Infrastructure
 	Redis       RedisConfig      `yaml:"redis"`
@@ -71,18 +82,24 @@ type Config struct {
 
 	// Consumers
 	PublishMaxConcurrency  int `yaml:"publish_max_concurrency" env:"PUBLISH_MAX_CONCURRENCY" desc:"Maximum number of messages to process concurrently from the publish queue." required:"N"`
+	PublishMaxRedeliveries int `yaml:"publish_max_redeliveries" env:"PUBLISH_MAX_REDELIVERIES" desc:"Maximum number of times a failed publish queue message is redelivered before Outpost stops redelivering it: rejected on RabbitMQ and Azure Service Bus (dead-lettered if configured), acked (deleted) on AWS SQS and GCP Pub/Sub. -1 (default) redelivers without limit; 0 never redelivers. Counts attempts, not time: without backoff on the queue, a short outage can use it up." required:"N"`
 	DeliveryMaxConcurrency int `yaml:"delivery_max_concurrency" env:"DELIVERY_MAX_CONCURRENCY" desc:"Maximum number of delivery attempts to process concurrently." required:"N"`
 	LogMaxConcurrency      int `yaml:"log_max_concurrency" env:"LOG_MAX_CONCURRENCY" desc:"Maximum number of log writing operations to process concurrently." required:"N"`
 
 	// Delivery Retry
-	RetrySchedule                 []int `yaml:"retry_schedule" env:"RETRY_SCHEDULE" envSeparator:"," desc:"Comma-separated list of retry delays in seconds. If provided, overrides retry_interval_seconds and retry_max_limit. Schedule length defines the max number of retries. Example: '5,60,600,3600,7200' for 5 retries at 5s, 1m, 10m, 1h, 2h." required:"N"`
+	RetrySchedule                 []int `yaml:"retry_schedule" env:"RETRY_SCHEDULE" envSeparator:"," desc:"Comma-separated list of retry delays in seconds. If provided, overrides retry_interval_seconds and retry_max_limit. Schedule length defines the max number of retries. Example: '5,60,600,3600,7200' for 5 retries at 5s, 1m, 10m, 1h, 2h. Delays shorter than log_batch_threshold_seconds are raised to it." required:"N"`
 	RetryIntervalSeconds          int   `yaml:"retry_interval_seconds" env:"RETRY_INTERVAL_SECONDS" desc:"Interval in seconds for exponential backoff retry strategy (base 2). Ignored if retry_schedule is provided." required:"N"`
 	RetryMaxLimit                 int   `yaml:"retry_max_limit" env:"MAX_RETRY_LIMIT" desc:"Maximum number of retry attempts for a single event delivery before giving up. Ignored if retry_schedule is provided." required:"N"`
-	RetryPollBackoffMs            int   `yaml:"retry_poll_backoff_ms" env:"RETRY_POLL_BACKOFF_MS" desc:"Backoff time in milliseconds when the retry monitor finds no messages to process. When a retry message is found, the monitor immediately polls for the next message without delay. Lower values provide faster retry processing but increase Redis load. For serverless Redis providers (Upstash, ElastiCache Serverless), consider increasing to 5000-10000ms to reduce costs. Default: 100" required:"N"`
-	RetryVisibilityTimeoutSeconds int   `yaml:"retry_visibility_timeout_seconds" env:"RETRY_VISIBILITY_TIMEOUT_SECONDS" desc:"Time in seconds a retry message is hidden after being received before becoming visible again for reprocessing. This applies when event data is temporarily unavailable (e.g., race condition with log persistence). Default: 30" required:"N"`
+	RetryPollBackoffMs            int   `yaml:"retry_poll_backoff_ms" env:"RETRY_POLL_BACKOFF_MS" desc:"Maximum time in milliseconds the retry monitor waits between polls while idle. When a retry is scheduled but not yet due, the monitor instead waits until it comes due. 0 or unset means auto: sleep until the next due message, at most min(30s, shortest configured retry delay), so retries are never late and idle cost is about one Redis command per interval. An explicit positive value is honored as-is as a fixed maximum idle sleep, which may add up to that much latency for retries scheduled while the monitor sleeps. When a retry message is found, the monitor immediately polls for the next message without delay. Default: 0 (auto)" required:"N"`
+	RetryMaxConcurrency           int   `yaml:"retry_max_concurrency" env:"RETRY_MAX_CONCURRENCY" desc:"Maximum number of retries starting at once per process. 0 means unbounded. Default: 100" required:"N"`
+	RetryMaxReceiveCount          int   `yaml:"retry_max_receive_count" env:"RETRY_MAX_RECEIVE_COUNT" desc:"Number of times starting a retry (attempt lookup and publish) may fail before the task moves to the dead-letter queue. Separate from MAX_RETRY_LIMIT. Must be at least 1. Default: 5" required:"N"`
+	RetryLookupBatchSize          int   `yaml:"retry_lookup_batch_size" env:"RETRY_LOOKUP_BATCH_SIZE" desc:"Maximum number of retry attempt lookups combined into one log store query. 0 or 1 looks each retry up on its own. Maximum 100, capped at retry_max_concurrency. Default: 0" required:"N"`
+	RetryLookupBatchWaitMs        int   `yaml:"retry_lookup_batch_wait_ms" env:"RETRY_LOOKUP_BATCH_WAIT_MS" desc:"Time in milliseconds a retry lookup waits for others to join its batch. Only applies when retry_lookup_batch_size is above 1. Must be at least 1. Default: 50" required:"N"`
+	RetryVisibilityTimeoutSeconds int   `yaml:"retry_visibility_timeout_seconds" env:"RETRY_VISIBILITY_TIMEOUT_SECONDS" desc:"Time in seconds a retry message is hidden after being received before becoming visible again for reprocessing, for example when the task fails or the process stops mid-execution. Default: 30" required:"N"`
 
 	// Event Delivery
 	MaxDestinationsPerTenant int `yaml:"max_destinations_per_tenant" env:"MAX_DESTINATIONS_PER_TENANT" desc:"Maximum number of destinations allowed per tenant/organization." required:"N"`
+	MaxEventSizeBytes        int `yaml:"max_event_size_bytes" env:"MAX_EVENT_SIZE_BYTES" desc:"Maximum size in bytes of an event, applied to API publish requests (rejected with 413) and publish queue messages (dropped). Keep it well under your message queue's per-message size limit. Default: 1048576 (1 MiB). Set to 0 for no limit." required:"N"`
 	DeliveryTimeoutSeconds   int `yaml:"delivery_timeout_seconds" env:"DELIVERY_TIMEOUT_SECONDS" desc:"Timeout in seconds for HTTP requests made during event delivery to webhook destinations." required:"N"`
 
 	// Idempotency
@@ -104,31 +121,46 @@ type Config struct {
 	// Alert
 	Alert AlertConfig `yaml:"alert"`
 
+	// Supervisor
+	Supervisor SupervisorConfig `yaml:"supervisor" envPrefix:"SUPERVISOR_"`
+
 	// Operator Events
 	OperatorEvents OperatorEventsConfig `yaml:"operator_events"`
 
 	// ID Generation
 	IDGen IDGenConfig `yaml:"idgen"`
 
+	// Experimental features
+	Experimental ExperimentalConfig `yaml:"experimental"`
+
 	// Retention
 	ClickHouseLogRetentionTTLDays int `yaml:"clickhouse_log_retention_ttl_days" env:"CLICKHOUSE_LOG_RETENTION_TTL_DAYS" desc:"Days to retain logs in ClickHouse. 0 = unlimited." required:"N"`
 }
 
 var (
-	ErrMismatchedServiceType = errors.New("config validation error: service type mismatch")
-	ErrInvalidServiceType    = errors.New("config validation error: invalid service type")
-	ErrMissingRedis          = errors.New("config validation error: redis configuration is required")
-	ErrMissingLogStorage     = errors.New("config validation error: log storage must be provided")
-	ErrMissingMQs            = errors.New("config validation error: message queue configuration is required")
-	ErrMissingAESSecret      = errors.New("config validation error: AES encryption secret is required")
-	ErrInvalidPortalProxyURL = errors.New("config validation error: invalid portal proxy url")
-	ErrInvalidDeploymentID   = errors.New("config validation error: deployment_id must contain only alphanumeric characters, hyphens, and underscores (max 64 characters)")
+	ErrMismatchedServiceType          = errors.New("config validation error: service type mismatch")
+	ErrInvalidServiceType             = errors.New("config validation error: invalid service type")
+	ErrMissingRedis                   = errors.New("config validation error: redis configuration is required")
+	ErrMissingLogStorage              = errors.New("config validation error: log storage must be provided")
+	ErrMissingMQs                     = errors.New("config validation error: message queue configuration is required")
+	ErrMissingAESSecret               = errors.New("config validation error: AES encryption secret is required")
+	ErrInvalidPortalProxyURL          = errors.New("config validation error: invalid portal proxy url")
+	ErrInvalidWebhookProxyURL         = errors.New("config validation error: invalid webhook proxy url")
+	ErrInvalidAWSEventBridgeSource    = errors.New("config validation error: invalid aws eventbridge source")
+	ErrInvalidDestinationsProxyURL    = errors.New("config validation error: invalid destinations proxy url")
+	ErrInvalidPrivateAddressAllowlist = errors.New("config validation error: invalid private address allowlist")
+	ErrInvalidPublishProxyURL         = errors.New("config validation error: invalid publish proxy url")
+	ErrInvalidDeploymentID            = errors.New("config validation error: deployment_id must contain only alphanumeric characters, hyphens, and underscores (max 64 characters)")
+	ErrInvalidRedisPoolSize           = errors.New("config validation error: redis pool_size must be >= 0")
+	ErrInvalidPublishMaxRedeliveries  = errors.New("config validation error: publish_max_redeliveries must be >= -1")
+	ErrInvalidSupervisorLimit         = errors.New("config validation error: invalid supervisor limit")
+	ErrInvalidSupervisorWorker        = errors.New("config validation error: invalid supervisor restart worker")
+	ErrInvalidMCPConfig               = errors.New("config validation error: invalid mcp config")
 )
 
 func (c *Config) InitDefaults() {
 	c.APIPort = 3333
 	c.LogLevel = "info"
-	c.AuditLog = true
 	c.OpenTelemetry = OpenTelemetryConfig{}
 	c.GinMode = "release"
 	c.Redis = RedisConfig{
@@ -136,7 +168,10 @@ func (c *Config) InitDefaults() {
 		Port: 6379,
 	}
 	c.ClickHouse = ClickHouseConfig{
-		Database: "outpost",
+		Database:           "outpost",
+		DialTimeoutSeconds: 10,
+		ReadTimeoutSeconds: 30,
+		IdleCloseSeconds:   300,
 	}
 	c.MQs = &MQsConfig{
 		RabbitMQ: RabbitMQConfig{
@@ -160,15 +195,29 @@ func (c *Config) InitDefaults() {
 			LogTopic:             "outpost-log",
 			LogSubscription:      "outpost-log-sub",
 		},
+		NATS: NATSConfig{
+			// Subjects must be prefixed with the stream name (JetStream
+			// requires it, see mqinfra.Declare's "<stream>.>" wildcard), so
+			// these can't reuse the plain "outpost-delivery"/"outpost-log"
+			// names the other providers default to.
+			Stream:          "outpost",
+			DeliverySubject: "outpost.delivery",
+			LogSubject:      "outpost.log",
+		},
 	}
+	c.MaxEventSizeBytes = DefaultMaxEventSizeBytes
 	c.PublishMaxConcurrency = 1
+	c.PublishMaxRedeliveries = -1
 	c.DeliveryMaxConcurrency = 1
 	c.LogMaxConcurrency = 1
 	c.RetrySchedule = []int{} // Empty by default, falls back to exponential backoff
 	c.RetryIntervalSeconds = 30
 	c.RetryMaxLimit = 10
-	c.RetryPollBackoffMs = 100
+	c.RetryPollBackoffMs = 0 // 0 = auto: min(30s, shortest configured retry delay)
 	c.RetryVisibilityTimeoutSeconds = 30
+	c.RetryMaxConcurrency = 100
+	c.RetryMaxReceiveCount = 5
+	c.RetryLookupBatchWaitMs = 50
 	c.MaxDestinationsPerTenant = 20
 	c.DeliveryTimeoutSeconds = 5
 	c.PublishIdempotencyKeyTTL = 3600  // 1 hour
@@ -186,16 +235,23 @@ func (c *Config) InitDefaults() {
 			SignatureEncoding:        "hex",
 			SignatureAlgorithm:       "hmac-sha256",
 			SigningSecretTemplate:    "whsec_{{.RandomHex}}",
+			MaxResponseBodyBytes:     DefaultWebhookMaxResponseBodyBytes,
 		},
 		AWSKinesis: DestinationAWSKinesisConfig{
 			MetadataInPayload: true,
 		},
+		AWSEventBridge: DestinationAWSEventBridgeConfig{
+			Source: "outpost",
+		},
 	}
 
-	c.Alert = AlertConfig{
-		ConsecutiveFailureCount:       100,
-		AutoDisableDestination:        false,
-		ExhaustedRetriesWindowSeconds: 3600,
+	// Alert: ConsecutiveFailureCount / ExhaustedRetriesWindowSeconds are left
+	// unset here so their defaults (and the empty-string "disabled" sentinel)
+	// are applied by AlertConfig.ToConfig rather than baked in as int zero values.
+
+	c.Supervisor = SupervisorConfig{
+		Startup:  SupervisorLimitsConfig{MaxAttempts: 5, MaxDurationSeconds: -1},
+		Recovery: SupervisorLimitsConfig{MaxAttempts: -1, MaxDurationSeconds: 120},
 	}
 
 	c.Telemetry = TelemetryConfig{
@@ -212,6 +268,8 @@ func (c *Config) InitDefaults() {
 	}
 
 	c.ClickHouseLogRetentionTTLDays = 0 // Unlimited by default
+
+	c.Experimental.MCP.initDefaults()
 }
 
 func (c *Config) parseConfigFile(flagPath string, osInterface OSInterface) error {
@@ -280,11 +338,52 @@ func (c *Config) parseEnvVariables(osInterface OSInterface) error {
 				envMap[env[:i]] = env[i+1:]
 			}
 		}
-		return env.ParseWithOptions(c, env.Options{Environment: envMap})
+		if err := env.ParseWithOptions(c, env.Options{Environment: envMap}); err != nil {
+			return err
+		}
+	} else {
+		// For real OS, use env.Parse directly
+		if err := env.Parse(c); err != nil {
+			return err
+		}
 	}
 
-	// For real OS, use env.Parse directly
-	return env.Parse(c)
+	c.captureEmptyAlertEnv(osInterface)
+	c.captureEmptyWebhookHeaderEnv(osInterface)
+	c.OpenTelemetry.resolveOTelEnv(osInterface)
+	return nil
+}
+
+// captureEmptyAlertEnv honors "an empty env var disables this alert dimension".
+// caarlos0/env ignores a present-but-empty env var (it never invokes the field's
+// unmarshaler), so it can't set these to empty on its own. We detect presence
+// via LookupEnv and apply the empty value explicitly. A present env var takes
+// precedence over a YAML value (env > yaml); present non-empty values are
+// already bound by caarlos0/env above.
+func (c *Config) captureEmptyAlertEnv(osInterface OSInterface) {
+	if v, ok := osInterface.LookupEnv("ALERT_CONSECUTIVE_FAILURE_COUNT"); ok && v == "" {
+		c.Alert.ConsecutiveFailureCount = NewOptionalString("")
+	}
+	if v, ok := osInterface.LookupEnv("ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS"); ok && v == "" {
+		c.Alert.ExhaustedRetriesWindowSeconds = NewOptionalString("")
+	}
+}
+
+// captureEmptyWebhookHeaderEnv honors "an empty env var disables this webhook
+// header". Same caarlos0/env gap as captureEmptyAlertEnv: a present-but-empty
+// env var never reaches the OptionalString unmarshaler, so we detect it via
+// LookupEnv and set the empty (disabled) state explicitly.
+func (c *Config) captureEmptyWebhookHeaderEnv(osInterface OSInterface) {
+	for envVar, field := range map[string]*OptionalString{
+		"DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME":  &c.Destinations.Webhook.EventIDHeaderName,
+		"DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME": &c.Destinations.Webhook.SignatureHeaderName,
+		"DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME": &c.Destinations.Webhook.TimestampHeaderName,
+		"DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME":     &c.Destinations.Webhook.TopicHeaderName,
+	} {
+		if v, ok := osInterface.LookupEnv(envVar); ok && v == "" {
+			*field = NewOptionalString("")
+		}
+	}
 }
 
 func (c *Config) normalizeTopics() {
@@ -325,6 +424,7 @@ func (c *Config) MustGetService() ServiceType {
 // ParseWithoutValidation parses the config without validation
 func ParseWithoutValidation(flags Flags, osInterface OSInterface) (*Config, error) {
 	var config Config
+	config.osInterface = osInterface
 
 	// Initialize defaults
 	config.InitDefaults()
@@ -350,6 +450,13 @@ func Parse(flags Flags) (*Config, error) {
 	return ParseWithOS(flags, defaultOS)
 }
 
+// LoadWithoutValidation parses config the same way Parse does, but skips
+// validation. It's for tools like `outpost config list` that want to show
+// the resolved configuration even when required fields are missing.
+func LoadWithoutValidation(flags Flags) (*Config, error) {
+	return ParseWithoutValidation(flags, defaultOS)
+}
+
 // ParseWithOS parses and validates config with a custom OS interface
 func ParseWithOS(flags Flags, osInterface OSInterface) (*Config, error) {
 	config, err := ParseWithoutValidation(flags, osInterface)
@@ -371,7 +478,9 @@ type RedisConfig struct {
 	Password               string `yaml:"password" env:"REDIS_PASSWORD" desc:"Password for Redis authentication, if required by the server." required:"Y"`
 	Database               int    `yaml:"database" env:"REDIS_DATABASE" desc:"Redis database number to select after connecting (ignored in cluster mode)." required:"Y"`
 	TLSEnabled             bool   `yaml:"tls_enabled" env:"REDIS_TLS_ENABLED" desc:"Enable TLS encryption for Redis connection." required:"N"`
+	TLSVerify              bool   `yaml:"tls_verify" env:"REDIS_TLS_VERIFY" desc:"Enable verification of the Redis server's TLS certificate." required:"N"`
 	ClusterEnabled         bool   `yaml:"cluster_enabled" env:"REDIS_CLUSTER_ENABLED" desc:"Enable Redis cluster mode for distributed Redis deployments." required:"N"`
+	PoolSize               int    `yaml:"pool_size" env:"REDIS_POOL_SIZE" desc:"Connection pool size per Redis client (per node in cluster mode). 0 uses go-redis's default of 10 per GOMAXPROCS." required:"N"`
 	DevClusterHostOverride bool   `yaml:"dev_cluster_host_override" env:"REDIS_DEV_CLUSTER_HOST_OVERRIDE" desc:"Development only: Force cluster to use original host for discovered nodes. DO NOT use in production." required:"N"`
 }
 
@@ -383,8 +492,10 @@ func (c *RedisConfig) ToConfig() *redis.RedisConfig {
 		Password:               c.Password,
 		Database:               c.Database,
 		TLSEnabled:             c.TLSEnabled,
+		TLSVerify:              c.TLSVerify,
 		ClusterEnabled:         c.ClusterEnabled,
 		DevClusterHostOverride: c.DevClusterHostOverride,
+		PoolSize:               c.PoolSize,
 	}
 }
 
@@ -394,6 +505,11 @@ type ClickHouseConfig struct {
 	Password   string `yaml:"password" env:"CLICKHOUSE_PASSWORD" desc:"Password for ClickHouse authentication." required:"N"`
 	Database   string `yaml:"database" env:"CLICKHOUSE_DATABASE" desc:"Database name in ClickHouse to use." required:"N"`
 	TLSEnabled bool   `yaml:"tls_enabled" env:"CLICKHOUSE_TLS_ENABLED" desc:"Enable TLS for ClickHouse connection." required:"N"`
+
+	MaxOpenConns       int `yaml:"max_open_conns" env:"CLICKHOUSE_MAX_OPEN_CONNS" desc:"Maximum number of open connections in the ClickHouse connection pool. 0 uses the client default (10)." required:"N"`
+	DialTimeoutSeconds int `yaml:"dial_timeout_seconds" env:"CLICKHOUSE_DIAL_TIMEOUT_SECONDS" desc:"Seconds to wait when opening a ClickHouse connection or waiting for a free one from the pool. Default: 10" required:"N"`
+	ReadTimeoutSeconds int `yaml:"read_timeout_seconds" env:"CLICKHOUSE_READ_TIMEOUT_SECONDS" desc:"Seconds to wait for a ClickHouse query's response. Default: 30" required:"N"`
+	IdleCloseSeconds   int `yaml:"idle_close_seconds" env:"CLICKHOUSE_IDLE_CLOSE_SECONDS" desc:"Seconds without any ClickHouse call after which the connection pool is closed. The next call reconnects. Default: 300" required:"N"`
 }
 
 func (c *ClickHouseConfig) ToConfig() *clickhouse.ClickHouseConfig {
@@ -406,6 +522,11 @@ func (c *ClickHouseConfig) ToConfig() *clickhouse.ClickHouseConfig {
 		Password:   c.Password,
 		Database:   c.Database,
 		TLSEnabled: c.TLSEnabled,
+
+		MaxOpenConns: c.MaxOpenConns,
+		DialTimeout:  time.Duration(c.DialTimeoutSeconds) * time.Second,
+		ReadTimeout:  time.Duration(c.ReadTimeoutSeconds) * time.Second,
+		IdleClose:    time.Duration(c.IdleCloseSeconds) * time.Second,
 	}
 }
 
@@ -477,9 +598,68 @@ func (c *OperatorEventsConfig) ToConfig() opevents.Config {
 }
 
 type AlertConfig struct {
-	ConsecutiveFailureCount       int  `yaml:"consecutive_failure_count" env:"ALERT_CONSECUTIVE_FAILURE_COUNT" desc:"Number of consecutive delivery failures for a destination before triggering an alert and potentially disabling it." required:"N"`
-	AutoDisableDestination        bool `yaml:"auto_disable_destination" env:"ALERT_AUTO_DISABLE_DESTINATION" desc:"If true, automatically disables a destination after 'consecutive_failure_count' is reached." required:"N"`
-	ExhaustedRetriesWindowSeconds int  `yaml:"exhausted_retries_window_seconds" env:"ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS" desc:"Suppression window in seconds for exhausted_retries alerts. First exhaustion per destination emits an alert; subsequent exhaustions within the window are suppressed." required:"N"`
+	ConsecutiveFailureCount       OptionalString `yaml:"consecutive_failure_count" env:"ALERT_CONSECUTIVE_FAILURE_COUNT" desc:"Number of consecutive delivery failures before alerting on a destination and, with auto_disable_destination, disabling it. Leave unset for the default of 100; set to an empty string to disable consecutive-failure alerting entirely." required:"N"`
+	AutoDisableDestination        bool           `yaml:"auto_disable_destination" env:"ALERT_AUTO_DISABLE_DESTINATION" desc:"If true, automatically disables a destination when consecutive_failure_count is reached. Has no effect when consecutive-failure alerting is disabled." required:"N"`
+	ExhaustedRetriesWindowSeconds OptionalString `yaml:"exhausted_retries_window_seconds" env:"ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS" desc:"Suppression window in seconds for exhausted_retries alerts; the first exhaustion per destination emits an alert and subsequent ones within the window are suppressed (0 = no suppression). Leave unset for the default of 3600; set to an empty string to disable exhausted_retries alerting entirely." required:"N"`
+}
+
+// ToConfig resolves the raw alert config into operational alert.Settings. For
+// the two count fields the rule is: unset (nil) uses the built-in default, an
+// empty string disables that alert dimension, and any other value must parse to
+// a non-negative integer. It returns an error on a non-numeric or out-of-range
+// value so Validate can reject it at startup.
+func (c *AlertConfig) ToConfig() (alert.Settings, error) {
+	consecutive, err := resolveAlertCount(c.ConsecutiveFailureCount, alert.DefaultConsecutiveFailureCount, 1)
+	if err != nil {
+		return alert.Settings{}, fmt.Errorf("alert.consecutive_failure_count: %w", err)
+	}
+	exhausted, err := resolveAlertCount(c.ExhaustedRetriesWindowSeconds, alert.DefaultExhaustedRetriesWindowSeconds, 0)
+	if err != nil {
+		return alert.Settings{}, fmt.Errorf("alert.exhausted_retries_window_seconds: %w", err)
+	}
+	return alert.Settings{
+		ConsecutiveFailure: alert.ConsecutiveFailureSetting{
+			Enabled: consecutive.enabled,
+			Count:   consecutive.value,
+		},
+		ExhaustedRetries: alert.ExhaustedRetriesSetting{
+			Enabled:       exhausted.enabled,
+			WindowSeconds: exhausted.value,
+		},
+		AutoDisableDestination: c.AutoDisableDestination,
+	}, nil
+}
+
+type resolvedAlertCount struct {
+	enabled bool
+	value   int
+}
+
+// resolveAlertCount applies the unset/empty/value rule to a single raw field.
+// unset -> {enabled, defaultValue}; "" -> {disabled, 0}; else parse and require
+// value >= min.
+func resolveAlertCount(raw OptionalString, defaultValue, min int) (resolvedAlertCount, error) {
+	value, set := raw.Get()
+	if !set {
+		return resolvedAlertCount{enabled: true, value: defaultValue}, nil
+	}
+	if value == "" {
+		return resolvedAlertCount{enabled: false, value: 0}, nil
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil {
+		return resolvedAlertCount{}, fmt.Errorf("must be an integer, an empty string to disable, or unset for the default: %q", value)
+	}
+	if n < min {
+		return resolvedAlertCount{}, fmt.Errorf("must be >= %d, got %d", min, n)
+	}
+	return resolvedAlertCount{enabled: true, value: n}, nil
+}
+
+// DeprecationWarnings returns human-readable warnings for config options that
+// are set but deprecated or ignored, so callers can surface them at startup.
+func (c *Config) DeprecationWarnings() []string {
+	return append(c.Destinations.Webhook.deprecationWarnings(), c.Destinations.Webhook.standardModeWarnings()...)
 }
 
 // ConfigFilePath returns the path of the config file that was used
@@ -487,8 +667,50 @@ func (c *Config) ConfigFilePath() string {
 	return c.configPath
 }
 
-// GetRetryBackoff returns the configured backoff strategy based on retry configuration
+// GetRetryBackoff returns the configured backoff strategy based on retry
+// configuration. Every delay is at least one log flush, so the attempt a retry
+// looks up is usually stored by then.
 func (c *Config) GetRetryBackoff() (backoff.Backoff, int) {
+	b, limit := c.retryBackoff()
+	return c.floorBackoff(b), limit
+}
+
+func (c *Config) floorBackoff(b backoff.Backoff) backoff.Backoff {
+	return &backoff.MinimumBackoff{Backoff: b, Min: time.Duration(c.LogBatchThresholdSeconds) * time.Second}
+}
+
+// RetryTimingWarnings returns a warning when configured retry delays are below
+// LOG_BATCH_THRESHOLD_SECONDS and so are raised to it. The configuration stays
+// valid: existing schedules keep working, with the raised delays.
+func (c *Config) RetryTimingWarnings() []string {
+	floor := time.Duration(c.LogBatchThresholdSeconds) * time.Second
+	if floor <= 0 {
+		return nil
+	}
+	b, limit := c.retryBackoff()
+	steps := limit
+	if len(c.RetrySchedule) > 0 {
+		steps = len(c.RetrySchedule)
+	}
+	var raised []string
+	for i := 0; i < steps; i++ {
+		d := b.Duration(i)
+		// Exponential delays only grow (a non-positive value is overflow), so
+		// the first delay at or above the floor ends the scan.
+		if len(c.RetrySchedule) == 0 && (d >= floor || d <= 0) {
+			break
+		}
+		if d < floor {
+			raised = append(raised, d.String())
+		}
+	}
+	if len(raised) == 0 {
+		return nil
+	}
+	return []string{fmt.Sprintf("retry delays below LOG_BATCH_THRESHOLD_SECONDS (%s) are raised to it: %s", floor, strings.Join(raised, ", "))}
+}
+
+func (c *Config) retryBackoff() (backoff.Backoff, int) {
 	if len(c.RetrySchedule) > 0 {
 		// Use scheduled backoff if retry_schedule is provided
 		schedule := make([]time.Duration, len(c.RetrySchedule))
@@ -502,6 +724,33 @@ func (c *Config) GetRetryBackoff() (backoff.Backoff, int) {
 		Interval: time.Duration(c.RetryIntervalSeconds) * time.Second,
 		Base:     2,
 	}, c.RetryMaxLimit
+}
+
+// defaultRetryPollBackoff is the ceiling for the auto retry poll backoff
+// (RetryPollBackoffMs = 0): the monitor never sleeps longer than this while
+// idle, even when the shortest configured retry delay is longer.
+const defaultRetryPollBackoff = 30 * time.Second
+
+// GetRetryPollBackoff returns the maximum time the retry monitor waits between
+// polls while idle. An explicitly configured positive value is honored as-is.
+// Otherwise (0 = auto) it is min(defaultRetryPollBackoff, shortest configured
+// retry delay), so the monitor is always awake by the time the earliest
+// possible retry comes due and the idle interval never adds latency.
+func (c *Config) GetRetryPollBackoff() time.Duration {
+	if c.RetryPollBackoffMs > 0 {
+		return time.Duration(c.RetryPollBackoffMs) * time.Millisecond
+	}
+	shortest := time.Duration(c.RetryIntervalSeconds) * time.Second
+	if len(c.RetrySchedule) > 0 {
+		shortest = time.Duration(slices.Min(c.RetrySchedule)) * time.Second
+	}
+	if c.Experimental.MCP.Enabled {
+		shortest = min(shortest, max(slices.Min(c.mcpRetryDelays()), time.Duration(c.LogBatchThresholdSeconds)*time.Second))
+	}
+	if shortest > 0 && shortest < defaultRetryPollBackoff {
+		return shortest
+	}
+	return defaultRetryPollBackoff
 }
 
 type TelemetryConfig struct {

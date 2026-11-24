@@ -8,6 +8,9 @@ import { safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
+/**
+ * Partial Webhook credentials for PATCH updates (RFC 7396 merge-patch).
+ */
 export type WebhookCredentialsUpdate = {
   /**
    * New secret (only allowed for admin).

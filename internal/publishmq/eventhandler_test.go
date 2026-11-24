@@ -18,6 +18,61 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
+func TestEventHandler_DisabledWildcardTopics(t *testing.T) {
+	ctx := t.Context()
+	store := tenantstore.NewMemTenantStore()
+	require.NoError(t, store.UpsertTenant(ctx, testutil.TenantFactory.Any(testutil.TenantFactory.WithID("tenant_1"))))
+	require.NoError(t, store.UpsertDestination(ctx, testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithID("destination_1"),
+		testutil.DestinationFactory.WithTenantID("tenant_1"),
+		testutil.DestinationFactory.WithTopics([]string{"user.*"}),
+	)))
+
+	handler := publishmq.NewEventHandler(
+		testutil.CreateTestLogger(t),
+		nil,
+		store,
+		nil,
+		testutil.TestTopics,
+		false,
+		nil,
+	)
+
+	for _, destinationID := range []string{"", "destination_1"} {
+		event := testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithTenantID("tenant_1"),
+			testutil.EventFactory.WithDestinationID(destinationID),
+			testutil.EventFactory.WithTopic("user.created"),
+		)
+		result, err := handler.Handle(ctx, event)
+		require.NoError(t, err)
+		require.Empty(t, result.DestinationIDs)
+	}
+}
+
+func TestEventHandler_InternalDestinationType(t *testing.T) {
+	ctx := t.Context()
+	store := tenantstore.NewMemTenantStore()
+	require.NoError(t, store.UpsertTenant(ctx, testutil.TenantFactory.Any(testutil.TenantFactory.WithID("tenant_1"))))
+	require.NoError(t, store.UpsertDestination(ctx, testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithID("destination_1"),
+		testutil.DestinationFactory.WithTenantID("tenant_1"),
+		testutil.DestinationFactory.WithType("mcp"),
+		testutil.DestinationFactory.WithTopics([]string{"*"}),
+	)))
+
+	handler := publishmq.NewEventHandler(testutil.CreateTestLogger(t), nil, store, nil, testutil.TestTopics, false, nil)
+	event := testutil.EventFactory.AnyPointer(
+		testutil.EventFactory.WithTenantID("tenant_1"),
+		testutil.EventFactory.WithDestinationID("destination_1"),
+		testutil.EventFactory.WithTopic("user.created"),
+	)
+
+	result, err := handler.Handle(ctx, event)
+	require.NoError(t, err)
+	require.Empty(t, result.DestinationIDs)
+}
+
 func TestIntegrationPublishMQEventHandler_Concurrency(t *testing.T) {
 	t.Cleanup(testinfra.Start(t))
 
@@ -28,7 +83,7 @@ func TestIntegrationPublishMQEventHandler_Concurrency(t *testing.T) {
 	logger := testutil.CreateTestLogger(t)
 	redisClient := testutil.CreateTestRedisClient(t)
 	tenantStore := tenantstore.New(tenantstore.Config{RedisClient: redisClient, AvailableTopics: testutil.TestTopics})
-	mqConfig := testinfra.NewMQAWSConfig(t, nil)
+	mqConfig := testinfra.NewMQNATSConfig(t)
 	deliveryMQ := deliverymq.New(deliverymq.WithQueue(&mqConfig))
 	cleanup, err := deliveryMQ.Init(ctx)
 	require.NoError(t, err)
@@ -38,6 +93,7 @@ func TestIntegrationPublishMQEventHandler_Concurrency(t *testing.T) {
 		tenantStore,
 		mockEventTracer,
 		testutil.TestTopics,
+		true,
 		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
@@ -86,7 +142,7 @@ func TestEventHandler_WildcardTopic(t *testing.T) {
 	logger := testutil.CreateTestLogger(t)
 	redisClient := testutil.CreateTestRedisClient(t)
 	tenantStore := tenantstore.New(tenantstore.Config{RedisClient: redisClient, AvailableTopics: testutil.TestTopics})
-	mqConfig := testinfra.NewMQAWSConfig(t, nil)
+	mqConfig := testinfra.NewMQNATSConfig(t)
 	deliveryMQ := deliverymq.New(deliverymq.WithQueue(&mqConfig))
 	cleanup, err := deliveryMQ.Init(ctx)
 	require.NoError(t, err)
@@ -101,6 +157,7 @@ func TestEventHandler_WildcardTopic(t *testing.T) {
 		tenantStore,
 		mockEventTracer,
 		testutil.TestTopics,
+		true,
 		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
@@ -218,7 +275,7 @@ func TestEventHandler_HandleResult(t *testing.T) {
 	logger := testutil.CreateTestLogger(t)
 	redisClient := testutil.CreateTestRedisClient(t)
 	tenantStore := tenantstore.New(tenantstore.Config{RedisClient: redisClient, AvailableTopics: testutil.TestTopics})
-	mqConfig := testinfra.NewMQAWSConfig(t, nil)
+	mqConfig := testinfra.NewMQNATSConfig(t)
 	deliveryMQ := deliverymq.New(deliverymq.WithQueue(&mqConfig))
 	cleanup, err := deliveryMQ.Init(ctx)
 	require.NoError(t, err)
@@ -230,6 +287,7 @@ func TestEventHandler_HandleResult(t *testing.T) {
 		tenantStore,
 		testutil.NewMockEventTracer(tracetest.NewInMemoryExporter()),
 		testutil.TestTopics,
+		true,
 		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 
@@ -260,6 +318,44 @@ func TestEventHandler_HandleResult(t *testing.T) {
 		require.Equal(t, event.ID, result.EventID)
 		require.False(t, result.Duplicate)
 		require.Len(t, result.DestinationIDs, 3)
+	})
+
+	t.Run("normal publish with wildcard destination topics", func(t *testing.T) {
+		wildcardTenant := models.Tenant{
+			ID:        idgen.String(),
+			CreatedAt: time.Now(),
+		}
+		require.NoError(t, tenantStore.UpsertTenant(ctx, wildcardTenant))
+
+		destFactory := testutil.DestinationFactory
+		matchingDestinations := []models.Destination{
+			destFactory.Any(
+				destFactory.WithTenantID(wildcardTenant.ID),
+				destFactory.WithTopics([]string{"user.*"}),
+			),
+			destFactory.Any(
+				destFactory.WithTenantID(wildcardTenant.ID),
+				destFactory.WithTopics([]string{"*.created"}),
+			),
+		}
+		for _, dest := range matchingDestinations {
+			require.NoError(t, tenantStore.UpsertDestination(ctx, dest))
+		}
+		require.NoError(t, tenantStore.UpsertDestination(ctx, destFactory.Any(
+			destFactory.WithTenantID(wildcardTenant.ID),
+			destFactory.WithTopics([]string{"user.deleted*"}),
+		)))
+
+		event := testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithTenantID(wildcardTenant.ID),
+			testutil.EventFactory.WithTopic("user.created"),
+		)
+
+		result, err := eventHandler.Handle(ctx, event)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.False(t, result.Duplicate)
+		require.ElementsMatch(t, []string{matchingDestinations[0].ID, matchingDestinations[1].ID}, result.DestinationIDs)
 	})
 
 	t.Run("no destinations matched", func(t *testing.T) {
@@ -406,7 +502,7 @@ func TestEventHandler_Filter(t *testing.T) {
 	logger := testutil.CreateTestLogger(t)
 	redisClient := testutil.CreateTestRedisClient(t)
 	tenantStore := tenantstore.New(tenantstore.Config{RedisClient: redisClient, AvailableTopics: testutil.TestTopics})
-	mqConfig := testinfra.NewMQAWSConfig(t, nil)
+	mqConfig := testinfra.NewMQNATSConfig(t)
 	deliveryMQ := deliverymq.New(deliverymq.WithQueue(&mqConfig))
 	cleanup, err := deliveryMQ.Init(ctx)
 	require.NoError(t, err)
@@ -422,6 +518,7 @@ func TestEventHandler_Filter(t *testing.T) {
 		tenantStore,
 		testutil.NewMockEventTracer(tracetest.NewInMemoryExporter()),
 		testutil.TestTopics,
+		true,
 		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
 	)
 

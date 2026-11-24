@@ -13,6 +13,8 @@ Developer-friendly & type-safe Typescript SDK specifically catered to leverage t
 ## Summary
 
 Outpost API: The Outpost API is a REST-based JSON API for managing tenants, destinations, and publishing events.
+
+Outpost runs in two deployment models: **managed** (hosted by Hookdeck) and **self-hosted**. They differ in where the API is served and in which API key authenticates server-side calls. On managed Outpost, use a Hookdeck project API key from your Outpost project. On self-hosted Outpost, use the key set in the `API_KEY` environment variable. A few endpoints exist in one model only and say so in their description.
 <!-- End Summary [summary] -->
 
 <!-- Start Table of Contents [toc] -->
@@ -25,7 +27,6 @@ Outpost API: The Outpost API is a REST-based JSON API for managing tenants, dest
   * [Authentication](#authentication)
   * [Available Resources and Operations](#available-resources-and-operations)
   * [Standalone functions](#standalone-functions)
-  * [Pagination](#pagination)
   * [Retries](#retries)
   * [Error Handling](#error-handling)
   * [Server Selection](#server-selection)
@@ -284,6 +285,23 @@ run();
 * [getEventMetrics](docs/sdks/metrics/README.md#geteventmetrics) - Get Event Metrics
 * [getAttemptMetrics](docs/sdks/metrics/README.md#getattemptmetrics) - Get Attempt Metrics
 
+### [OperatorEvents](docs/sdks/operatorevents/README.md)
+
+* [listDestinationTypes](docs/sdks/operatorevents/README.md#listdestinationtypes) - List Operator Event Destination Type Schemas
+* [listDestinations](docs/sdks/operatorevents/README.md#listdestinations) - List Operator Event Destinations
+* [createDestination](docs/sdks/operatorevents/README.md#createdestination) - Create Operator Event Destination
+* [getDestination](docs/sdks/operatorevents/README.md#getdestination) - Get Operator Event Destination
+* [updateDestination](docs/sdks/operatorevents/README.md#updatedestination) - Update Operator Event Destination
+* [deleteDestination](docs/sdks/operatorevents/README.md#deletedestination) - Delete Operator Event Destination
+* [enableDestination](docs/sdks/operatorevents/README.md#enabledestination) - Enable Operator Event Destination
+* [disableDestination](docs/sdks/operatorevents/README.md#disabledestination) - Disable Operator Event Destination
+* [listEvents](docs/sdks/operatorevents/README.md#listevents) - List Operator Events
+* [getEvent](docs/sdks/operatorevents/README.md#getevent) - Get Operator Event
+* [listEventAttempts](docs/sdks/operatorevents/README.md#listeventattempts) - List Attempts for an Operator Event
+* [listAttempts](docs/sdks/operatorevents/README.md#listattempts) - List Operator Event Attempts
+* [getAttempt](docs/sdks/operatorevents/README.md#getattempt) - Get Operator Event Attempt
+* [retry](docs/sdks/operatorevents/README.md#retry) - Retry Operator Event Delivery
+
 ### [Schemas](docs/sdks/schemas/README.md)
 
 * [listDestinationTypes](docs/sdks/schemas/README.md#listdestinationtypes) - List Destination Type Schemas
@@ -338,6 +356,20 @@ To read more about standalone functions, check [FUNCTIONS.md](./FUNCTIONS.md).
 - [`healthCheck`](docs/sdks/health/README.md#check) - Health Check
 - [`metricsGetAttemptMetrics`](docs/sdks/metrics/README.md#getattemptmetrics) - Get Attempt Metrics
 - [`metricsGetEventMetrics`](docs/sdks/metrics/README.md#geteventmetrics) - Get Event Metrics
+- [`operatorEventsCreateDestination`](docs/sdks/operatorevents/README.md#createdestination) - Create Operator Event Destination
+- [`operatorEventsDeleteDestination`](docs/sdks/operatorevents/README.md#deletedestination) - Delete Operator Event Destination
+- [`operatorEventsDisableDestination`](docs/sdks/operatorevents/README.md#disabledestination) - Disable Operator Event Destination
+- [`operatorEventsEnableDestination`](docs/sdks/operatorevents/README.md#enabledestination) - Enable Operator Event Destination
+- [`operatorEventsGetAttempt`](docs/sdks/operatorevents/README.md#getattempt) - Get Operator Event Attempt
+- [`operatorEventsGetDestination`](docs/sdks/operatorevents/README.md#getdestination) - Get Operator Event Destination
+- [`operatorEventsGetEvent`](docs/sdks/operatorevents/README.md#getevent) - Get Operator Event
+- [`operatorEventsListAttempts`](docs/sdks/operatorevents/README.md#listattempts) - List Operator Event Attempts
+- [`operatorEventsListDestinations`](docs/sdks/operatorevents/README.md#listdestinations) - List Operator Event Destinations
+- [`operatorEventsListDestinationTypes`](docs/sdks/operatorevents/README.md#listdestinationtypes) - List Operator Event Destination Type Schemas
+- [`operatorEventsListEventAttempts`](docs/sdks/operatorevents/README.md#listeventattempts) - List Attempts for an Operator Event
+- [`operatorEventsListEvents`](docs/sdks/operatorevents/README.md#listevents) - List Operator Events
+- [`operatorEventsRetry`](docs/sdks/operatorevents/README.md#retry) - Retry Operator Event Delivery
+- [`operatorEventsUpdateDestination`](docs/sdks/operatorevents/README.md#updatedestination) - Update Operator Event Destination
 - [`publish`](docs/sdks/outpost/README.md#publish) - Publish Event
 - [`retry`](docs/sdks/outpost/README.md#retry) - Retry Event Delivery
 - [`schemasGetDestinationType`](docs/sdks/schemas/README.md#getdestinationtype) - Get Destination Type Schema
@@ -352,38 +384,6 @@ To read more about standalone functions, check [FUNCTIONS.md](./FUNCTIONS.md).
 
 </details>
 <!-- End Standalone functions [standalone-funcs] -->
-
-<!-- Start Pagination [pagination] -->
-## Pagination
-
-Some of the endpoints in this SDK support pagination. To use pagination, you
-make your SDK calls as usual, but the returned response object will also be an
-async iterable that can be consumed using the [`for await...of`][for-await-of]
-syntax.
-
-[for-await-of]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/for-await...of
-
-Here's an example of one such pagination call:
-
-```typescript
-import { Outpost } from "@hookdeck/outpost-sdk";
-
-const outpost = new Outpost({
-  apiKey: "<YOUR_BEARER_TOKEN_HERE>",
-});
-
-async function run() {
-  const result = await outpost.tenants.list({});
-
-  for await (const page of result) {
-    console.log(page);
-  }
-}
-
-run();
-
-```
-<!-- End Pagination [pagination] -->
 
 <!-- Start Retries [retries] -->
 ## Retries
@@ -552,12 +552,12 @@ run();
 
 
 **Inherit from [`OutpostError`](./src/models/errors/outposterror.ts)**:
-* [`NotFoundError`](./src/models/errors/notfounderror.ts): Status codes relating to the resource/entity they are requesting not being found or endpoints/routes not existing. Applicable to 21 of 29 methods.*
-* [`BadRequestError`](./src/models/errors/badrequesterror.ts): A collection of codes that generally means the end user got something wrong in making the request. Applicable to 9 of 29 methods.*
-* [`APIErrorResponse`](./src/models/errors/apierrorresponse.ts): Standard error response format. Applicable to 6 of 29 methods.*
-* [`TimeoutError`](./src/models/errors/timeouterror.ts): Timeouts occurred with the request. Applicable to 5 of 29 methods.*
-* [`RateLimitedError`](./src/models/errors/ratelimitederror.ts): Status codes relating to the client being rate limited by the server. Status code `429`. Applicable to 5 of 29 methods.*
-* [`NotImplementedError`](./src/models/errors/notimplementederror.ts): List Tenants feature is not available. Requires Redis with RediSearch module. Status code `501`. Applicable to 1 of 29 methods.*
+* [`NotFoundError`](./src/models/errors/notfounderror.ts): Status codes relating to the resource/entity they are requesting not being found or endpoints/routes not existing. Applicable to 29 of 43 methods.*
+* [`APIErrorResponse`](./src/models/errors/apierrorresponse.ts): Standard error response format. Applicable to 26 of 43 methods.*
+* [`BadRequestError`](./src/models/errors/badrequesterror.ts): A collection of codes that generally means the end user got something wrong in making the request. Applicable to 16 of 43 methods.*
+* [`TimeoutError`](./src/models/errors/timeouterror.ts): Timeouts occurred with the request. Applicable to 5 of 43 methods.*
+* [`RateLimitedError`](./src/models/errors/ratelimitederror.ts): Status codes relating to the client being rate limited by the server. Status code `429`. Applicable to 5 of 43 methods.*
+* [`NotImplementedError`](./src/models/errors/notimplementederror.ts): List Tenants feature is not available. Requires Redis with RediSearch module. Status code `501`. Applicable to 1 of 43 methods.*
 * [`ResponseValidationError`](./src/models/errors/responsevalidationerror.ts): Type mismatch between the data returned from the server and the structure expected by the SDK. See `error.rawValue` for the raw value and `error.pretty()` for a nicely formatted multi-line string.
 
 </details>
@@ -572,10 +572,10 @@ run();
 
 You can override the default server globally by passing a server index to the `serverIdx: number` optional parameter when initializing the SDK client instance. The selected server will then be used as the default on the operations that use it. This table lists the indexes associated with the available servers:
 
-| #   | Server                                        | Description                        |
-| --- | --------------------------------------------- | ---------------------------------- |
-| 0   | `https://api.outpost.hookdeck.com/2025-07-01` | Outpost API (production)           |
-| 1   | `http://localhost:3333/api/v1`                | Local development server base path |
+| #   | Server                                        | Description                                                                                                                                |
+| --- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| 0   | `https://api.outpost.hookdeck.com/2025-07-01` | Managed Outpost, hosted by Hookdeck at `api.outpost.hookdeck.com`. The Hookdeck Event Gateway API at `api.hookdeck.com` is a separate API. |
+| 1   | `http://localhost:3333/api/v1`                | Self-hosted Outpost, at its default local address. A deployed instance serves the same paths under its own host.                           |
 
 #### Example
 

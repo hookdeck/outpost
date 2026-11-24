@@ -25,6 +25,7 @@ let value: EventPaginatedResult = {
       ],
       topic: "user.created",
       time: new Date("2024-01-01T00:00:00Z"),
+      eligibleForRetry: true,
       metadata: {
         "source": "crm",
       },

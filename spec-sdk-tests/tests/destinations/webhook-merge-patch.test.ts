@@ -18,12 +18,11 @@ describe('Webhook Destinations - Merge-Patch Semantics (RFC 7396)', () => {
     }
   });
 
-  after(async () => {
-    for (const id of createdDestinations) {
-      try {
-        await client.deleteDestination(id);
-      } catch {}
-    }
+  after(async function () {
+    this.timeout(30000);
+    await Promise.all(
+      createdDestinations.map((id) => client.deleteDestination(id).catch(() => {}))
+    );
     try {
       await client.deleteTenant();
     } catch {}
@@ -42,6 +41,7 @@ describe('Webhook Destinations - Merge-Patch Semantics (RFC 7396)', () => {
       const id = await createDest({ metadata: { env: 'prod' } });
 
       const updated = await client.updateDestination(id, {
+        type: 'webhook',
         metadata: { env: 'prod', team: 'platform' },
       });
 
@@ -52,6 +52,7 @@ describe('Webhook Destinations - Merge-Patch Semantics (RFC 7396)', () => {
       const id = await createDest({ metadata: { env: 'prod' } });
 
       const updated = await client.updateDestination(id, {
+        type: 'webhook',
         metadata: { env: 'staging' },
       });
 
@@ -62,6 +63,7 @@ describe('Webhook Destinations - Merge-Patch Semantics (RFC 7396)', () => {
       const id = await createDest({ metadata: { env: 'prod', region: 'us-east-1' } });
 
       const updated = await client.updateDestination(id, {
+        type: 'webhook',
         metadata: { env: 'prod', region: null },
       });
 
@@ -73,6 +75,7 @@ describe('Webhook Destinations - Merge-Patch Semantics (RFC 7396)', () => {
       const id = await createDest({ metadata: { env: 'prod' } });
 
       const updated = await client.updateDestination(id, {
+        type: 'webhook',
         metadata: null,
       });
 
@@ -87,6 +90,7 @@ describe('Webhook Destinations - Merge-Patch Semantics (RFC 7396)', () => {
       const id = await createDest({ metadata: { env: 'prod' } });
 
       const updated = await client.updateDestination(id, {
+        type: 'webhook',
         metadata: {},
       });
 
@@ -97,6 +101,7 @@ describe('Webhook Destinations - Merge-Patch Semantics (RFC 7396)', () => {
       const id = await createDest({ metadata: { env: 'prod' } });
 
       const updated = await client.updateDestination(id, {
+        type: 'webhook',
         topics: ['*'],
       });
 
@@ -109,6 +114,7 @@ describe('Webhook Destinations - Merge-Patch Semantics (RFC 7396)', () => {
       });
 
       const updated = await client.updateDestination(id, {
+        type: 'webhook',
         metadata: { keep: 'v', remove: null, update: 'new', add: 'v' },
       });
 
@@ -124,6 +130,7 @@ describe('Webhook Destinations - Merge-Patch Semantics (RFC 7396)', () => {
       const id = await createDest({ deliveryMetadata: { source: 'outpost' } });
 
       const updated = await client.updateDestination(id, {
+        type: 'webhook',
         deliveryMetadata: { source: 'outpost', version: '1.0' },
       });
 
@@ -136,6 +143,7 @@ describe('Webhook Destinations - Merge-Patch Semantics (RFC 7396)', () => {
       });
 
       const updated = await client.updateDestination(id, {
+        type: 'webhook',
         deliveryMetadata: { source: 'outpost', version: null },
       });
 
@@ -146,6 +154,7 @@ describe('Webhook Destinations - Merge-Patch Semantics (RFC 7396)', () => {
       const id = await createDest({ deliveryMetadata: { source: 'outpost' } });
 
       const updated = await client.updateDestination(id, {
+        type: 'webhook',
         deliveryMetadata: null,
       });
 
@@ -161,6 +170,7 @@ describe('Webhook Destinations - Merge-Patch Semantics (RFC 7396)', () => {
       const id = await createDest({ deliveryMetadata: { source: 'outpost' } });
 
       const updated = await client.updateDestination(id, {
+        type: 'webhook',
         deliveryMetadata: {},
       });
 
@@ -177,6 +187,7 @@ describe('Webhook Destinations - Merge-Patch Semantics (RFC 7396)', () => {
       });
 
       const updated = await client.updateDestination(id, {
+        type: 'webhook',
         filter: { body: { status: 'active' } },
       });
 
@@ -189,6 +200,7 @@ describe('Webhook Destinations - Merge-Patch Semantics (RFC 7396)', () => {
       });
 
       const updated = await client.updateDestination(id, {
+        type: 'webhook',
         filter: {},
       });
 
@@ -205,6 +217,7 @@ describe('Webhook Destinations - Merge-Patch Semantics (RFC 7396)', () => {
       });
 
       const updated = await client.updateDestination(id, {
+        type: 'webhook',
         filter: null,
       });
 
@@ -221,6 +234,7 @@ describe('Webhook Destinations - Merge-Patch Semantics (RFC 7396)', () => {
       });
 
       const updated = await client.updateDestination(id, {
+        type: 'webhook',
         topics: ['*'],
       });
 

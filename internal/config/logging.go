@@ -3,9 +3,24 @@ package config
 import (
 	"strings"
 
+	"github.com/hookdeck/outpost/internal/destregistry"
+	destregistrydefault "github.com/hookdeck/outpost/internal/destregistry/providers"
 	"github.com/hookdeck/outpost/internal/version"
 	"go.uber.org/zap"
 )
+
+// webhookHeaderSummary renders a resolved webhook header directive for the
+// startup log: "disabled", "<default>" (prefix + key), or the pinned name.
+func webhookHeaderSummary(h destregistrydefault.WebhookHeaderConfig) string {
+	switch {
+	case h.Disabled:
+		return "disabled"
+	case h.Name == "":
+		return "<default>"
+	default:
+		return h.Name
+	}
+}
 
 // LogConfigurationSummary returns zap fields with configuration summary, masking sensitive data
 //
@@ -20,6 +35,19 @@ import (
 //
 // See contributing/config.md for detailed guidelines on configuration logging.
 func (c *Config) LogConfigurationSummary() []zap.Field {
+	// Resolve alert settings so the summary logs the effective values. The error
+	// is ignored — config is already validated by the time this runs.
+	alertSettings, _ := c.Alert.ToConfig()
+
+	// Resolve the webhook config so the summary reflects the effective header
+	// directives (three-state name configs, deprecated DISABLE_* flags) and
+	// proxy chain.
+	webhookCfg := c.Destinations.ToConfig(c).Webhook
+
+	// Delivery connection pool. Not configurable — derived from the delivery
+	// worker pool size — so the resolved values are logged.
+	fanOutPool := destregistry.SizeFanOutPool(c.DeliveryMaxConcurrency)
+
 	fields := []zap.Field{
 		// General
 		zap.String("service", c.Service),
@@ -31,7 +59,6 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 			return "none (using defaults and environment variables)"
 		}()),
 		zap.String("log_level", c.LogLevel),
-		zap.Bool("audit_log", c.AuditLog),
 		zap.String("deployment_id", c.DeploymentID),
 		zap.Strings("topics", c.Topics),
 		zap.String("http_user_agent", c.HTTPUserAgent),
@@ -51,7 +78,9 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 		zap.Bool("redis_password_configured", c.Redis.Password != ""),
 		zap.Int("redis_database", c.Redis.Database),
 		zap.Bool("redis_tls_enabled", c.Redis.TLSEnabled),
+		zap.Bool("redis_tls_verify", c.Redis.TLSVerify),
 		zap.Bool("redis_cluster_enabled", c.Redis.ClusterEnabled),
+		zap.Int("redis_pool_size", c.Redis.PoolSize),
 
 		// PostgreSQL
 		zap.Bool("postgres_configured", c.PostgresURL != ""),
@@ -63,12 +92,17 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 		zap.String("clickhouse_database", c.ClickHouse.Database),
 		zap.Bool("clickhouse_password_configured", c.ClickHouse.Password != ""),
 		zap.Bool("clickhouse_tls_enabled", c.ClickHouse.TLSEnabled),
+		zap.Int("clickhouse_max_open_conns", c.ClickHouse.MaxOpenConns),
+		zap.Int("clickhouse_dial_timeout_seconds", c.ClickHouse.DialTimeoutSeconds),
+		zap.Int("clickhouse_read_timeout_seconds", c.ClickHouse.ReadTimeoutSeconds),
+		zap.Int("clickhouse_idle_close_seconds", c.ClickHouse.IdleCloseSeconds),
 
 		// Message Queue
 		zap.String("mq_type", c.MQs.GetInfraType()),
 
 		// Consumers
 		zap.Int("publish_max_concurrency", c.PublishMaxConcurrency),
+		zap.Int("publish_max_redeliveries", c.PublishMaxRedeliveries),
 		zap.Int("delivery_max_concurrency", c.DeliveryMaxConcurrency),
 		zap.Int("log_max_concurrency", c.LogMaxConcurrency),
 
@@ -76,10 +110,18 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 		zap.Ints("retry_schedule", c.RetrySchedule),
 		zap.Int("retry_interval_seconds", c.RetryIntervalSeconds),
 		zap.Int("retry_max_limit", c.RetryMaxLimit),
+		zap.Int("retry_max_concurrency", c.RetryMaxConcurrency),
+		zap.Int("retry_max_receive_count", c.RetryMaxReceiveCount),
+		zap.Int("retry_lookup_batch_size", c.RetryLookupBatchSize),
+		zap.Int("retry_lookup_batch_wait_ms", c.RetryLookupBatchWaitMs),
+		zap.Int("retry_poll_backoff_ms", int(c.GetRetryPollBackoff().Milliseconds())),
 
 		// Event Delivery
 		zap.Int("max_destinations_per_tenant", c.MaxDestinationsPerTenant),
+		zap.Int("max_event_size_bytes", c.MaxEventSizeBytes),
 		zap.Int("delivery_timeout_seconds", c.DeliveryTimeoutSeconds),
+		zap.Int("delivery_max_idle_conns", fanOutPool.MaxIdleConns),
+		zap.Int("delivery_max_idle_conns_per_host", fanOutPool.MaxIdleConnsPerHost),
 
 		// Idempotency
 		zap.Int("publish_idempotency_key_ttl", c.PublishIdempotencyKeyTTL),
@@ -91,10 +133,22 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 
 		// Telemetry
 		zap.Bool("telemetry_disabled", c.Telemetry.Disabled || c.DisableTelemetry),
+		zap.Bool("otel_enabled", c.OpenTelemetry.ServiceName != ""),
+		zap.Strings("otel_enabled_instrumentations", c.OpenTelemetry.enabledInstrumentations()),
 
 		// Alert
-		zap.Int("alert_consecutive_failure_count", c.Alert.ConsecutiveFailureCount),
+		zap.Bool("alert_consecutive_failure_enabled", alertSettings.ConsecutiveFailure.Enabled),
+		zap.Int("alert_consecutive_failure_count", alertSettings.ConsecutiveFailure.Count),
 		zap.Bool("alert_auto_disable_destination", c.Alert.AutoDisableDestination),
+		zap.Bool("alert_exhausted_retries_enabled", alertSettings.ExhaustedRetries.Enabled),
+		zap.Int("alert_exhausted_retries_window_seconds", alertSettings.ExhaustedRetries.WindowSeconds),
+
+		// Supervisor
+		zap.Strings("supervisor_restart_workers", c.Supervisor.restartWorkers()),
+		zap.Int("supervisor_startup_max_attempts", c.Supervisor.Startup.MaxAttempts),
+		zap.Int("supervisor_startup_max_duration_seconds", c.Supervisor.Startup.MaxDurationSeconds),
+		zap.Int("supervisor_recovery_max_attempts", c.Supervisor.Recovery.MaxAttempts),
+		zap.Int("supervisor_recovery_max_duration_seconds", c.Supervisor.Recovery.MaxDurationSeconds),
 
 		// ID Generation
 		zap.String("idgen_type", c.IDGen.Type),
@@ -102,11 +156,42 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 
 		// Retention
 		zap.Int("clickhouse_log_retention_ttl_days", c.ClickHouseLogRetentionTTLDays),
+
+		// Proxy chains in effect (configured only; values may carry credentials)
+		zap.Bool("publish_proxy_url_configured", strings.TrimSpace(c.PublishMQ.ProxyURL) != ""),
+		zap.Bool("destinations_proxy_url_configured", strings.TrimSpace(c.Destinations.ProxyURL) != ""),
+		zap.Bool("destinations_webhook_proxied", strings.TrimSpace(webhookCfg.ProxyURL) != ""),
+		zap.Bool("destinations_block_private_addresses", c.Destinations.BlockPrivateAddresses),
+		zap.Int("destinations_private_address_allowlist_entries", len(c.Destinations.PrivateAddressAllowlist)),
+
+		// Destinations - Webhook (effective header directives after resolving the
+		// three-state name configs and deprecated DISABLE_* flags)
+		zap.String("destinations_webhook_event_id_header", webhookHeaderSummary(webhookCfg.EventIDHeader)),
+		zap.String("destinations_webhook_signature_header", webhookHeaderSummary(webhookCfg.SignatureHeader)),
+		zap.String("destinations_webhook_timestamp_header", webhookHeaderSummary(webhookCfg.TimestampHeader)),
+		zap.String("destinations_webhook_topic_header", webhookHeaderSummary(webhookCfg.TopicHeader)),
+		zap.Bool("destinations_webhook_follow_redirects", webhookCfg.FollowRedirects),
+
+		// Destinations - AWS EventBridge
+		zap.String("destinations_aws_eventbridge_source", c.Destinations.AWSEventBridge.Source),
 	}
 
 	// Add MQ-specific fields based on type
 	mqType := c.MQs.GetInfraType()
 	fields = append(fields, c.getMQSpecificFields(mqType)...)
+
+	// Effective per-worker supervisor settings (overrides applied).
+	for _, key := range SupervisorWorkerKeys {
+		startup, recovery := c.Supervisor.Effective(key)
+		prefix := "supervisor_" + key + "_"
+		fields = append(fields,
+			zap.Bool(prefix+"restart", c.Supervisor.RestartEnabled(key)),
+			zap.Int(prefix+"startup_max_attempts", startup.MaxAttempts),
+			zap.Int(prefix+"startup_max_duration_seconds", startup.MaxDurationSeconds),
+			zap.Int(prefix+"recovery_max_attempts", recovery.MaxAttempts),
+			zap.Int(prefix+"recovery_max_duration_seconds", recovery.MaxDurationSeconds),
+		)
+	}
 
 	return fields
 }
@@ -123,6 +208,8 @@ func (c *Config) getMQSpecificFields(mqType string) []zap.Field {
 			zap.String("rabbitmq_exchange", c.MQs.RabbitMQ.Exchange),
 			zap.String("rabbitmq_delivery_queue", c.MQs.RabbitMQ.DeliveryQueue),
 			zap.String("rabbitmq_log_queue", c.MQs.RabbitMQ.LogQueue),
+			zap.String("rabbitmq_delivery_dlq", c.MQs.RabbitMQ.getDLQName("deliverymq")),
+			zap.String("rabbitmq_log_dlq", c.MQs.RabbitMQ.getDLQName("logmq")),
 		}
 	case "awssqs":
 		return []zap.Field{
@@ -131,6 +218,8 @@ func (c *Config) getMQSpecificFields(mqType string) []zap.Field {
 			zap.String("aws_region", c.MQs.AWSSQS.Region),
 			zap.String("aws_delivery_queue", c.MQs.AWSSQS.DeliveryQueue),
 			zap.String("aws_log_queue", c.MQs.AWSSQS.LogQueue),
+			zap.String("aws_delivery_dlq", c.MQs.AWSSQS.getDLQName("deliverymq")),
+			zap.String("aws_log_dlq", c.MQs.AWSSQS.getDLQName("logmq")),
 		}
 	case "gcppubsub":
 		return []zap.Field{
@@ -140,6 +229,10 @@ func (c *Config) getMQSpecificFields(mqType string) []zap.Field {
 			zap.String("gcp_delivery_subscription", c.MQs.GCPPubSub.DeliverySubscription),
 			zap.String("gcp_log_topic", c.MQs.GCPPubSub.LogTopic),
 			zap.String("gcp_log_subscription", c.MQs.GCPPubSub.LogSubscription),
+			zap.String("gcp_delivery_dlq_topic", c.MQs.GCPPubSub.getDLQTopicByQueueType("deliverymq")),
+			zap.String("gcp_delivery_dlq_subscription", c.MQs.GCPPubSub.getDLQSubscriptionByQueueType("deliverymq")),
+			zap.String("gcp_log_dlq_topic", c.MQs.GCPPubSub.getDLQTopicByQueueType("logmq")),
+			zap.String("gcp_log_dlq_subscription", c.MQs.GCPPubSub.getDLQSubscriptionByQueueType("logmq")),
 		}
 	case "azureservicebus":
 		return []zap.Field{
@@ -148,6 +241,15 @@ func (c *Config) getMQSpecificFields(mqType string) []zap.Field {
 			zap.String("azure_delivery_subscription", c.MQs.AzureServiceBus.DeliverySubscription),
 			zap.String("azure_log_topic", c.MQs.AzureServiceBus.LogTopic),
 			zap.String("azure_log_subscription", c.MQs.AzureServiceBus.LogSubscription),
+		}
+	case "nats":
+		return []zap.Field{
+			zap.String("nats_url", maskURL(c.MQs.NATS.ServerURL)),
+			zap.String("nats_stream", c.MQs.NATS.Stream),
+			zap.String("nats_delivery_subject", c.MQs.NATS.DeliverySubject),
+			zap.String("nats_log_subject", c.MQs.NATS.LogSubject),
+			zap.String("nats_delivery_dlq", c.MQs.NATS.getDLQSubject("deliverymq")),
+			zap.String("nats_log_dlq", c.MQs.NATS.getDLQSubject("logmq")),
 		}
 	default:
 		return []zap.Field{}

@@ -3,6 +3,10 @@
   align-items: center;
   gap: var(--spacing-6);
 
+  @media (max-width: 640px) {
+    gap: var(--spacing-4);
+  }
+
   &__icon {
     display: flex;
     align-items: center;
@@ -38,11 +42,21 @@
 .tabs-container {
   margin-top: 24px;
   border-bottom: 1px solid var(--colors-outline-neutral);
+
+  @media (max-width: 640px) {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
 .tabs {
   display: flex;
   gap: var(--spacing-4);
+
+  @media (max-width: 640px) {
+    gap: var(--spacing-2);
+    white-space: nowrap;
+  }
 }
 
 .tab {
@@ -91,6 +105,21 @@
         align-items: center;
         gap: var(--spacing-1);
       }
+
+      @media (max-width: 640px) {
+        flex-direction: column;
+        gap: var(--spacing-1);
+
+        > span:first-child {
+          width: auto;
+          min-width: 0;
+        }
+
+        > span:last-child {
+          min-width: 0;
+          word-break: break-word;
+        }
+      }
     }
   }
 }
@@ -132,6 +161,8 @@
     align-items: center;
     justify-content: space-between;
     margin-bottom: var(--spacing-4);
+    gap: var(--spacing-3);
+    flex-wrap: wrap;
 
     h2 {
       margin: 0;
@@ -178,6 +209,15 @@
     display: grid;
     grid-template-columns: repeat(6, 1fr);
     gap: var(--spacing-6);
+
+    @media (max-width: 1024px) {
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--spacing-4);
+    }
+
+    @media (max-width: 640px) {
+      grid-template-columns: 1fr;
+    }
   }
 
   &__cell {
@@ -195,6 +235,16 @@
 
     &--row2-half {
       grid-column: span 3;
+    }
+
+    @media (max-width: 1024px) {
+      grid-column: span 1 !important;
+      padding: var(--spacing-4);
+    }
+
+    @media (max-width: 640px) {
+      height: auto;
+      min-height: 280px;
     }
   }
 }

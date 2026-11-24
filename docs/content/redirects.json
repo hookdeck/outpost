@@ -24,10 +24,6 @@
     "to": "/docs/outpost/overview#supported-destinations"
   },
   {
-    "from": "/docs/outpost/guides",
-    "to": "/docs/outpost/overview"
-  },
-  {
     "from": "/docs/outpost/references",
     "to": "/docs/outpost/overview"
   },
@@ -58,6 +54,10 @@
   {
     "from": "/docs/outpost/quickstarts/railway",
     "to": "/docs/outpost/self-hosting/quickstarts/railway"
+  },
+  {
+    "from": "/docs/outpost/self-hosting/upgrade-v0.16",
+    "to": "/docs/outpost/self-hosting/changelog/upgrade-v0.16"
   },
   {
     "from": "/docs/outpost/guides/upgrade-v0.14",
@@ -102,5 +102,9 @@
   {
     "from": "/docs/outpost/guides/publish-from-gcp-pubsub",
     "to": "/docs/outpost/publishing/publish-from-gcp-pubsub"
+  },
+  {
+    "from": "/docs/outpost/features/webhook-proxy",
+    "to": "/docs/outpost/self-hosting/guides/webhook-proxy"
   }
 ]

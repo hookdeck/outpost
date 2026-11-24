@@ -48,8 +48,8 @@ func TestClickHouseTTL_ApplyTTL(t *testing.T) {
 			deploymentID: "",
 			ttlDays:      30,
 			wantQueries: []string{
-				"ALTER TABLE events MODIFY TTL event_time + INTERVAL 30 DAY",
-				"ALTER TABLE attempts MODIFY TTL attempt_time + INTERVAL 30 DAY",
+				"ALTER TABLE events MODIFY TTL toDateTime(event_time) + INTERVAL 30 DAY",
+				"ALTER TABLE attempts MODIFY TTL toDateTime(attempt_time) + INTERVAL 30 DAY",
 			},
 			wantQueryCount: 2,
 		},
@@ -58,8 +58,8 @@ func TestClickHouseTTL_ApplyTTL(t *testing.T) {
 			deploymentID: "dpm_001",
 			ttlDays:      7,
 			wantQueries: []string{
-				"ALTER TABLE dpm_001_events MODIFY TTL event_time + INTERVAL 7 DAY",
-				"ALTER TABLE dpm_001_attempts MODIFY TTL attempt_time + INTERVAL 7 DAY",
+				"ALTER TABLE dpm_001_events MODIFY TTL toDateTime(event_time) + INTERVAL 7 DAY",
+				"ALTER TABLE dpm_001_attempts MODIFY TTL toDateTime(attempt_time) + INTERVAL 7 DAY",
 			},
 			wantQueryCount: 2,
 		},

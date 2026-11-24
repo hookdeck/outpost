@@ -57,3 +57,15 @@ value: models.DestinationCreateGCPPubSub = /* values here */
 value: models.DestinationCreateKafka = /* values here */
 ```
 
+### `models.DestinationCreateCloudflareQueues`
+
+```python
+value: models.DestinationCreateCloudflareQueues = /* values here */
+```
+
+### `models.DestinationCreateAWSEventBridge`
+
+```python
+value: models.DestinationCreateAWSEventBridge = /* values here */
+```
+

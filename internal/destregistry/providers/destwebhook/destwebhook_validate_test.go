@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
+	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
 	"github.com/hookdeck/outpost/internal/util/maputil"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
@@ -336,6 +337,121 @@ func TestWebhookDestination_ValidateCustomHeaders(t *testing.T) {
 	})
 }
 
+func TestWebhookDestination_HeaderNameValidation(t *testing.T) {
+	t.Parallel()
+
+	// Each header name flows through the same regex/reserved-header validation.
+	headerOptions := map[string]func(string) destwebhook.Option{
+		"event-id":  func(n string) destwebhook.Option { return destwebhook.WithEventIDHeader(n, false) },
+		"signature": func(n string) destwebhook.Option { return destwebhook.WithSignatureHeader(n, false) },
+		"timestamp": func(n string) destwebhook.Option { return destwebhook.WithTimestampHeader(n, false) },
+		"topic":     func(n string) destwebhook.Option { return destwebhook.WithTopicHeader(n, false) },
+	}
+
+	newProvider := func(headerOpt destwebhook.Option) error {
+		_, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil,
+			destwebhook.WithHeaderPrefix(destwebhook.DefaultHeaderPrefix),
+			destwebhook.WithSignatureContentTemplate(destwebhook.DefaultSignatureContentTmpl),
+			destwebhook.WithSignatureHeaderTemplate(destwebhook.DefaultSignatureHeaderTmpl),
+			destwebhook.WithSignatureEncoding(destwebhook.DefaultEncoding),
+			destwebhook.WithSignatureAlgorithm(destwebhook.DefaultAlgorithm),
+			destwebhook.WithSigningSecretTemplate(destwebhook.DefaultSigningSecretTmpl),
+			headerOpt,
+		)
+		return err
+	}
+
+	for header, opt := range headerOptions {
+		opt := opt
+		t.Run(header, func(t *testing.T) {
+			t.Parallel()
+
+			t.Run("accepts valid names", func(t *testing.T) {
+				t.Parallel()
+				for _, name := range []string{"x-acme-digest", "X-Custom-Signature", "signature123", "X_Custom_Sig"} {
+					assert.NoError(t, newProvider(opt(name)), "name %q should be valid", name)
+				}
+			})
+
+			t.Run("rejects invalid characters", func(t *testing.T) {
+				t.Parallel()
+				for _, name := range []string{"has space", "has:colon", "-leading-dash", "_leading_underscore"} {
+					assert.Error(t, newProvider(opt(name)), "name %q should be rejected", name)
+				}
+			})
+
+			t.Run("rejects reserved headers", func(t *testing.T) {
+				t.Parallel()
+				for _, name := range []string{"Content-Type", "content-type", "Host", "User-Agent"} {
+					assert.Error(t, newProvider(opt(name)), "reserved name %q should be rejected", name)
+				}
+			})
+		})
+	}
+}
+
+func TestWebhookDestination_HeaderNameCollision(t *testing.T) {
+	t.Parallel()
+
+	newProvider := func(opts ...destwebhook.Option) error {
+		base := []destwebhook.Option{
+			destwebhook.WithHeaderPrefix(destwebhook.DefaultHeaderPrefix),
+			destwebhook.WithSignatureContentTemplate(destwebhook.DefaultSignatureContentTmpl),
+			destwebhook.WithSignatureHeaderTemplate(destwebhook.DefaultSignatureHeaderTmpl),
+			destwebhook.WithSignatureEncoding(destwebhook.DefaultEncoding),
+			destwebhook.WithSignatureAlgorithm(destwebhook.DefaultAlgorithm),
+			destwebhook.WithSigningSecretTemplate(destwebhook.DefaultSigningSecretTmpl),
+		}
+		_, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil, append(base, opts...)...)
+		return err
+	}
+
+	t.Run("rejects two pinned names that collide", func(t *testing.T) {
+		t.Parallel()
+		err := newProvider(
+			destwebhook.WithEventIDHeader("x-acme", false),
+			destwebhook.WithTopicHeader("x-acme", false),
+		)
+		assert.Error(t, err)
+	})
+
+	t.Run("collision is case-insensitive", func(t *testing.T) {
+		t.Parallel()
+		err := newProvider(
+			destwebhook.WithEventIDHeader("X-Acme", false),
+			destwebhook.WithTopicHeader("x-acme", false),
+		)
+		assert.Error(t, err)
+	})
+
+	t.Run("rejects pinned name colliding with another default", func(t *testing.T) {
+		t.Parallel()
+		// event-id pinned to the default topic header name collides with topic's default.
+		err := newProvider(
+			destwebhook.WithEventIDHeader(destwebhook.DefaultHeaderPrefix+"topic", false),
+		)
+		assert.Error(t, err)
+	})
+
+	t.Run("no collision when the duplicate header is disabled", func(t *testing.T) {
+		t.Parallel()
+		err := newProvider(
+			destwebhook.WithEventIDHeader("x-acme", false),
+			destwebhook.WithTopicHeader("x-acme", true),
+		)
+		assert.NoError(t, err)
+	})
+
+	t.Run("distinct pinned names are accepted", func(t *testing.T) {
+		t.Parallel()
+		err := newProvider(
+			destwebhook.WithEventIDHeader("x-acme-event", false),
+			destwebhook.WithTopicHeader("x-acme-topic", false),
+		)
+		assert.NoError(t, err)
+	})
+}
+
 func TestWebhookDestination_ComputeTarget(t *testing.T) {
 	t.Parallel()
 
@@ -606,15 +722,63 @@ func TestWebhookDestination_Preprocess(t *testing.T) {
 			}),
 		)
 
-		// Merge both config and credentials to simulate handler behavior
+		// Merge both config and credentials to simulate handler behavior,
+		// passing the raw request credentials via opts as the handler does
+		requestCredentials := newDestination.Credentials
 		newDestination.Config = maputil.MergeStringMaps(originalDestination.Config, newDestination.Config)
 		newDestination.Credentials = maputil.MergeStringMaps(originalDestination.Credentials, newDestination.Credentials)
 
-		err := webhookDestination.Preprocess(&newDestination, &originalDestination, &destregistry.PreprocessDestinationOpts{})
+		err := webhookDestination.Preprocess(&newDestination, &originalDestination, &destregistry.PreprocessDestinationOpts{
+			Request: destregistry.PreprocessRequest{Credentials: requestCredentials},
+		})
 		require.NoError(t, err)
 
 		// Verify that the custom invalidation time was preserved
 		assert.Equal(t, customInvalidAt, newDestination.Credentials["previous_secret_invalid_at"])
+	})
+
+	t.Run("should apply 24h default on rotation when request omits invalid_at", func(t *testing.T) {
+		t.Parallel()
+		storedInvalidAt := time.Now().Add(1 * time.Hour).Format(time.RFC3339)
+		originalDestination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url": "https://example.com",
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secret":                     "current-secret",
+				"previous_secret":            "older-secret",
+				"previous_secret_invalid_at": storedInvalidAt,
+			}),
+		)
+
+		newDestination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url": "https://example.com",
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"rotate_secret": "true",
+			}),
+		)
+
+		// Merge both config and credentials to simulate handler behavior:
+		// the stored previous_secret_invalid_at is merged into newDestination
+		// even though the caller's request didn't contain it.
+		requestCredentials := newDestination.Credentials
+		newDestination.Config = maputil.MergeStringMaps(originalDestination.Config, newDestination.Config)
+		newDestination.Credentials = maputil.MergeStringMaps(originalDestination.Credentials, newDestination.Credentials)
+
+		err := webhookDestination.Preprocess(&newDestination, &originalDestination, &destregistry.PreprocessDestinationOpts{
+			Request: destregistry.PreprocessRequest{Credentials: requestCredentials},
+		})
+		require.NoError(t, err)
+
+		// The merged-in stored value must not be carried forward; the
+		// default window applies.
+		invalidAt, err := time.Parse(time.RFC3339, newDestination.Credentials["previous_secret_invalid_at"])
+		require.NoError(t, err)
+		assert.WithinDuration(t, time.Now().Add(24*time.Hour), invalidAt, 5*time.Second)
 	})
 
 	t.Run("should set default previous_secret_invalid_at when previous_secret is provided", func(t *testing.T) {

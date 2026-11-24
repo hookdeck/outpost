@@ -69,6 +69,8 @@ class Schemas(BaseSDK):
                 operation_id="listDestinationTypeSchemas",
                 oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
+                tags=["Schemas"],
+                extensions=None,
             ),
             request=req,
             is_error_status_code=lambda c: utils.match_status_codes(["4XX", "5XX"], c),
@@ -191,6 +193,8 @@ class Schemas(BaseSDK):
                 operation_id="listDestinationTypeSchemas",
                 oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
+                tags=["Schemas"],
+                extensions=None,
             ),
             request=req,
             is_error_status_code=lambda c: utils.match_status_codes(["4XX", "5XX"], c),
@@ -268,7 +272,7 @@ class Schemas(BaseSDK):
 
         Returns the input schema for a specific destination type.
 
-        :param type: The type of the destination.
+        :param type_: The type of the destination.
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
         :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
@@ -320,6 +324,8 @@ class Schemas(BaseSDK):
                 operation_id="getDestinationTypeSchema",
                 oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
+                tags=["Schemas"],
+                extensions=None,
             ),
             request=req,
             is_error_status_code=lambda c: utils.match_status_codes(["4XX", "5XX"], c),
@@ -397,7 +403,7 @@ class Schemas(BaseSDK):
 
         Returns the input schema for a specific destination type.
 
-        :param type: The type of the destination.
+        :param type_: The type of the destination.
         :param retries: Override the default retry configuration for this method
         :param server_url: Override the default server URL for this method
         :param timeout_ms: Override the default request timeout configuration for this method in milliseconds
@@ -449,6 +455,8 @@ class Schemas(BaseSDK):
                 operation_id="getDestinationTypeSchema",
                 oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
+                tags=["Schemas"],
+                extensions=None,
             ),
             request=req,
             is_error_status_code=lambda c: utils.match_status_codes(["4XX", "5XX"], c),

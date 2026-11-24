@@ -34,12 +34,12 @@ type accountMetaFile struct {
 // loadAccountsFromDir scans dir for tenant subdirectories that contain a
 // meta.yaml file and returns the list of accounts. Subdirectories without
 // a meta.yaml are skipped (still being written, perhaps).
-func loadAccountsFromDir(dir string) ([]NATSAccountConfig, error) {
+func loadAccountsFromDir(dir string) ([]NATSPublishAccountConfig, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, fmt.Errorf("read accounts_dir %q: %w", dir, err)
 	}
-	var accounts []NATSAccountConfig
+	var accounts []NATSPublishAccountConfig
 	for _, e := range entries {
 		if !e.IsDir() {
 			continue
@@ -63,14 +63,14 @@ func loadAccountsFromDir(dir string) ([]NATSAccountConfig, error) {
 	return accounts, nil
 }
 
-func loadAccountMeta(metaPath, accountDir, dirName string) (NATSAccountConfig, error) {
+func loadAccountMeta(metaPath, accountDir, dirName string) (NATSPublishAccountConfig, error) {
 	body, err := os.ReadFile(metaPath)
 	if err != nil {
-		return NATSAccountConfig{}, err
+		return NATSPublishAccountConfig{}, err
 	}
 	var meta accountMetaFile
 	if err := yaml.Unmarshal(body, &meta); err != nil {
-		return NATSAccountConfig{}, fmt.Errorf("parse meta.yaml: %w", err)
+		return NATSPublishAccountConfig{}, fmt.Errorf("parse meta.yaml: %w", err)
 	}
 
 	name := meta.Name
@@ -91,7 +91,7 @@ func loadAccountMeta(metaPath, accountDir, dirName string) (NATSAccountConfig, e
 		creds = filepath.Join(accountDir, creds)
 	}
 
-	return NATSAccountConfig{
+	return NATSPublishAccountConfig{
 		Name:            name,
 		CredentialsFile: creds,
 		Stream:          meta.Stream,
@@ -101,10 +101,13 @@ func loadAccountMeta(metaPath, accountDir, dirName string) (NATSAccountConfig, e
 }
 
 // natsAccountsWatcher watches a directory for create/remove/rename events
-// and invokes onChange (debounced) so the queue can reconcile.
+// and invokes onChange (debounced) so the queue can reconcile. It also
+// invokes onChange on a timer, because the watch alone is not a reliable
+// signal — see NATSPublishConfig.AccountsRescanInterval.
 type natsAccountsWatcher struct {
 	dir      string
 	onChange func()
+	rescan   time.Duration
 	w        *fsnotify.Watcher
 
 	stopCh chan struct{}
@@ -115,7 +118,13 @@ type natsAccountsWatcher struct {
 // user.creds then meta.yaml) into a single reconcile.
 const debounceWindow = 250 * time.Millisecond
 
-func newNATSAccountsWatcher(dir string, onChange func()) (*natsAccountsWatcher, error) {
+// defaultRescanInterval is the fallback sweep when nothing else says a
+// directory changed. Reconciling is a directory listing plus one small YAML
+// parse per account, then a no-op for every account already connected, so
+// this is cheap enough to run often and slow enough not to matter.
+const defaultRescanInterval = 60 * time.Second
+
+func newNATSAccountsWatcher(dir string, onChange func(), rescan time.Duration) (*natsAccountsWatcher, error) {
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, err
@@ -136,9 +145,14 @@ func newNATSAccountsWatcher(dir string, onChange func()) (*natsAccountsWatcher, 
 		}
 	}
 
+	if rescan == 0 {
+		rescan = defaultRescanInterval
+	}
+
 	return &natsAccountsWatcher{
 		dir:      dir,
 		onChange: onChange,
+		rescan:   rescan,
 		w:        w,
 		stopCh:   make(chan struct{}),
 	}, nil
@@ -158,6 +172,15 @@ func (w *natsAccountsWatcher) run() {
 		<-timer.C
 	}
 	armed := false
+
+	// A negative interval opts out and leaves discovery on fsnotify alone.
+	// nil channels block forever in select, so this needs no second branch.
+	var rescanC <-chan time.Time
+	if w.rescan > 0 {
+		ticker := time.NewTicker(w.rescan)
+		defer ticker.Stop()
+		rescanC = ticker.C
+	}
 
 	arm := func() {
 		if armed {
@@ -197,6 +220,11 @@ func (w *natsAccountsWatcher) run() {
 			// Errors are non-fatal; the next event will retry.
 		case <-timer.C:
 			armed = false
+			w.onChange()
+		case <-rescanC:
+			// Deliberately not debounced. The debounce timer only arms on a
+			// filesystem event, and the whole point of this case is the run
+			// in which no such event ever arrives.
 			w.onChange()
 		}
 	}

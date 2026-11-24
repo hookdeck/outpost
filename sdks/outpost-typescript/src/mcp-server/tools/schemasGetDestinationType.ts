@@ -20,7 +20,7 @@ Returns the input schema for a specific destination type.`,
     const [result, apiCall] = await schemasGetDestinationType(
       client,
       args.type,
-      { fetchOptions: { signal: ctx.signal } },
+      { fetchOptions: { signal: ctx.mcpReq.signal } },
     ).$inspect();
 
     if (!result.ok) {

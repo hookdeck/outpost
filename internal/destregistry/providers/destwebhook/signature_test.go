@@ -6,15 +6,25 @@ import (
 	"time"
 
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
+	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // defaultSignatureManagerOpts provides the standard formatters for tests that
 // don't care about template behavior — they just need a working manager.
 func defaultSignatureManagerOpts() []destwebhook.SignatureManagerOption {
+	sigFormatter, err := destwebhook.NewSignatureFormatter(destwebhook.DefaultSignatureContentTmpl)
+	if err != nil {
+		panic(err)
+	}
+	headerFormatter, err := destwebhook.NewHeaderFormatter(destwebhook.DefaultSignatureHeaderTmpl)
+	if err != nil {
+		panic(err)
+	}
 	return []destwebhook.SignatureManagerOption{
-		destwebhook.WithSignatureFormatter(destwebhook.NewSignatureFormatter(destwebhook.DefaultSignatureContentTmpl)),
-		destwebhook.WithHeaderFormatter(destwebhook.NewHeaderFormatter(destwebhook.DefaultSignatureHeaderTmpl)),
+		destwebhook.WithSignatureFormatter(sigFormatter),
+		destwebhook.WithHeaderFormatter(headerFormatter),
 	}
 }
 
@@ -88,27 +98,43 @@ func TestSignatureFormatter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			formatter := destwebhook.NewSignatureFormatter(tt.template)
-			result := formatter.Format(destwebhook.SignaturePayload{
+			formatter, err := destwebhook.NewSignatureFormatter(tt.template)
+			assert.NoError(t, err)
+			result, err := formatter.Format(destwebhook.SignaturePayload{
 				Timestamp: timestamp,
 				Body:      body,
 				EventID:   "test-id",
 				Topic:     "test-topic",
 			})
+			assert.NoError(t, err)
 			assert.Equal(t, tt.want, result)
 		})
 	}
 }
 
-func TestSignatureFormatter_PanicsOnEmpty(t *testing.T) {
-	assert.Panics(t, func() {
-		destwebhook.NewSignatureFormatter("")
-	})
+func TestSignatureFormatter_ErrorsOnEmpty(t *testing.T) {
+	_, err := destwebhook.NewSignatureFormatter("")
+	assert.Error(t, err)
 }
 
-func TestSignatureFormatter_PanicsOnInvalidSyntax(t *testing.T) {
-	assert.Panics(t, func() {
-		destwebhook.NewSignatureFormatter("{{.Timestamp.{{.Body}}")
+func TestSignatureFormatter_ErrorsOnInvalidSyntax(t *testing.T) {
+	_, err := destwebhook.NewSignatureFormatter("{{.Timestamp.{{.Body}}")
+	assert.Error(t, err)
+}
+
+// A template that parses but references a field the payload type doesn't have
+// must fail the render rather than take the process down.
+func TestSignatureFormatter_ErrorsOnUnknownField(t *testing.T) {
+	formatter, err := destwebhook.NewSignatureFormatter(`v1:{{.Timestamp.Unix}}:{{.Signatures | join ","}}`)
+	assert.NoError(t, err)
+
+	assert.NotPanics(t, func() {
+		result, err := formatter.Format(destwebhook.SignaturePayload{
+			Timestamp: time.Unix(1234567890, 0),
+			Body:      "test",
+		})
+		assert.Error(t, err)
+		assert.Empty(t, result)
 	})
 }
 
@@ -145,28 +171,120 @@ func TestHeaderFormatter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			formatter := destwebhook.NewHeaderFormatter(tt.template)
-			result := formatter.Format(destwebhook.HeaderPayload{
+			formatter, err := destwebhook.NewHeaderFormatter(tt.template)
+			assert.NoError(t, err)
+			result, err := formatter.Format(destwebhook.HeaderPayload{
 				Timestamp:  timestamp,
 				Signatures: signatures,
 				EventID:    "test-id",
 				Topic:      "test-topic",
 			})
+			assert.NoError(t, err)
 			assert.Equal(t, tt.want, result)
 		})
 	}
 }
 
-func TestHeaderFormatter_PanicsOnEmpty(t *testing.T) {
-	assert.Panics(t, func() {
-		destwebhook.NewHeaderFormatter("")
+func TestHeaderFormatter_ErrorsOnEmpty(t *testing.T) {
+	_, err := destwebhook.NewHeaderFormatter("")
+	assert.Error(t, err)
+}
+
+func TestHeaderFormatter_ErrorsOnInvalidSyntax(t *testing.T) {
+	_, err := destwebhook.NewHeaderFormatter("t={{.Timestamp},v0={{.Signatures}")
+	assert.Error(t, err)
+}
+
+func TestHeaderFormatter_ErrorsOnUnknownField(t *testing.T) {
+	formatter, err := destwebhook.NewHeaderFormatter("v0={{.Body}}")
+	assert.NoError(t, err)
+
+	assert.NotPanics(t, func() {
+		result, err := formatter.Format(destwebhook.HeaderPayload{
+			Timestamp:  time.Unix(1234567890, 0),
+			Signatures: []string{"abc123"},
+		})
+		assert.Error(t, err)
+		assert.Empty(t, result)
 	})
 }
 
-func TestHeaderFormatter_PanicsOnInvalidSyntax(t *testing.T) {
-	assert.Panics(t, func() {
-		destwebhook.NewHeaderFormatter("t={{.Timestamp},v0={{.Signatures}")
-	})
+// New parses both signature templates and dry-runs them against synthetic
+// payloads, so both a template that doesn't parse and one that borrows a field
+// from the other payload type fail construction rather than the first
+// delivery.
+func TestNew_ValidatesSignatureTemplates(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		header  string
+		wantErr string
+	}{
+		{
+			name:    "defaults",
+			content: destwebhook.DefaultSignatureContentTmpl,
+			header:  destwebhook.DefaultSignatureHeaderTmpl,
+		},
+		{
+			name:    "content template doesn't parse",
+			content: `{{.Timestamp.Unix}}.{{.Body | join \",\"}}`,
+			header:  destwebhook.DefaultSignatureHeaderTmpl,
+			wantErr: "invalid signature content template",
+		},
+		{
+			name:    "header template doesn't parse",
+			content: destwebhook.DefaultSignatureContentTmpl,
+			header:  "t={{.Timestamp},v0={{.Signatures}",
+			wantErr: "invalid signature header template",
+		},
+		{
+			name:    "content template borrows a header field",
+			content: `v1:{{.Timestamp.Unix}}:{{.Signatures | join ","}}`,
+			header:  destwebhook.DefaultSignatureHeaderTmpl,
+			wantErr: "can't evaluate field Signatures",
+		},
+		{
+			name:    "header template borrows a content field",
+			content: destwebhook.DefaultSignatureContentTmpl,
+			header:  "v0={{.Body}}",
+			wantErr: "can't evaluate field Body",
+		},
+		{
+			name:    "header template indexes the second signature",
+			content: destwebhook.DefaultSignatureContentTmpl,
+			header:  "v0={{index .Signatures 0}},v0={{index .Signatures 1}}",
+		},
+		{
+			name:    "empty content template",
+			content: "",
+			header:  destwebhook.DefaultSignatureHeaderTmpl,
+			wantErr: "signature content template is required",
+		},
+		{
+			name:    "empty header template",
+			content: destwebhook.DefaultSignatureContentTmpl,
+			header:  "",
+			wantErr: "signature header template is required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := destwebhook.New(testutil.Registry.MetadataLoader(), nil,
+				destwebhook.WithHeaderPrefix(destwebhook.DefaultHeaderPrefix),
+				destwebhook.WithSignatureContentTemplate(tt.content),
+				destwebhook.WithSignatureHeaderTemplate(tt.header),
+				destwebhook.WithSignatureEncoding(destwebhook.DefaultEncoding),
+				destwebhook.WithSignatureAlgorithm(destwebhook.DefaultAlgorithm),
+				destwebhook.WithSigningSecretTemplate(destwebhook.DefaultSigningSecretTmpl),
+			)
+			if tt.wantErr == "" {
+				assert.NoError(t, err)
+				return
+			}
+			assert.ErrorContains(t, err, tt.wantErr)
+		})
+	}
 }
 
 func TestSignatureEncoders(t *testing.T) {
@@ -203,13 +321,13 @@ func TestSignatureEncoders(t *testing.T) {
 func TestSignatureManager(t *testing.T) {
 	t.Run("no secrets", func(t *testing.T) {
 		manager := destwebhook.NewSignatureManager(nil, defaultSignatureManagerOpts()...)
-		signatures := manager.GenerateSignatures(destwebhook.SignaturePayload{
+		signatures, _ := manager.GenerateSignatures(destwebhook.SignaturePayload{
 			Timestamp: time.Now(),
 			Body:      "test",
 		})
 		assert.Nil(t, signatures)
 
-		header := manager.GenerateSignatureHeader(destwebhook.SignaturePayload{
+		header, _ := manager.GenerateSignatureHeader(destwebhook.SignaturePayload{
 			Timestamp: time.Now(),
 			Body:      "test",
 		})
@@ -231,7 +349,7 @@ func TestSignatureManager(t *testing.T) {
 		}
 
 		manager := destwebhook.NewSignatureManager([]destwebhook.WebhookSecret{oldSecret}, defaultSignatureManagerOpts()...)
-		signatures := manager.GenerateSignatures(payload)
+		signatures, _ := manager.GenerateSignatures(payload)
 		assert.Len(t, signatures, 1, "should generate signature for single secret regardless of age")
 
 		// Verify signature is valid with correct key
@@ -259,7 +377,7 @@ func TestSignatureManager(t *testing.T) {
 		}
 
 		manager := destwebhook.NewSignatureManager(secrets, defaultSignatureManagerOpts()...)
-		signatures := manager.GenerateSignatures(payload)
+		signatures, _ := manager.GenerateSignatures(payload)
 		assert.Len(t, signatures, 1, "should only use latest secret")
 
 		// Verify signature is valid with latest key
@@ -290,7 +408,7 @@ func TestSignatureManager(t *testing.T) {
 		timestamp := time.Unix(1234567890, 0)
 		body := `{"hello":"world"}`
 
-		signatures := manager.GenerateSignatures(destwebhook.SignaturePayload{
+		signatures, _ := manager.GenerateSignatures(destwebhook.SignaturePayload{
 			Timestamp: timestamp,
 			Body:      body,
 			EventID:   "test-id",
@@ -325,7 +443,7 @@ func TestSignatureManager(t *testing.T) {
 			},
 		), "signature should be invalid with expired key")
 
-		header := manager.GenerateSignatureHeader(destwebhook.SignaturePayload{
+		header, _ := manager.GenerateSignatureHeader(destwebhook.SignaturePayload{
 			Timestamp: timestamp,
 			Body:      body,
 			EventID:   "test-id",
@@ -357,7 +475,7 @@ func TestSignatureManager(t *testing.T) {
 			Topic:     "test-topic",
 		}
 
-		signatures := manager.GenerateSignatures(payload)
+		signatures, _ := manager.GenerateSignatures(payload)
 		assert.Len(t, signatures, 3, "should include latest + valid secrets")
 
 		// Verify each signature is valid with its corresponding key
@@ -390,7 +508,7 @@ func TestSignatureManager(t *testing.T) {
 			}
 
 			manager := destwebhook.NewSignatureManager(secrets, defaultSignatureManagerOpts()...)
-			signatures := manager.GenerateSignatures(destwebhook.SignaturePayload{
+			signatures, _ := manager.GenerateSignatures(destwebhook.SignaturePayload{
 				Timestamp: time.Unix(1234567890, 0),
 				Body:      "test",
 				EventID:   "test-id",
@@ -407,7 +525,7 @@ func TestSignatureManager(t *testing.T) {
 			}
 
 			manager := destwebhook.NewSignatureManager(secrets, defaultSignatureManagerOpts()...)
-			signatures := manager.GenerateSignatures(destwebhook.SignaturePayload{
+			signatures, _ := manager.GenerateSignatures(destwebhook.SignaturePayload{
 				Timestamp: time.Unix(1234567890, 0),
 				Body:      "test",
 				EventID:   "test-id",
@@ -428,4 +546,41 @@ func TestSignatureManager(t *testing.T) {
 			), "signature should be valid with recent key")
 		})
 	})
+}
+
+func TestTemplates_RejectFunctionsOutsideTheAllowedSet(t *testing.T) {
+	t.Parallel()
+
+	for _, expr := range []string{`{{env "HOME"}}`, `{{expandenv "$HOME"}}`, `{{getHostByName "localhost"}}`, `{{randAlphaNum 8}}`} {
+		t.Run(expr, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := destwebhook.NewSignatureFormatter(expr)
+			assert.Error(t, err, "signature content template")
+
+			_, err = destwebhook.NewHeaderFormatter(expr)
+			assert.Error(t, err, "signature header template")
+
+			_, err = newTestProvider(destwebhook.WithSigningSecretTemplate(expr))
+			assert.Error(t, err, "signing secret template")
+
+			compat := standardWebhooksCompat()
+			compat.Headers = map[string]string{"x-legacy": expr}
+			_, err = newTestProvider(destwebhook.WithCompatSignature(compat))
+			assert.Error(t, err, "compat header template")
+		})
+	}
+}
+
+func TestTemplates_AllowedFunctions(t *testing.T) {
+	t.Parallel()
+
+	f, err := destwebhook.NewSignatureFormatter(
+		`{{upper .Topic}}|{{lower .Topic}}|{{trim " x "}}|{{trimPrefix "a" "ab"}}|{{trimSuffix "b" "ab"}}|{{replace "." "_" .Topic}}|{{b64enc .EventID}}|{{default "d" ""}}`,
+	)
+	require.NoError(t, err)
+
+	got, err := f.Format(destwebhook.SignaturePayload{EventID: "evt", Topic: "user.Created"})
+	require.NoError(t, err)
+	assert.Equal(t, "USER.CREATED|user.created|x|b|a|user_Created|ZXZ0|d", got)
 }

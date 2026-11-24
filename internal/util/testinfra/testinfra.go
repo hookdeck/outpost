@@ -1,11 +1,11 @@
 package testinfra
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 
 	"github.com/hookdeck/outpost/internal/util/testutil"
@@ -13,10 +13,8 @@ import (
 )
 
 var (
-	suiteCounter int64
-	suiteCleanup sync.Once
-	cfgSync      sync.Once
-	cfg          *Config
+	cfgSync sync.Once
+	cfg     *Config
 )
 
 type Config struct {
@@ -26,12 +24,49 @@ type Config struct {
 	PostgresURL       string
 	LocalStackURL     string
 	RabbitMQURL       string
-	KafkaURL          string
 	NATSURL           string
+	KafkaURL          string
 	MockServerURL     string
 	GCPURL            string
 	AzureSBConnString string
-	cleanupFns        []func()
+	Images            Images
+}
+
+// Images holds the container images testcontainers starts when TESTINFRA is
+// unset. They are the same images build/test/compose.yml runs, read from the
+// same .env.test, so a test sees one environment either way.
+type Images struct {
+	Postgres   string
+	ClickHouse string
+	RabbitMQ   string
+	NATS       string
+	Kafka      string
+	LocalStack string
+	GCP        string
+	Redis      string
+	Dragonfly  string
+}
+
+func readImages(v *viper.Viper) Images {
+	return Images{
+		Postgres:   requireImage(v, "TEST_IMAGE_POSTGRES"),
+		ClickHouse: requireImage(v, "TEST_IMAGE_CLICKHOUSE"),
+		RabbitMQ:   requireImage(v, "TEST_IMAGE_RABBITMQ"),
+		NATS:       requireImage(v, "TEST_IMAGE_NATS"),
+		Kafka:      requireImage(v, "TEST_IMAGE_KAFKA"),
+		LocalStack: requireImage(v, "TEST_IMAGE_LOCALSTACK"),
+		GCP:        requireImage(v, "TEST_IMAGE_GCP"),
+		Redis:      requireImage(v, "TEST_IMAGE_REDIS"),
+		Dragonfly:  requireImage(v, "TEST_IMAGE_DRAGONFLY"),
+	}
+}
+
+func requireImage(v *viper.Viper, key string) string {
+	image := v.GetString(key)
+	if image == "" {
+		panic(fmt.Errorf("%s is not set; add it to .env.test (see the repo copy for the current pins)", key))
+	}
+	return image
 }
 
 func initConfig() {
@@ -68,10 +103,6 @@ func initConfig() {
 		if !strings.Contains(mockServerURL, "http://") {
 			mockServerURL = "http://" + mockServerURL
 		}
-		natsURL := v.GetString("TEST_NATS_URL")
-		if natsURL != "" && !strings.HasPrefix(natsURL, "nats://") && !strings.HasPrefix(natsURL, "tls://") {
-			natsURL = "nats://" + natsURL
-		}
 		cfg = &Config{
 			TestInfra:         v.GetBool("TESTINFRA"),
 			TestAzure:         v.GetBool("TESTAZURE"),
@@ -81,9 +112,10 @@ func initConfig() {
 			GCPURL:            v.GetString("TEST_GCP_URL"),
 			AzureSBConnString: v.GetString("TEST_AZURE_SB_CONNSTRING"),
 			RabbitMQURL:       rabbitmqURL,
+			NATSURL:           v.GetString("TEST_NATS_URL"),
 			KafkaURL:          v.GetString("TEST_KAFKA_URL"),
-			NATSURL:           natsURL,
 			MockServerURL:     mockServerURL,
+			Images:            readImages(v),
 		}
 		return
 	}
@@ -97,9 +129,10 @@ func initConfig() {
 		GCPURL:            "",
 		AzureSBConnString: "",
 		RabbitMQURL:       "",
-		KafkaURL:          "",
 		NATSURL:           "",
+		KafkaURL:          "",
 		MockServerURL:     "",
+		Images:            readImages(v),
 	}
 }
 
@@ -108,23 +141,17 @@ func ReadConfig() *Config {
 	return cfg
 }
 
+// Start marks a suite as needing test infrastructure and returns the func to
+// defer at the end of it.
+//
+// The containers started for the TESTINFRA-unset path are shared by every suite
+// in a test binary and deliberately outlive all of them: they are torn down by
+// the testcontainers reaper when the process exits. Stopping them when a suite
+// finishes does not work, because the sync.Once guarding each container has
+// already fired — the next suite would reuse an endpoint with nothing behind it.
 func Start(t *testing.T) func() {
 	testutil.CheckIntegrationTest(t)
-	atomic.AddInt64(&suiteCounter, 1)
-	return func() {
-		if atomic.AddInt64(&suiteCounter, -1) == 0 {
-			suiteCleanup.Do(func() {
-				// Ensure cfg is initialized and not nil before accessing cleanupFns
-				if cfg != nil && cfg.cleanupFns != nil {
-					for _, fn := range cfg.cleanupFns {
-						if fn != nil {
-							fn()
-						}
-					}
-				}
-			})
-		}
-	}
+	return func() {}
 }
 
 func findProjectRoot() (string, error) {

@@ -20,6 +20,19 @@ RabbitMQ messages should have the same payload structure as the [Publish API end
 }
 ```
 
+## Failed messages
+
+Outpost treats a failed message in one of two ways:
+
+- **Invalid messages** fail the same way on every delivery: invalid JSON, `data` that is not a JSON object, a missing `topic` when `TOPICS` is set, or a body larger than `MAX_EVENT_SIZE_BYTES`. Outpost rejects them on the first failure without requeueing. RabbitMQ routes them to the queue's [dead-letter exchange](https://www.rabbitmq.com/docs/dlx) if it has one and discards them otherwise.
+- **Transient failures**, such as Outpost losing its Redis connection or a `topic` that is not in `TOPICS` yet, are nacked with requeue. RabbitMQ redelivers the message immediately, with no backoff and no limit.
+
+Dead-lettering, redelivery limits and backoff are configured on your queue, not in Outpost. Use a [quorum queue](https://www.rabbitmq.com/docs/quorum-queues) with a delivery limit (`x-delivery-limit`) and a dead-letter exchange. Classic queues cannot limit redelivery. On RabbitMQ 4.0 and later, quorum queues have a delivery limit of 20 by default. RabbitMQ does not delay redeliveries, so until the limit is reached a failing message is redelivered as fast as Outpost can nack it.
+
+`PUBLISH_MAX_REDELIVERIES` sets a limit on the Outpost side instead: once a message has been redelivered that many times, Outpost rejects it like an invalid message. `0` rejects every failure without redelivery. Without a dead-letter exchange the message is then lost. If the queue also has a delivery limit, the lower of the two applies.
+
+Outpost counts failures per AMQP `message_id`. A message published without one is identified by its body, so messages with identical bodies share a count: set `message_id` when publishing if you use this limit.
+
 ## Configuration
 
 Provide Outpost with connection and routing information for your RabbitMQ instance used for publishing events.
@@ -44,11 +57,10 @@ PUBLISH_RABBITMQ_QUEUE="publish"
 
 ```yaml
 publishmq:
-  publishmq:
-    rabbitmq:
-      server_url: <SERVER_URL>
-      exchange: <EXCHANGE_NAME>
-      queue: <QUEUE_NAME>
+  rabbitmq:
+    server_url: <SERVER_URL>
+    exchange: <EXCHANGE_NAME>
+    queue: <QUEUE_NAME>
 ```
 
 #### Example
@@ -60,6 +72,24 @@ publishmq:
     exchange: outpost
     queue: publish
 ```
+
+### Connecting through a proxy
+
+If your broker only accepts connections from allowlisted IPs, set `PUBLISH_PROXY_URL` (YAML: `publishmq.proxy_url`) to route the publish queue connection through an HTTP forward proxy with a static egress IP, then allowlist that IP on the broker.
+
+```
+PUBLISH_PROXY_URL="http://user:pass@proxy.example.com:8080"
+```
+
+Outpost opens an HTTP `CONNECT` tunnel through the proxy to the broker's host and port and runs AMQP inside it. With `amqps://`, TLS is negotiated with the broker end to end through the tunnel, so the proxy never sees message contents or broker credentials. Multiple whitespace-separated proxy URLs are tunneled in order, nearest first; the broker sees the connection coming from the last one. Each hop may carry its own basic auth credentials.
+
+The proxy must allow `CONNECT` to the broker's port (`5672` for `amqp`, `5671` for `amqps` by default). Any idle timeout on the proxy must be longer than the AMQP heartbeat interval (10 seconds unless the server URL sets `heartbeat`). The [Webhook Forward Proxy](/docs/outpost/self-hosting/guides/webhook-proxy) guide has a reference Envoy configuration that works for both.
+
+`PUBLISH_PROXY_URL` applies to the RabbitMQ publish queue only. AWS SQS, GCP Pub/Sub and Azure Service Bus publish queues connect directly and ignore it, and it never applies to Outpost's internal delivery and log queues.
+
+### Health
+
+In a self-hosted deployment, if the publish consumer fails (it can't subscribe, or 10 receives fail in a row, about 70 seconds), `/healthz` reports it `failed` (HTTP 503) until the process restarts. You can turn on restarts instead by adding `publishmq` to `SUPERVISOR_RESTART_WORKERS`: Outpost then restarts the consumer with a backoff and reports it `degraded` while it retries. See [Supervisor](/docs/outpost/self-hosting/configuration#supervisor) for the limits after which it reports `failed`.
 
 ### Troubleshooting
 

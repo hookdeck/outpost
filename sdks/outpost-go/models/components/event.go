@@ -17,6 +17,8 @@ type Event struct {
 	Topic                 *string  `json:"topic,omitempty"`
 	// Time the event was received/processed.
 	Time *time.Time `json:"time,omitempty"`
+	// Whether this event can be retried.
+	EligibleForRetry *bool `json:"eligible_for_retry,omitempty"`
 	// Key-value string pairs of metadata associated with the event.
 	Metadata optionalnullable.OptionalNullable[map[string]string] `json:"metadata,omitempty"`
 	// Freeform JSON data of the event.
@@ -67,6 +69,13 @@ func (e *Event) GetTime() *time.Time {
 		return nil
 	}
 	return e.Time
+}
+
+func (e *Event) GetEligibleForRetry() *bool {
+	if e == nil {
+		return nil
+	}
+	return e.EligibleForRetry
 }
 
 func (e *Event) GetMetadata() optionalnullable.OptionalNullable[map[string]string] {

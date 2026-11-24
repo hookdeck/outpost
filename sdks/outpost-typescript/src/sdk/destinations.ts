@@ -15,7 +15,6 @@ import { ClientSDK, RequestOptions } from "../lib/sdks.js";
 import * as components from "../models/components/index.js";
 import * as operations from "../models/operations/index.js";
 import { unwrapAsync } from "../types/fp.js";
-import { PageIterator, unwrapResultIterator } from "../types/operations.js";
 
 export class Destinations extends ClientSDK {
   /**
@@ -160,17 +159,14 @@ export class Destinations extends ClientSDK {
    *
    * @remarks
    * Retrieves a paginated list of attempts scoped to a specific destination.
+   *
+   * Returns `404` if the destination does not exist or has been deleted. The attempts of a deleted destination remain available from `GET /attempts?destination_id=`.
    */
   async listAttempts(
     request: operations.ListTenantDestinationAttemptsRequest,
     options?: RequestOptions,
-  ): Promise<
-    PageIterator<
-      operations.ListTenantDestinationAttemptsResponse,
-      { cursor: string }
-    >
-  > {
-    return unwrapResultIterator(destinationsListAttempts(
+  ): Promise<components.AttemptPaginatedResult> {
+    return unwrapAsync(destinationsListAttempts(
       this,
       request,
       options,
@@ -182,6 +178,8 @@ export class Destinations extends ClientSDK {
    *
    * @remarks
    * Retrieves details for a specific attempt scoped to a destination.
+   *
+   * Returns `404` if the destination does not exist or has been deleted, or if the destination has no attempt with this ID. An attempt of a deleted destination remains available from `GET /attempts/{attempt_id}`.
    */
   async getAttempt(
     tenantId: string,

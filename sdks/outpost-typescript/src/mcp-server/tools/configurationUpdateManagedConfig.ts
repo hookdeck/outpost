@@ -18,7 +18,7 @@ export const tool$configurationUpdateManagedConfig: ToolDefinition<
 
 Updates one or more managed Outpost configuration values. Null values clear the configuration and reverts to Outpost default behavior.
 
-This endpoint is only available for the managed version.
+This endpoint is only available on managed Outpost.
 In self-hosted deployments, configuration is controlled through environment variables instead.
 
 Only the supported configuration keys are accepted.
@@ -28,7 +28,7 @@ Only the supported configuration keys are accepted.
     const [result, apiCall] = await configurationUpdateManagedConfig(
       client,
       args.request,
-      { fetchOptions: { signal: ctx.signal } },
+      { fetchOptions: { signal: ctx.mcpReq.signal } },
     ).$inspect();
 
     if (!result.ok) {

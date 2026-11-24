@@ -61,6 +61,45 @@ func (t *Topics) UnmarshalJSON(data []byte) error {
 // It uses the simplejsonmatch schema syntax for filtering events.
 type Filter map[string]any
 
+// MaxFilterDepth is the deepest nesting a filter may have. The filter object
+// is level 1 and each nested object or array adds one, so
+// {"data": {"amount": {"$gte": 100}}} has depth 3.
+const MaxFilterDepth = 16
+
+// Validate rejects a filter nested deeper than MaxFilterDepth.
+func (f Filter) Validate() error {
+	if filterDepthExceeds(map[string]any(f), MaxFilterDepth) {
+		return ErrFilterTooDeep
+	}
+	return nil
+}
+
+// filterDepthExceeds reports whether v nests objects and arrays more than
+// limit levels deep. It stops descending once the limit is passed.
+func filterDepthExceeds(v any, limit int) bool {
+	switch v := v.(type) {
+	case map[string]any:
+		if limit == 0 {
+			return true
+		}
+		for _, child := range v {
+			if filterDepthExceeds(child, limit-1) {
+				return true
+			}
+		}
+	case []any:
+		if limit == 0 {
+			return true
+		}
+		for _, child := range v {
+			if filterDepthExceeds(child, limit-1) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (f *Filter) MarshalBinary() ([]byte, error) {
 	if f == nil || len(*f) == 0 {
 		return nil, nil

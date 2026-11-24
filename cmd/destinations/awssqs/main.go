@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	"github.com/hookdeck/outpost/cmd/destinations/internal/destenv"
 	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/util/awsutil"
 )
@@ -19,11 +20,12 @@ func main() {
 	}
 }
 
-const (
-	AWSRegion            = "eu-central-1"
-	AWSEndpoint          = "http://localhost:14566"
-	AWSCredentials       = "test:test:"
-	DestinationQueueName = "destination_sqs_queue"
+// Defaults match the local destination stack (`make up/dest`).
+var (
+	AWSRegion            = destenv.Get("DEST_AWS_REGION", "eu-central-1")
+	AWSEndpoint          = destenv.Get("DEST_AWS_ENDPOINT", "http://localhost:14566")
+	AWSCredentials       = destenv.Get("DEST_AWS_CREDENTIALS", "test:test:")
+	DestinationQueueName = destenv.Get("DEST_SQS_QUEUE", "destination_sqs_queue")
 )
 
 func run() error {

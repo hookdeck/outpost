@@ -3,15 +3,21 @@
  */
 
 export * from "./createtenantdestination.js";
+export * from "./deleteoperatoreventdestination.js";
 export * from "./deletetenant.js";
 export * from "./deletetenantdestination.js";
+export * from "./disableoperatoreventdestination.js";
 export * from "./disabletenantdestination.js";
+export * from "./enableoperatoreventdestination.js";
 export * from "./enabletenantdestination.js";
 export * from "./getattempt.js";
 export * from "./getattemptmetrics.js";
 export * from "./getdestinationtypeschema.js";
 export * from "./getevent.js";
 export * from "./geteventmetrics.js";
+export * from "./getoperatorevent.js";
+export * from "./getoperatoreventattempt.js";
+export * from "./getoperatoreventdestination.js";
 export * from "./gettenant.js";
 export * from "./gettenantdestination.js";
 export * from "./gettenantdestinationattempt.js";
@@ -20,8 +26,11 @@ export * from "./gettenanttoken.js";
 export * from "./healthcheck.js";
 export * from "./listattempts.js";
 export * from "./listevents.js";
+export * from "./listoperatoreventattempts.js";
+export * from "./listoperatoreventattemptsbyevent.js";
 export * from "./listtenantdestinationattempts.js";
 export * from "./listtenantdestinations.js";
 export * from "./listtenants.js";
+export * from "./updateoperatoreventdestination.js";
 export * from "./updatetenantdestination.js";
 export * from "./upserttenant.js";

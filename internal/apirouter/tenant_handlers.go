@@ -1,9 +1,10 @@
 package apirouter
 
 import (
+	"context"
 	"errors"
+	"io"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -15,11 +16,13 @@ import (
 )
 
 type TenantHandlers struct {
-	logger       *logging.Logger
-	telemetry    telemetry.Telemetry
-	jwtSecret    string
-	deploymentID string
-	tenantStore  tenantstore.TenantStore
+	logger               *logging.Logger
+	telemetry            telemetry.Telemetry
+	jwtSecret            string
+	deploymentID         string
+	tenantStore          tenantstore.TenantStore
+	topicsAllowWildcards bool
+	mcpVerifier          MCPVerifier
 }
 
 func NewTenantHandlers(
@@ -28,14 +31,40 @@ func NewTenantHandlers(
 	jwtSecret string,
 	deploymentID string,
 	tenantStore tenantstore.TenantStore,
+	topicsAllowWildcards bool,
+	mcpVerifier MCPVerifier,
 ) *TenantHandlers {
 	return &TenantHandlers{
-		logger:       logger,
-		telemetry:    telemetry,
-		jwtSecret:    jwtSecret,
-		deploymentID: deploymentID,
-		tenantStore:  tenantStore,
+		logger:               logger,
+		telemetry:            telemetry,
+		jwtSecret:            jwtSecret,
+		deploymentID:         deploymentID,
+		tenantStore:          tenantStore,
+		topicsAllowWildcards: topicsAllowWildcards,
+		mcpVerifier:          mcpVerifier,
 	}
+}
+
+func (h *TenantHandlers) postprocessTenant(tenant models.Tenant) models.Tenant {
+	if !h.topicsAllowWildcards {
+		tenant.Topics = models.Topics(tenant.Topics).WithoutWildcardPatterns()
+	}
+
+	return tenant
+}
+
+func (h *TenantHandlers) postprocessTenantList(tenants *tenantstore.TenantPaginatedResult) *tenantstore.TenantPaginatedResult {
+	if h.topicsAllowWildcards {
+		return tenants
+	}
+
+	processedTenants := *tenants
+	processedTenants.Models = make([]models.Tenant, len(tenants.Models))
+	for i, tenant := range tenants.Models {
+		processedTenants.Models[i] = h.postprocessTenant(tenant)
+	}
+
+	return &processedTenants
 }
 
 func (h *TenantHandlers) Upsert(c *gin.Context) {
@@ -45,9 +74,12 @@ func (h *TenantHandlers) Upsert(c *gin.Context) {
 	var input struct {
 		Metadata models.Metadata `json:"metadata,omitempty"`
 	}
-	// Only attempt to parse JSON if there's a request body
-	if c.Request.ContentLength > 0 {
-		if err := c.ShouldBindJSON(&input); err != nil {
+	// The body is optional. A chunked body has no declared length, so it is
+	// only known to be empty once reading it returns io.EOF.
+	if c.Request.ContentLength != 0 {
+		err := c.ShouldBindJSON(&input)
+		emptyBody := c.Request.ContentLength < 0 && errors.Is(err, io.EOF)
+		if err != nil && !emptyBody {
 			AbortWithValidationError(c, err)
 			return
 		}
@@ -71,42 +103,50 @@ func (h *TenantHandlers) Upsert(c *gin.Context) {
 		h.logger.Ctx(c.Request.Context()).Audit("tenant updated",
 			zap.String("tenant_id", tenantID),
 		)
-		c.JSON(http.StatusOK, existingTenant)
+		c.JSON(http.StatusOK, h.postprocessTenant(*existingTenant))
 		return
 	}
 
 	// Create new tenant.
+	tenant, err := h.createTenant(c.Request.Context(), tenantID, input.Metadata)
+	if err != nil {
+		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
+		return
+	}
+	c.JSON(http.StatusCreated, h.postprocessTenant(*tenant))
+}
+
+func (h *TenantHandlers) createTenant(ctx context.Context, tenantID string, metadata models.Metadata) (*models.Tenant, error) {
 	now := time.Now()
 	tenant := &models.Tenant{
 		ID:        tenantID,
 		Topics:    []string{},
-		Metadata:  input.Metadata,
+		Metadata:  metadata,
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
-	if err := h.tenantStore.UpsertTenant(c.Request.Context(), *tenant); err != nil {
-		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
-		return
+	if err := h.tenantStore.UpsertTenant(ctx, *tenant); err != nil {
+		return nil, err
 	}
-	h.telemetry.TenantCreated(c.Request.Context())
-	h.logger.Ctx(c.Request.Context()).Audit("tenant created",
+	h.telemetry.TenantCreated(ctx)
+	h.logger.Ctx(ctx).Audit("tenant created",
 		zap.String("tenant_id", tenantID),
 	)
-	c.JSON(http.StatusCreated, tenant)
+	return tenant, nil
 }
 
 func (h *TenantHandlers) Retrieve(c *gin.Context) {
 	tenant := mustTenantFromContext(c)
-	c.JSON(http.StatusOK, tenant)
+	c.JSON(http.StatusOK, h.postprocessTenant(*tenant))
 }
 
 func (h *TenantHandlers) List(c *gin.Context) {
 	// Authz: JWT users can only see their own tenant
 	if tenant := tenantFromContext(c); tenant != nil {
-		c.JSON(http.StatusOK, tenantstore.TenantPaginatedResult{
+		c.JSON(http.StatusOK, h.postprocessTenantList(&tenantstore.TenantPaginatedResult{
 			Models: []models.Tenant{*tenant},
 			Count:  1,
-		})
+		}))
 		return
 	}
 
@@ -136,18 +176,12 @@ func (h *TenantHandlers) List(c *gin.Context) {
 	}
 
 	// Parse limit if provided
-	if limitStr := c.Query("limit"); limitStr != "" {
-		limit, err := strconv.Atoi(limitStr)
-		if err != nil {
-			AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(errors.New("invalid limit: must be an integer")))
-			return
-		}
-		if limit < 1 || limit > 100 {
-			AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(errors.New("invalid limit: must be between 1 and 100")))
-			return
-		}
-		req.Limit = limit
+	limit, errResp := ParseLimit(c, 100)
+	if errResp != nil {
+		AbortWithError(c, errResp.Code, *errResp)
+		return
 	}
+	req.Limit = limit
 
 	// Call entity store
 	resp, err := h.tenantStore.ListTenant(c.Request.Context(), req)
@@ -177,7 +211,7 @@ func (h *TenantHandlers) List(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, resp)
+	c.JSON(http.StatusOK, h.postprocessTenantList(resp))
 }
 
 func (h *TenantHandlers) Delete(c *gin.Context) {
@@ -186,11 +220,17 @@ func (h *TenantHandlers) Delete(c *gin.Context) {
 	err := h.tenantStore.DeleteTenant(c.Request.Context(), tenant.ID)
 	if err != nil {
 		if err == tenantstore.ErrTenantNotFound {
-			c.Status(http.StatusNotFound)
+			AbortWithError(c, http.StatusNotFound, NewErrNotFound("tenant"))
 			return
 		}
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 		return
+	}
+	if h.mcpVerifier != nil {
+		// A recreated tenant must not inherit the deleted one's verified callbacks.
+		if err := h.mcpVerifier.PurgeTenant(c.Request.Context(), tenant.ID); err != nil {
+			h.logger.Ctx(c.Request.Context()).Error("failed to purge callback verifications", zap.String("tenant_id", tenant.ID), zap.Error(err))
+		}
 	}
 	h.logger.Ctx(c.Request.Context()).Audit("tenant deleted",
 		zap.String("tenant_id", tenant.ID),

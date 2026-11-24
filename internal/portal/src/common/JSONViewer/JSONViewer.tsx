@@ -27,7 +27,9 @@ const JSONViewer = ({ data, label }: JSONViewerProps) => {
     return paths;
   }, [data]);
 
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(allPaths));
+  const [expanded, setExpanded] = useState<Set<string>>(
+    () => new Set(allPaths),
+  );
 
   const allExpanded = expanded.size >= allPaths.size;
 
@@ -52,14 +54,22 @@ const JSONViewer = ({ data, label }: JSONViewerProps) => {
       <div className="json-viewer__header">
         {label && <h3 className="subtitle-m">{label}</h3>}
         <div className="json-viewer__actions">
-          <button className="json-viewer__expand-all mono-xs" onClick={handleToggle}>
+          <button
+            className="json-viewer__expand-all mono-xs"
+            onClick={handleToggle}
+          >
             {allExpanded ? "Collapse all" : "Expand all"}
           </button>
           <CopyButton value={JSON.stringify(data, null, 2)} />
         </div>
       </div>
       <div className="json-viewer__content mono-s">
-        <JSONNode value={data} path="$" expanded={expanded} toggleNode={toggleNode} />
+        <JSONNode
+          value={data}
+          path="$"
+          expanded={expanded}
+          toggleNode={toggleNode}
+        />
       </div>
     </div>
   );
@@ -157,7 +167,8 @@ const CollapsibleNode = ({
   if (count === 0) {
     return (
       <span className="json-viewer__bracket">
-        {openBracket}{closeBracket}
+        {openBracket}
+        {closeBracket}
       </span>
     );
   }
@@ -168,10 +179,10 @@ const CollapsibleNode = ({
   if (!isExpanded) {
     return (
       <button className="json-viewer__summary" onClick={toggle}>
-        <span className="json-viewer__bracket">{openBracket}</span>
-        {" "}
-        <span className="json-viewer__summary-count">{itemLabel} {arrow}</span>
-        {" "}
+        <span className="json-viewer__bracket">{openBracket}</span>{" "}
+        <span className="json-viewer__summary-count">
+          {itemLabel} {arrow}
+        </span>{" "}
         <span className="json-viewer__bracket">{closeBracket}</span>
       </button>
     );
@@ -180,9 +191,10 @@ const CollapsibleNode = ({
   return (
     <span className="json-viewer__node">
       <button className="json-viewer__summary" onClick={toggle}>
-        <span className="json-viewer__bracket">{openBracket}</span>
-        {" "}
-        <span className="json-viewer__summary-count">{itemLabel} {arrow}</span>
+        <span className="json-viewer__bracket">{openBracket}</span>{" "}
+        <span className="json-viewer__summary-count">
+          {itemLabel} {arrow}
+        </span>
       </button>
       <div className="json-viewer__entries">
         {entries.map((entry, i) => (

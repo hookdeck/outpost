@@ -2,10 +2,12 @@ package destawskinesis_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destawskinesis"
+	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,12 +31,45 @@ func TestAWSKinesisDestination_Validate(t *testing.T) {
 		}),
 	)
 
-	awsKinesisDestination, err := destawskinesis.New(testutil.Registry.MetadataLoader(), nil)
+	awsKinesisDestination, err := destawskinesis.New(testutil.Registry.MetadataLoader(), nil, destawskinesis.WithAllowCustomEndpoints(true))
 	require.NoError(t, err)
 
 	t.Run("should validate valid destination", func(t *testing.T) {
 		t.Parallel()
 		assert.NoError(t, awsKinesisDestination.Validate(context.Background(), &validDestination))
+	})
+
+	withTemplate := func(template string) *models.Destination {
+		dest := validDestination
+		dest.Config = map[string]string{
+			"stream_name":            "my-stream",
+			"region":                 "us-east-1",
+			"partition_key_template": template,
+		}
+		return &dest
+	}
+
+	t.Run("should reject a partition key template that does not compile", func(t *testing.T) {
+		t.Parallel()
+		err := awsKinesisDestination.Validate(context.Background(), withTemplate("invalid[template"))
+		var validationErr *destregistry.ErrDestinationValidation
+		require.ErrorAs(t, err, &validationErr)
+		assert.Equal(t, "config.partition_key_template", validationErr.Errors[0].Field)
+		assert.Equal(t, "pattern", validationErr.Errors[0].Type)
+	})
+
+	t.Run("should reject a partition key template over the length limit", func(t *testing.T) {
+		t.Parallel()
+		err := awsKinesisDestination.Validate(context.Background(), withTemplate("join('', ['"+strings.Repeat("a", 1024)+"'])"))
+		var validationErr *destregistry.ErrDestinationValidation
+		require.ErrorAs(t, err, &validationErr)
+		assert.Equal(t, "config.partition_key_template", validationErr.Errors[0].Field)
+		assert.Equal(t, "maxlength", validationErr.Errors[0].Type)
+	})
+
+	t.Run("should accept an omitted partition key template", func(t *testing.T) {
+		t.Parallel()
+		assert.NoError(t, awsKinesisDestination.Validate(context.Background(), withTemplate("")))
 	})
 
 	t.Run("should validate invalid type", func(t *testing.T) {
@@ -122,7 +157,7 @@ func TestAWSKinesisDestination_Validate(t *testing.T) {
 func TestAWSKinesisDestination_ComputeTarget(t *testing.T) {
 	t.Parallel()
 
-	awsKinesisDestination, err := destawskinesis.New(testutil.Registry.MetadataLoader(), nil)
+	awsKinesisDestination, err := destawskinesis.New(testutil.Registry.MetadataLoader(), nil, destawskinesis.WithAllowCustomEndpoints(true))
 	require.NoError(t, err)
 
 	t.Run("should return stream and region as target", func(t *testing.T) {
@@ -137,4 +172,30 @@ func TestAWSKinesisDestination_ComputeTarget(t *testing.T) {
 		target := awsKinesisDestination.ComputeTarget(&destination)
 		assert.Equal(t, "my-stream in us-east-1", target.Target)
 	})
+}
+
+func TestAWSKinesisDestination_CreatePublisher_StoredTemplateThatDoesNotCompile(t *testing.T) {
+	t.Parallel()
+
+	provider, err := destawskinesis.New(testutil.Registry.MetadataLoader(), nil)
+	require.NoError(t, err)
+
+	dest := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("aws_kinesis"),
+		testutil.DestinationFactory.WithConfig(map[string]string{
+			"stream_name":            "my-stream",
+			"region":                 "us-east-1",
+			"partition_key_template": "data.[",
+		}),
+		testutil.DestinationFactory.WithCredentials(map[string]string{
+			"key":    "test-key",
+			"secret": "test-secret",
+		}),
+	)
+
+	require.Error(t, provider.Validate(context.Background(), &dest), "rejected on create and update")
+
+	publisher, err := provider.CreatePublisher(context.Background(), &dest)
+	require.NoError(t, err, "a stored destination still gets a publisher and falls back to the event ID")
+	publisher.Close()
 }

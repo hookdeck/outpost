@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,6 +19,8 @@ const (
 	cursorResourceEvent   = "evt"
 	cursorResourceAttempt = "att"
 	cursorVersion         = 1
+
+	timeIDLayout = "2006-01-02T15:04:05.000000000Z07:00"
 )
 
 // memLogStore is an in-memory implementation of driver.LogStore.
@@ -119,7 +122,7 @@ func (s *memLogStore) ListEvent(ctx context.Context, req driver.ListEventRequest
 				return cursor.Encode(cursorResourceEvent, cursorVersion, e.timeID)
 			},
 			Decode: func(c string) (string, error) {
-				return cursor.Decode(c, cursorResourceEvent, cursorVersion)
+				return decodeCursor(c, cursorResourceEvent)
 			},
 		},
 	})
@@ -313,7 +316,7 @@ func (s *memLogStore) ListAttempt(ctx context.Context, req driver.ListAttemptReq
 				return cursor.Encode(cursorResourceAttempt, cursorVersion, r.timeID)
 			},
 			Decode: func(c string) (string, error) {
-				return cursor.Decode(c, cursorResourceAttempt, cursorVersion)
+				return decodeCursor(c, cursorResourceAttempt)
 			},
 		},
 	})
@@ -325,6 +328,15 @@ func (s *memLogStore) ListAttempt(ctx context.Context, req driver.ListAttemptReq
 	data := make([]*driver.AttemptRecord, len(res.Items))
 	for i, item := range res.Items {
 		data[i] = item.record
+		if !slices.Contains(req.Include, driver.FieldEventData) {
+			data[i].Event.Data = nil
+		}
+		if !slices.Contains(req.Include, driver.FieldEventMetadata) {
+			data[i].Event.Metadata = nil
+		}
+		if !slices.Contains(req.Include, driver.FieldResponseData) {
+			data[i].Attempt.ResponseData = nil
+		}
 	}
 
 	return driver.ListAttemptResponse{
@@ -332,6 +344,40 @@ func (s *memLogStore) ListAttempt(ctx context.Context, req driver.ListAttemptReq
 		Next: res.Next,
 		Prev: res.Prev,
 	}, nil
+}
+
+func (s *memLogStore) ListLatestAttempts(ctx context.Context, lookups []driver.LatestAttemptLookup) (map[driver.AttemptKey]*driver.AttemptRecord, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	notBefore := make(map[driver.AttemptKey]time.Time, len(lookups))
+	for _, l := range lookups {
+		if prev, ok := notBefore[l.Key]; !ok || l.NotBefore.Before(prev) {
+			notBefore[l.Key] = l.NotBefore
+		}
+	}
+
+	latest := make(map[driver.AttemptKey]*models.Attempt, len(notBefore))
+	for _, a := range s.attempts {
+		event := s.events[a.EventID]
+		if event == nil {
+			continue
+		}
+		key := driver.AttemptKey{TenantID: event.TenantID, EventID: a.EventID, DestinationID: a.DestinationID}
+		bound, ok := notBefore[key]
+		if !ok || a.Time.Before(bound) {
+			continue
+		}
+		if cur := latest[key]; cur == nil || makeTimeID(a.Time, a.ID) > makeTimeID(cur.Time, cur.ID) {
+			latest[key] = a
+		}
+	}
+
+	result := make(map[driver.AttemptKey]*driver.AttemptRecord, len(latest))
+	for key, a := range latest {
+		result[key] = &driver.AttemptRecord{Attempt: copyAttempt(a), Event: copyEvent(s.events[a.EventID])}
+	}
+	return result, nil
 }
 
 func (s *memLogStore) RetrieveEvent(ctx context.Context, req driver.RetrieveEventRequest) (*models.Event, error) {
@@ -452,6 +498,8 @@ func copyEvent(e *models.Event) *models.Event {
 		for k, v := range e.Metadata {
 			copied.Metadata[k] = v
 		}
+	} else {
+		copied.Metadata = map[string]string{}
 	}
 	if e.Data != nil {
 		copied.Data = make([]byte, len(e.Data))
@@ -478,6 +526,11 @@ func copyAttempt(a *models.Attempt) *models.Attempt {
 		Code:            a.Code,
 	}
 
+	if a.LatencyMs != nil {
+		v := *a.LatencyMs
+		copied.LatencyMs = &v
+	}
+
 	if a.ResponseData != nil {
 		copied.ResponseData = make(map[string]any, len(a.ResponseData))
 		for k, v := range a.ResponseData {
@@ -492,7 +545,24 @@ func copyAttempt(a *models.Attempt) *models.Attempt {
 // Uses fixed-width nanoseconds to ensure correct string sorting (RFC3339Nano has variable width).
 // Format: "2006-01-02T15:04:05.000000000Z_id"
 func makeTimeID(t time.Time, id string) string {
-	return fmt.Sprintf("%s_%s", t.UTC().Format("2006-01-02T15:04:05.000000000Z07:00"), id)
+	return fmt.Sprintf("%s_%s", t.UTC().Format(timeIDLayout), id)
+}
+
+// decodeCursor decodes a cursor of the given resource and checks that its
+// position is a time ID.
+func decodeCursor(encoded, resource string) (string, error) {
+	position, err := cursor.Decode(encoded, resource, cursorVersion)
+	if err != nil {
+		return "", err
+	}
+	ts, id, found := strings.Cut(position, "_")
+	if !found || ts == "" || id == "" {
+		return "", cursor.ErrInvalidCursor
+	}
+	if t, err := time.Parse(timeIDLayout, ts); err != nil || makeTimeID(t, id) != position {
+		return "", fmt.Errorf("%w: invalid timestamp", cursor.ErrInvalidCursor)
+	}
+	return position, nil
 }
 
 // compareTimeID compares two time IDs using the given operator.

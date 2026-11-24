@@ -20,7 +20,7 @@ Retrieves details for a specific tenant.`,
     const [result, apiCall] = await tenantsGet(
       client,
       args.tenantId,
-      { fetchOptions: { signal: ctx.signal } },
+      { fetchOptions: { signal: ctx.mcpReq.signal } },
     ).$inspect();
 
     if (!result.ok) {

@@ -44,6 +44,7 @@ export function tenantsGetPortalUrl(
   Result<
     components.PortalRedirect,
     | errors.UnauthorizedError
+    | errors.APIErrorResponse
     | errors.NotFoundError
     | errors.InternalServerError
     | OutpostError
@@ -74,6 +75,7 @@ async function $do(
     Result<
       components.PortalRedirect,
       | errors.UnauthorizedError
+      | errors.APIErrorResponse
       | errors.NotFoundError
       | errors.InternalServerError
       | OutpostError
@@ -174,6 +176,7 @@ async function $do(
   const [result] = await M.match<
     components.PortalRedirect,
     | errors.UnauthorizedError
+    | errors.APIErrorResponse
     | errors.NotFoundError
     | errors.InternalServerError
     | OutpostError
@@ -187,6 +190,7 @@ async function $do(
   >(
     M.json(200, components.PortalRedirect$inboundSchema),
     M.jsonErr(401, errors.UnauthorizedError$inboundSchema),
+    M.jsonErr(403, errors.APIErrorResponse$inboundSchema),
     M.jsonErr(404, errors.NotFoundError$inboundSchema),
     M.jsonErr(500, errors.InternalServerError$inboundSchema),
     M.fail("4XX"),

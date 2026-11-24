@@ -13,6 +13,9 @@ type TopicHandlers struct {
 }
 
 func NewTopicHandlers(logger *logging.Logger, topics []string) *TopicHandlers {
+	if topics == nil {
+		topics = []string{}
+	}
 	return &TopicHandlers{
 		logger: logger,
 		topics: topics,

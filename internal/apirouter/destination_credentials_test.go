@@ -9,22 +9,34 @@ import (
 
 	"github.com/hookdeck/outpost/internal/destregistry"
 	destregistrydefault "github.com/hookdeck/outpost/internal/destregistry/providers"
+	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// webhookStandardRegistry creates a registry with the real webhook standard
-// provider registered as "webhook". This is needed because testutil.Registry
-// uses the default (non-standard) webhook provider.
+// webhookStandardRegistry creates a registry with the webhook provider in
+// standard mode, as config resolves it. testutil.Registry uses the default
+// mode.
 func webhookStandardRegistry(t *testing.T) destregistry.Registry {
 	t.Helper()
 	logger := testutil.CreateTestLogger(t)
 	reg := destregistry.NewRegistry(&destregistry.Config{}, logger)
 	err := destregistrydefault.RegisterDefault(reg, destregistrydefault.RegisterDefaultDestinationOptions{
 		Webhook: &destregistrydefault.DestWebhookConfig{
-			Mode: "standard",
+			MetadataName:             destwebhook.StandardMetadataName,
+			HeaderPrefix:             destwebhook.StandardHeaderPrefix,
+			EventIDHeader:            destregistrydefault.WebhookHeaderConfig{Name: "webhook-id"},
+			TimestampFormat:          destwebhook.StandardTimestampFormat,
+			SignatureContentTemplate: destwebhook.StandardSignatureContentTmpl,
+			SignatureHeaderTemplate:  destwebhook.StandardSignatureHeaderTmpl,
+			SignatureEncoding:        destwebhook.StandardEncoding,
+			SignatureAlgorithm:       destwebhook.DefaultAlgorithm,
+			SignatureSecretEncoding:  destwebhook.StandardSecretEncoding,
+			SignatureSecretPrefix:    destwebhook.StandardSecretPrefix,
+			SigningSecretTemplate:    destwebhook.StandardSigningSecretTmpl,
 		},
+		AWSEventBridge: &destregistrydefault.DestAWSEventBridgeConfig{Source: "outpost"},
 	})
 	require.NoError(t, err)
 	return reg
@@ -90,6 +102,42 @@ func TestDestinationCredentials_SecretRotationViaAPI(t *testing.T) {
 		"previous_secret should be the old secret")
 	assert.NotEmpty(t, rotated.Credentials["previous_secret_invalid_at"],
 		"previous_secret_invalid_at should be set")
+
+	// Rotate again with an explicit invalidation window
+	customInvalidAt := time.Now().Add(1 * time.Hour).Format(time.RFC3339)
+	secondRotateReq := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+		"credentials": map[string]any{
+			"rotate_secret":              true,
+			"previous_secret_invalid_at": customInvalidAt,
+		},
+	})
+	secondRotateResp := h.do(h.withAPIKey(secondRotateReq))
+	require.Equal(t, http.StatusOK, secondRotateResp.Code)
+
+	var secondRotated destregistry.DestinationDisplay
+	require.NoError(t, json.Unmarshal(secondRotateResp.Body.Bytes(), &secondRotated))
+	assert.Equal(t, customInvalidAt, secondRotated.Credentials["previous_secret_invalid_at"],
+		"explicit previous_secret_invalid_at should be respected")
+
+	// Rotate once more without previous_secret_invalid_at: the 24h default
+	// must be re-applied, not the previously stored window carried forward
+	thirdRotateReq := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+		"credentials": map[string]any{
+			"rotate_secret": true,
+		},
+	})
+	thirdRotateResp := h.do(h.withAPIKey(thirdRotateReq))
+	require.Equal(t, http.StatusOK, thirdRotateResp.Code)
+
+	var thirdRotated destregistry.DestinationDisplay
+	require.NoError(t, json.Unmarshal(thirdRotateResp.Body.Bytes(), &thirdRotated))
+	assert.Equal(t, secondRotated.Credentials["secret"], thirdRotated.Credentials["previous_secret"],
+		"previous_secret should be the secret from the previous rotation")
+
+	invalidAt, err := time.Parse(time.RFC3339, thirdRotated.Credentials["previous_secret_invalid_at"])
+	require.NoError(t, err)
+	assert.WithinDuration(t, time.Now().Add(24*time.Hour), invalidAt, time.Minute,
+		"omitting previous_secret_invalid_at should default to now+24h")
 }
 
 func TestDestinationCredentials_TenantCannotSetCustomSecret(t *testing.T) {

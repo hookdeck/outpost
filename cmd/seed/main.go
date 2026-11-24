@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"math/rand"
 	"net/http"
 	"strings"
@@ -11,8 +14,6 @@ import (
 	"time"
 
 	"github.com/brianvoe/gofakeit/v6"
-	outpost "github.com/hookdeck/outpost/sdks/outpost-go"
-	"github.com/hookdeck/outpost/sdks/outpost-go/models/components"
 )
 
 var (
@@ -52,6 +53,42 @@ func (s *seedStats) addError(err string) {
 	s.errors = append(s.errors, err)
 }
 
+type client struct {
+	baseURL string
+	apiKey  string
+	http    *http.Client
+}
+
+func (c *client) do(ctx context.Context, method, path string, body any) error {
+	var reader io.Reader
+	if body != nil {
+		b, err := json.Marshal(body)
+		if err != nil {
+			return err
+		}
+		reader = bytes.NewReader(b)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, reader)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		buf, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		return fmt.Errorf("status %d: %s", resp.StatusCode, strings.TrimSpace(string(buf)))
+	}
+	io.Copy(io.Discard, resp.Body)
+	return nil
+}
+
 func main() {
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Outpost Data Seeder - Generate test data for Outpost\n\n")
@@ -75,14 +112,11 @@ func main() {
 		return
 	}
 
-	// Initialize faker
 	gofakeit.Seed(time.Now().UnixNano())
 
-	// Calculate estimated destinations
 	avgDestinations := (*minDestinations + *maxDestinations) / 2
 	estimatedTotal := *numTenants * avgDestinations
 
-	// Display configuration
 	fmt.Printf("=== Outpost Data Seeder Configuration ===\n")
 	fmt.Printf("Server: %s\n", *serverURL)
 	fmt.Printf("Tenants to create: %d\n", *numTenants)
@@ -91,7 +125,6 @@ func main() {
 	fmt.Printf("Concurrency: %d workers\n", *concurrency)
 	fmt.Printf("\n")
 
-	// Confirmation prompt
 	if !*skipConfirm {
 		fmt.Printf("This will create approximately %d tenants and %d destinations.\n", *numTenants, estimatedTotal)
 		fmt.Printf("Continue? (y/N): ")
@@ -106,17 +139,14 @@ func main() {
 		fmt.Println()
 	}
 
-	// Create SDK client
-	client := outpost.New(
-		outpost.WithServerURL(*serverURL),
-		outpost.WithSecurity(components.Security{
-			AdminAPIKey: outpost.String(*apiKey),
-		}),
-	)
+	c := &client{
+		baseURL: strings.TrimRight(*serverURL, "/"),
+		apiKey:  *apiKey,
+		http:    &http.Client{Timeout: 30 * time.Second},
+	}
 
 	ctx := context.Background()
 
-	// Health check - use simple HTTP call to avoid SDK content-type parsing issues
 	fmt.Printf("Checking server health...\n")
 	healthURL := strings.TrimSuffix(*serverURL, "/api/v1") + "/healthz"
 	healthResp, err := http.Get(healthURL)
@@ -137,26 +167,21 @@ func main() {
 
 	fmt.Printf("Starting seed process...\n")
 
-	// Create worker pool
 	tenantChan := make(chan int, *numTenants)
 	var wg sync.WaitGroup
 
-	// Start workers
 	for i := 0; i < *concurrency; i++ {
 		wg.Add(1)
-		go worker(ctx, client, tenantChan, stats, &wg)
+		go worker(ctx, c, tenantChan, stats, &wg)
 	}
 
-	// Queue work
 	for i := 0; i < *numTenants; i++ {
 		tenantChan <- i
 	}
 	close(tenantChan)
 
-	// Wait for completion
 	wg.Wait()
 
-	// Print summary
 	fmt.Printf("\n=== Seeding Complete ===\n")
 	fmt.Printf("Tenants created: %d\n", stats.tenantsCreated)
 	fmt.Printf("Destinations created: %d\n", stats.destinationsCreated)
@@ -171,34 +196,26 @@ func main() {
 	}
 }
 
-func worker(ctx context.Context, client *outpost.Outpost, tenantChan <-chan int, stats *seedStats, wg *sync.WaitGroup) {
+func worker(ctx context.Context, c *client, tenantChan <-chan int, stats *seedStats, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for i := range tenantChan {
-		// Create tenant with sequential ID
 		tenantID := fmt.Sprintf("tenant_%d", i+1)
 
 		if *verbose {
 			fmt.Printf("Creating tenant: %s\n", tenantID)
 		}
 
-		resp, err := client.Tenants.Upsert(ctx, &tenantID)
-		if err != nil {
+		if err := c.do(ctx, http.MethodPut, "/tenants/"+tenantID, nil); err != nil {
 			stats.addError(fmt.Sprintf("Failed to create tenant %s: %v", tenantID, err))
-			continue
-		}
-
-		if resp.Tenant == nil {
-			stats.addError(fmt.Sprintf("No tenant returned for %s", tenantID))
 			continue
 		}
 
 		stats.addTenant()
 
-		// Create destinations for this tenant
 		numDests := rand.Intn(*maxDestinations-*minDestinations+1) + *minDestinations
-		for i := 0; i < numDests; i++ {
-			if err := createDestination(ctx, client, tenantID, stats); err != nil {
+		for j := 0; j < numDests; j++ {
+			if err := createDestination(ctx, c, tenantID); err != nil {
 				stats.addError(fmt.Sprintf("Failed to create destination for tenant %s: %v", tenantID, err))
 			} else {
 				stats.addDestination()
@@ -211,69 +228,33 @@ func worker(ctx context.Context, client *outpost.Outpost, tenantChan <-chan int,
 	}
 }
 
-func createDestination(ctx context.Context, client *outpost.Outpost, tenantID string, stats *seedStats) error {
-	// Keep it simple - only create webhook destinations
-	destCreate := components.DestinationCreate{
-		DestinationCreateWebhook: &components.DestinationCreateWebhook{
-			Type:   components.DestinationCreateWebhookTypeWebhook,
-			Topics: generateTopics(),
-			Config: components.WebhookConfig{
-				URL: fmt.Sprintf("https://mock.hookdeck.com/%s", gofakeit.UUID()),
-			},
+func createDestination(ctx context.Context, c *client, tenantID string) error {
+	body := map[string]any{
+		"type":   "webhook",
+		"topics": generateTopics(),
+		"config": map[string]string{
+			"url": fmt.Sprintf("https://mock.hookdeck.com/%s", gofakeit.UUID()),
 		},
 	}
-
-	_, err := client.Destinations.Create(ctx, destCreate, &tenantID)
-	return err
+	return c.do(ctx, http.MethodPost, "/tenants/"+tenantID+"/destinations", body)
 }
 
-func generateTenantID() string {
-	// Generate various tenant ID formats using proper ID types
-	formats := []func() string{
-		func() string { return gofakeit.UUID() },
-		func() string { return fmt.Sprintf("org_%s", gofakeit.UUID()) },
-		func() string { return fmt.Sprintf("tenant_%s", gofakeit.UUID()) },
-		func() string { return fmt.Sprintf("user_%s", gofakeit.UUID()) },
-		func() string { return fmt.Sprintf("team_%s", gofakeit.UUID()) },
-		func() string { return fmt.Sprintf("cus_%s", generateCUID()) },
-		func() string { return generateCUID() },
-	}
-	return formats[rand.Intn(len(formats))]()
-}
-
-// generateCUID generates a CUID-like string (simplified version)
-func generateCUID() string {
-	// Generate a 25-character CUID-like ID
-	chars := "0123456789abcdefghijklmnopqrstuvwxyz"
-	result := make([]byte, 25)
-	for i := range result {
-		result[i] = chars[rand.Intn(len(chars))]
-	}
-	return string(result)
-}
-
-func generateTopics() components.Topics {
-	// 30% chance of wildcard (all topics)
+func generateTopics() any {
 	if rand.Float32() < 0.3 {
-		return components.CreateTopicsTopicsEnum(components.TopicsEnumWildcard)
+		return "*"
 	}
 
-	// Use only the allowed topics for now
 	allowedTopics := []string{
 		"user.created",
 		"user.updated",
 		"user.deleted",
 	}
 
-	// Randomly select 1-3 topics from the allowed list
 	numTopics := rand.Intn(len(allowedTopics)) + 1
-	selectedTopics := make([]string, 0, numTopics)
-
-	// Randomly select topics
 	perm := rand.Perm(len(allowedTopics))
+	selected := make([]string, 0, numTopics)
 	for i := 0; i < numTopics; i++ {
-		selectedTopics = append(selectedTopics, allowedTopics[perm[i]])
+		selected = append(selected, allowedTopics[perm[i]])
 	}
-
-	return components.CreateTopicsArrayOfStr(selectedTopics)
+	return selected
 }

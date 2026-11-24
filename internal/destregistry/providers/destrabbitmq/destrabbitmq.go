@@ -4,18 +4,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
+	"net/url"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/proxychain"
 	"github.com/rabbitmq/amqp091-go"
 )
 
 type RabbitMQDestination struct {
 	*destregistry.BaseProvider
+	proxyDial proxychain.DialFunc
 }
 
 type RabbitMQDestinationConfig struct {
@@ -31,12 +34,26 @@ type RabbitMQDestinationCredentials struct {
 
 var _ destregistry.Provider = (*RabbitMQDestination)(nil)
 
-func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption) (*RabbitMQDestination, error) {
+type Option func(*RabbitMQDestination)
+
+// WithProxy connects to brokers through the given forward proxies, nearest
+// hop first. amqps TLS runs end to end through the tunnel.
+func WithProxy(hops []*url.URL) Option {
+	return func(d *RabbitMQDestination) {
+		d.proxyDial = destregistry.ProxyDialFunc(hops)
+	}
+}
+
+func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption, opts ...Option) (*RabbitMQDestination, error) {
 	base, err := destregistry.NewBaseProvider(loader, "rabbitmq", basePublisherOpts...)
 	if err != nil {
 		return nil, err
 	}
-	return &RabbitMQDestination{BaseProvider: base}, nil
+	d := &RabbitMQDestination{BaseProvider: base}
+	for _, opt := range opts {
+		opt(d)
+	}
+	return d, nil
 }
 
 func (d *RabbitMQDestination) Validate(ctx context.Context, destination *models.Destination) error {
@@ -64,10 +81,18 @@ func (d *RabbitMQDestination) CreatePublisher(ctx context.Context, destination *
 	if err != nil {
 		return nil, err
 	}
+	amqpURL := rabbitURL(config, credentials)
+	host := config.ServerURL
+	if uri, err := amqp091.ParseURI(amqpURL); err == nil {
+		host = uri.Host
+	}
 	return &RabbitMQPublisher{
 		BasePublisher: d.BaseProvider.NewPublisher(destregistry.WithDeliveryMetadata(destination.DeliveryMetadata)),
-		url:           rabbitURL(config, credentials),
+		url:           amqpURL,
+		host:          host,
 		exchange:      config.Exchange,
+		proxyDial:     d.proxyDial,
+		lock:          make(chan struct{}, 1),
 	}, nil
 }
 
@@ -110,17 +135,22 @@ func (d *RabbitMQDestination) Preprocess(newDestination *models.Destination, ori
 type RabbitMQPublisher struct {
 	*destregistry.BasePublisher
 	url      string
+	host     string
 	exchange string
-	conn     *amqp091.Connection
-	channel  *amqp091.Channel
-	mu       sync.Mutex
+	// proxyDial, when set, opens the broker connection through a proxy chain.
+	proxyDial proxychain.DialFunc
+	conn      *amqp091.Connection
+	channel   *amqp091.Channel
+	// lock guards conn and channel. A channel rather than a mutex so a
+	// delivery waiting on another's dial gives up at its own deadline.
+	lock chan struct{}
 }
 
 func (p *RabbitMQPublisher) Close() error {
 	p.BasePublisher.StartClose()
 
-	p.mu.Lock()
-	defer p.mu.Unlock()
+	p.lock <- struct{}{}
+	defer func() { <-p.lock }()
 
 	if p.channel != nil {
 		p.channel.Close()
@@ -138,11 +168,17 @@ func (p *RabbitMQPublisher) Publish(ctx context.Context, event *models.Event) (*
 	defer p.BasePublisher.FinishPublish()
 
 	if err := p.ensureConnection(ctx); err != nil {
+		if errors.Is(err, context.Canceled) {
+			return nil, err
+		}
+		if destregistry.IsProxyError(err) {
+			return destregistry.ProxyPublishResult(err, "rabbitmq")
+		}
 		return &destregistry.Delivery{
 				Status: "failed",
 				Code:   ClassifyRabbitMQError(err),
 				Response: map[string]interface{}{
-					"error": err.Error(),
+					"error": p.responseError(err),
 				},
 			}, destregistry.NewErrDestinationPublishAttempt(err, "rabbitmq", map[string]interface{}{
 				"error":   "connection_failed",
@@ -173,7 +209,7 @@ func (p *RabbitMQPublisher) Publish(ctx context.Context, event *models.Event) (*
 				Status: "failed",
 				Code:   ClassifyRabbitMQError(err),
 				Response: map[string]interface{}{
-					"error": err.Error(),
+					"error": p.responseError(err),
 				},
 			}, destregistry.NewErrDestinationPublishAttempt(err, "rabbitmq", map[string]interface{}{
 				"error":   "publish_failed",
@@ -188,22 +224,44 @@ func (p *RabbitMQPublisher) Publish(ctx context.Context, event *models.Event) (*
 	}, nil
 }
 
-func (p *RabbitMQPublisher) ensureConnection(_ context.Context) error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
+// responseError is the customer-visible error. Through a proxy, network
+// errors name the proxy's address, so only broker and TLS errors are kept
+// verbatim.
+func (p *RabbitMQPublisher) responseError(err error) string {
+	var amqpErr *amqp091.Error
+	if p.proxyDial == nil || (errors.As(err, &amqpErr) && amqpErr.Code != amqp091.FrameError) {
+		return err.Error()
+	}
+	code := ClassifyRabbitMQError(err)
+	if code == "tls_error" {
+		return err.Error()
+	}
+	return fmt.Sprintf("%s connecting to %s", code, p.host)
+}
+
+func (p *RabbitMQPublisher) ensureConnection(ctx context.Context) error {
+	select {
+	case p.lock <- struct{}{}:
+	case <-ctx.Done():
+		return fmt.Errorf("failed to connect to RabbitMQ: %w", ctx.Err())
+	}
+	defer func() { <-p.lock }()
 
 	if p.conn != nil && !p.conn.IsClosed() && p.channel != nil && !p.channel.IsClosed() {
 		return nil
 	}
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("failed to connect to RabbitMQ: %w", err)
+	}
 
 	// Create new connection
-	conn, err := amqp091.Dial(p.url)
+	conn, err := connect(ctx, p.url, p.proxyDial)
 	if err != nil {
 		return fmt.Errorf("failed to connect to RabbitMQ: %w", err)
 	}
 
 	// Create channel
-	channel, err := conn.Channel()
+	channel, err := openChannel(ctx, conn)
 	if err != nil {
 		conn.Close()
 		return fmt.Errorf("failed to create channel: %w", err)
@@ -220,6 +278,77 @@ func (p *RabbitMQPublisher) ensureConnection(_ context.Context) error {
 	p.channel = channel
 
 	return nil
+}
+
+// connect opens the connection within ctx: the TCP dial, TLS and AMQP
+// handshakes all stop at ctx's deadline or the URL's connection_timeout
+// (default 30s), whichever comes first. A nil dialContext dials directly.
+func connect(ctx context.Context, amqpURL string, dialContext proxychain.DialFunc) (*amqp091.Connection, error) {
+	uri, err := amqp091.ParseURI(amqpURL)
+	if err != nil {
+		return nil, err
+	}
+	timeout := 30 * time.Second
+	if uri.ConnectionTimeout != 0 {
+		timeout = time.Duration(uri.ConnectionTimeout) * time.Millisecond
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	if dialContext == nil {
+		dialContext = (&net.Dialer{}).DialContext
+	}
+	// The deadline bounds the TLS and AMQP handshakes; cancel cuts them
+	// short too.
+	var stop func() bool
+	conn, err := amqp091.DialConfig(amqpURL, amqp091.Config{
+		Dial: func(network, addr string) (net.Conn, error) {
+			conn, err := dialContext(ctx, network, addr)
+			if err != nil {
+				return nil, err
+			}
+			// amqp091 clears the deadline once the connection is open.
+			deadline, _ := ctx.Deadline()
+			if err := conn.SetDeadline(deadline); err != nil {
+				conn.Close()
+				return nil, err
+			}
+			stop = context.AfterFunc(ctx, func() { _ = conn.SetDeadline(time.Now()) })
+			return conn, nil
+		},
+	})
+	if stop != nil && !stop() {
+		if err == nil {
+			_ = conn.CloseDeadline(time.Now())
+			return nil, ctx.Err()
+		}
+		if errors.Is(ctx.Err(), context.Canceled) {
+			return nil, ctx.Err()
+		}
+	}
+	return conn, err
+}
+
+// openChannel opens a channel on conn, dropping conn if ctx ends first:
+// amqp091 has no deadline once the handshake is done.
+func openChannel(ctx context.Context, conn *amqp091.Connection) (*amqp091.Channel, error) {
+	type result struct {
+		channel *amqp091.Channel
+		err     error
+	}
+	done := make(chan result, 1)
+	go func() {
+		channel, err := conn.Channel()
+		done <- result{channel, err}
+	}()
+	select {
+	case r := <-done:
+		return r.channel, r.err
+	case <-ctx.Done():
+		// Close would wait for the broker's close-ok.
+		_ = conn.CloseDeadline(time.Now())
+		<-done
+		return nil, ctx.Err()
+	}
 }
 
 func rabbitURL(config *RabbitMQDestinationConfig, credentials *RabbitMQDestinationCredentials) string {
@@ -262,6 +391,12 @@ func ClassifyRabbitMQError(err error) string {
 			return "channel_error"
 		case amqp091.ConnectionForced:
 			return "connection_forced"
+		case amqp091.FrameError:
+			// The handshake deadline surfaces as a frame error.
+			if strings.Contains(errStr, "i/o timeout") {
+				return "timeout"
+			}
+			return "rabbitmq_error"
 		default:
 			return "rabbitmq_error"
 		}
@@ -293,14 +428,14 @@ func ClassifyRabbitMQError(err error) string {
 // ===== TEST HELPERS =====
 
 func (p *RabbitMQPublisher) GetConnection() *amqp091.Connection {
-	p.mu.Lock()
-	defer p.mu.Unlock()
+	p.lock <- struct{}{}
+	defer func() { <-p.lock }()
 	return p.conn
 }
 
 func (p *RabbitMQPublisher) ForceConnectionClose() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
+	p.lock <- struct{}{}
+	defer func() { <-p.lock }()
 	if p.conn != nil {
 		p.conn.Close()
 	}

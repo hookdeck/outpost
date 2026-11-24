@@ -6,6 +6,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/hookdeck/outpost/internal/destregistry"
@@ -21,6 +22,7 @@ type mockProvider struct {
 	*destregistry.BaseProvider
 	publishDelay time.Duration
 	mockError    error
+	failDelivery *destregistry.Delivery
 }
 
 type mockPublisher struct {
@@ -28,6 +30,8 @@ type mockPublisher struct {
 	closed       bool
 	publishDelay time.Duration
 	mockError    error
+	// Returned alongside mockError, like a real publisher's classified failure.
+	failDelivery *destregistry.Delivery
 }
 
 var mockPublisherID int64
@@ -98,6 +102,7 @@ func (p *mockProvider) CreatePublisher(ctx context.Context, dest *models.Destina
 	pub := newMockPublisher()
 	pub.publishDelay = p.publishDelay
 	pub.mockError = p.mockError
+	pub.failDelivery = p.failDelivery
 	return pub, nil
 }
 
@@ -112,7 +117,7 @@ func (p *mockPublisher) Publish(ctx context.Context, event *models.Event) (*dest
 	select {
 	case <-time.After(p.publishDelay):
 		if p.mockError != nil {
-			return nil, p.mockError
+			return p.failDelivery, p.mockError
 		}
 		return &destregistry.Delivery{
 			Status:   "success",
@@ -162,21 +167,27 @@ func TestRegistryConcurrentPublisherManagement(t *testing.T) {
 
 // Track where events are published by provider type and config
 type publishTarget struct {
-	providerType string
-	config       string
+	providerType     string
+	config           string
+	credential       string
+	deliveryMetadata string
 }
 
 var publishedEvents = make(map[publishTarget][]models.Event)
 
 type mockPublisherWithConfig struct {
-	providerType string
-	config       string
+	providerType     string
+	config           string
+	credential       string
+	deliveryMetadata string
 }
 
 func (p *mockPublisherWithConfig) Publish(ctx context.Context, event *models.Event) (*destregistry.Delivery, error) {
 	target := publishTarget{
-		providerType: p.providerType,
-		config:       p.config,
+		providerType:     p.providerType,
+		config:           p.config,
+		credential:       p.credential,
+		deliveryMetadata: p.deliveryMetadata,
 	}
 	publishedEvents[target] = append(publishedEvents[target], *event)
 	return &destregistry.Delivery{
@@ -207,8 +218,10 @@ func newMockProviderWithConfig(providerType string) (*mockProviderWithConfig, er
 
 func (p *mockProviderWithConfig) CreatePublisher(ctx context.Context, destination *models.Destination) (destregistry.Publisher, error) {
 	return &mockPublisherWithConfig{
-		providerType: p.providerType,
-		config:       destination.Config["id"],
+		providerType:     p.providerType,
+		config:           destination.Config["id"],
+		credential:       destination.Credentials["secret"],
+		deliveryMetadata: destination.DeliveryMetadata["source"],
 	}, nil
 }
 
@@ -334,6 +347,115 @@ func TestDestinationChanges(t *testing.T) {
 			assert.JSONEq(t, `{"msg":"second"}`, string(secondEvents[0].Data))
 		}
 	})
+
+	t.Run("credentials change", func(t *testing.T) {
+		publishedEvents = make(map[publishTarget][]models.Event)
+		registry := destregistry.NewRegistry(&destregistry.Config{}, testutil.CreateTestLogger(t))
+		provider, err := newMockProviderWithConfig("mock1")
+		require.NoError(t, err)
+		registry.RegisterProvider("mock1", provider)
+
+		dest := &models.Destination{
+			ID:   "test-dest",
+			Type: "mock1",
+			Config: map[string]string{
+				"id": "config1",
+			},
+			Credentials: map[string]string{
+				"secret": "secret1",
+			},
+		}
+
+		e1 := testutil.EventFactory.Any(testutil.EventFactory.WithDataMap(map[string]interface{}{"msg": "first"}))
+		_, err = registry.PublishEvent(context.Background(), dest, &e1)
+		require.NoError(t, err)
+
+		// Same ID, type and config; only credentials rotated
+		destUpdated := &models.Destination{
+			ID:   "test-dest",
+			Type: "mock1",
+			Config: map[string]string{
+				"id": "config1",
+			},
+			Credentials: map[string]string{
+				"secret":          "secret2",
+				"previous_secret": "secret1",
+			},
+		}
+
+		e2 := testutil.EventFactory.Any(testutil.EventFactory.WithDataMap(map[string]interface{}{"msg": "second"}))
+		_, err = registry.PublishEvent(context.Background(), destUpdated, &e2)
+		require.NoError(t, err)
+
+		firstTarget := publishTarget{providerType: "mock1", config: "config1", credential: "secret1"}
+		secondTarget := publishTarget{providerType: "mock1", config: "config1", credential: "secret2"}
+
+		firstEvents := publishedEvents[firstTarget]
+		assert.Len(t, firstEvents, 1, "only first event should be published with secret1")
+		if len(firstEvents) > 0 {
+			assert.JSONEq(t, `{"msg":"first"}`, string(firstEvents[0].Data))
+		}
+
+		secondEvents := publishedEvents[secondTarget]
+		assert.Len(t, secondEvents, 1, "second event should be published with secret2")
+		if len(secondEvents) > 0 {
+			assert.JSONEq(t, `{"msg":"second"}`, string(secondEvents[0].Data))
+		}
+	})
+
+	t.Run("delivery metadata change", func(t *testing.T) {
+		publishedEvents = make(map[publishTarget][]models.Event)
+		registry := destregistry.NewRegistry(&destregistry.Config{}, testutil.CreateTestLogger(t))
+		provider, err := newMockProviderWithConfig("mock1")
+		require.NoError(t, err)
+		registry.RegisterProvider("mock1", provider)
+
+		dest := &models.Destination{
+			ID:   "test-dest",
+			Type: "mock1",
+			Config: map[string]string{
+				"id": "config1",
+			},
+			DeliveryMetadata: map[string]string{
+				"source": "source1",
+			},
+		}
+
+		e1 := testutil.EventFactory.Any(testutil.EventFactory.WithDataMap(map[string]interface{}{"msg": "first"}))
+		_, err = registry.PublishEvent(context.Background(), dest, &e1)
+		require.NoError(t, err)
+
+		// Same ID, type, config and credentials; only delivery metadata changed
+		destUpdated := &models.Destination{
+			ID:   "test-dest",
+			Type: "mock1",
+			Config: map[string]string{
+				"id": "config1",
+			},
+			DeliveryMetadata: map[string]string{
+				"source": "source2",
+			},
+		}
+
+		e2 := testutil.EventFactory.Any(testutil.EventFactory.WithDataMap(map[string]interface{}{"msg": "second"}))
+		_, err = registry.PublishEvent(context.Background(), destUpdated, &e2)
+		require.NoError(t, err)
+
+		firstTarget := publishTarget{providerType: "mock1", config: "config1", deliveryMetadata: "source1"}
+		secondTarget := publishTarget{providerType: "mock1", config: "config1", deliveryMetadata: "source2"}
+
+		firstEvents := publishedEvents[firstTarget]
+		assert.Len(t, firstEvents, 1, "only first event should use source1")
+		if len(firstEvents) > 0 {
+			assert.JSONEq(t, `{"msg":"first"}`, string(firstEvents[0].Data))
+		}
+
+		secondEvents := publishedEvents[secondTarget]
+		assert.Len(t, secondEvents, 1, "second event should use source2")
+		if len(secondEvents) > 0 {
+			assert.JSONEq(t, `{"msg":"second"}`, string(secondEvents[0].Data))
+		}
+	})
 }
 
 func TestPublisherExpiration(t *testing.T) {
@@ -341,68 +463,74 @@ func TestPublisherExpiration(t *testing.T) {
 
 	t.Run("basic_ttl", func(t *testing.T) {
 		t.Parallel()
-		registry := destregistry.NewRegistry(&destregistry.Config{
-			PublisherTTL: 100 * time.Millisecond,
-		}, testutil.CreateTestLogger(t))
-		provider, err := newMockProvider()
-		require.NoError(t, err)
-		registry.RegisterProvider("mock", provider)
+		synctest.Test(t, func(t *testing.T) {
+			registry := destregistry.NewRegistry(&destregistry.Config{
+				PublisherTTL: 100 * time.Millisecond,
+			}, testutil.CreateTestLogger(t))
+			defer destregistry.CloseForTest(registry)
+			provider, err := newMockProvider()
+			require.NoError(t, err)
+			registry.RegisterProvider("mock", provider)
 
-		dest := &models.Destination{ID: "test", Type: "mock"}
+			dest := &models.Destination{ID: "test", Type: "mock"}
 
-		// Get initial publisher
-		p1, err := registry.ResolvePublisher(context.Background(), dest)
-		require.NoError(t, err)
-		id1 := p1.(*mockPublisher).id
+			// Get initial publisher
+			p1, err := registry.ResolvePublisher(context.Background(), dest)
+			require.NoError(t, err)
+			id1 := p1.(*mockPublisher).id
 
-		// Wait > TTL
-		time.Sleep(110 * time.Millisecond)
+			// Wait > TTL
+			time.Sleep(101 * time.Millisecond)
 
-		// Get new publisher - should be different since p1 expired
-		p2, err := registry.ResolvePublisher(context.Background(), dest)
-		require.NoError(t, err)
-		assert.NotEqual(t, id1, p2.(*mockPublisher).id)
+			// Get new publisher - should be different since p1 expired
+			p2, err := registry.ResolvePublisher(context.Background(), dest)
+			require.NoError(t, err)
+			assert.NotEqual(t, id1, p2.(*mockPublisher).id)
+		})
 	})
 
 	t.Run("refresh_extends_ttl", func(t *testing.T) {
 		t.Parallel()
-		registry := destregistry.NewRegistry(&destregistry.Config{
-			PublisherTTL: 100 * time.Millisecond,
-		}, testutil.CreateTestLogger(t))
-		provider, err := newMockProvider()
-		require.NoError(t, err)
-		registry.RegisterProvider("mock", provider)
+		synctest.Test(t, func(t *testing.T) {
+			registry := destregistry.NewRegistry(&destregistry.Config{
+				PublisherTTL: 100 * time.Millisecond,
+			}, testutil.CreateTestLogger(t))
+			defer destregistry.CloseForTest(registry)
+			provider, err := newMockProvider()
+			require.NoError(t, err)
+			registry.RegisterProvider("mock", provider)
 
-		dest := &models.Destination{ID: "test", Type: "mock"}
+			dest := &models.Destination{ID: "test", Type: "mock"}
 
-		// Get initial publisher
-		p1, err := registry.ResolvePublisher(context.Background(), dest)
-		require.NoError(t, err)
-		id1 := p1.(*mockPublisher).id
+			// Get initial publisher
+			p1, err := registry.ResolvePublisher(context.Background(), dest)
+			require.NoError(t, err)
+			id1 := p1.(*mockPublisher).id
 
-		// Wait 90ms (almost expired)
-		time.Sleep(90 * time.Millisecond)
+			// Wait most of the TTL
+			time.Sleep(90 * time.Millisecond)
 
-		// Access refreshes TTL
-		p2, err := registry.ResolvePublisher(context.Background(), dest)
-		require.NoError(t, err)
-		assert.Equal(t, id1, p2.(*mockPublisher).id)
+			// Access refreshes TTL
+			p2, err := registry.ResolvePublisher(context.Background(), dest)
+			require.NoError(t, err)
+			assert.Equal(t, id1, p2.(*mockPublisher).id)
 
-		// Wait 90ms (within refreshed TTL)
-		time.Sleep(90 * time.Millisecond)
+			// Wait past the original TTL, within the refreshed one
+			time.Sleep(90 * time.Millisecond)
 
-		// Still alive since last access refreshed TTL
-		p3, err := registry.ResolvePublisher(context.Background(), dest)
-		require.NoError(t, err)
-		assert.Equal(t, id1, p3.(*mockPublisher).id)
+			// Still alive since last access refreshed TTL
+			p3, err := registry.ResolvePublisher(context.Background(), dest)
+			require.NoError(t, err)
+			assert.Equal(t, id1, p3.(*mockPublisher).id)
 
-		// Wait > TTL for final expiration
-		time.Sleep(110 * time.Millisecond)
+			// Wait > TTL for final expiration
+			time.Sleep(101 * time.Millisecond)
 
-		// Should get new publisher
-		p4, err := registry.ResolvePublisher(context.Background(), dest)
-		require.NoError(t, err)
-		assert.NotEqual(t, id1, p4.(*mockPublisher).id)
+			// Should get new publisher
+			p4, err := registry.ResolvePublisher(context.Background(), dest)
+			require.NoError(t, err)
+			assert.NotEqual(t, id1, p4.(*mockPublisher).id)
+		})
 	})
 }
 
@@ -624,79 +752,164 @@ func TestObfuscateDestination(t *testing.T) {
 
 func TestPublishEventTimeout(t *testing.T) {
 	timeout := 100 * time.Millisecond
-	logger := testutil.CreateTestLogger(t)
 
 	t.Run("should not return timeout error when publish completes within timeout", func(t *testing.T) {
-		registry := destregistry.NewRegistry(&destregistry.Config{
-			DeliveryTimeout: timeout,
-		}, logger)
+		synctest.Test(t, func(t *testing.T) {
+			registry := destregistry.NewRegistry(&destregistry.Config{
+				DeliveryTimeout: timeout,
+			}, testutil.CreateTestLogger(t))
+			defer destregistry.CloseForTest(registry)
 
-		provider, err := newMockProvider()
-		require.NoError(t, err)
-		provider.publishDelay = timeout / 2
-		err = registry.RegisterProvider("test", provider)
-		require.NoError(t, err)
+			provider, err := newMockProvider()
+			require.NoError(t, err)
+			provider.publishDelay = timeout - time.Millisecond
+			err = registry.RegisterProvider("test", provider)
+			require.NoError(t, err)
 
-		destination := &models.Destination{
-			Type: "test",
-		}
-		event := &models.Event{}
+			destination := &models.Destination{
+				Type: "test",
+			}
+			event := &models.Event{}
 
-		_, err = registry.PublishEvent(context.Background(), destination, event)
-		assert.NoError(t, err)
+			_, err = registry.PublishEvent(context.Background(), destination, event)
+			assert.NoError(t, err)
+		})
 	})
 
 	t.Run("should return timeout error when publish exceeds timeout", func(t *testing.T) {
-		registry := destregistry.NewRegistry(&destregistry.Config{
-			DeliveryTimeout: timeout,
-		}, logger)
+		synctest.Test(t, func(t *testing.T) {
+			registry := destregistry.NewRegistry(&destregistry.Config{
+				DeliveryTimeout: timeout,
+			}, testutil.CreateTestLogger(t))
+			defer destregistry.CloseForTest(registry)
 
-		provider, err := newMockProvider()
-		require.NoError(t, err)
-		provider.publishDelay = timeout * 2
-		err = registry.RegisterProvider("test", provider)
-		require.NoError(t, err)
+			provider, err := newMockProvider()
+			require.NoError(t, err)
+			provider.publishDelay = timeout + time.Millisecond
+			err = registry.RegisterProvider("test", provider)
+			require.NoError(t, err)
 
-		destination := &models.Destination{
-			Type: "test",
-		}
-		event := &models.Event{}
+			destination := &models.Destination{
+				Type: "test",
+			}
+			event := &models.Event{}
 
-		_, err = registry.PublishEvent(context.Background(), destination, event)
-		assert.Error(t, err)
+			_, err = registry.PublishEvent(context.Background(), destination, event)
+			assert.Error(t, err)
 
-		var publishErr *destregistry.ErrDestinationPublishAttempt
-		assert.ErrorAs(t, err, &publishErr)
-		assert.Equal(t, "test", publishErr.Provider)
-		assert.Equal(t, "timeout", publishErr.Data["error"])
-		assert.Equal(t, timeout.String(), publishErr.Data["timeout"])
+			var publishErr *destregistry.ErrDestinationPublishAttempt
+			assert.ErrorAs(t, err, &publishErr)
+			assert.Equal(t, "test", publishErr.Provider)
+			assert.Equal(t, "timeout", publishErr.Data["error"])
+			assert.Equal(t, timeout.String(), publishErr.Data["timeout"])
+		})
 	})
 
 	t.Run("should handle wrapped timeout error from provider", func(t *testing.T) {
-		registry := destregistry.NewRegistry(&destregistry.Config{
-			DeliveryTimeout: timeout,
-		}, logger)
+		synctest.Test(t, func(t *testing.T) {
+			registry := destregistry.NewRegistry(&destregistry.Config{
+				DeliveryTimeout: timeout,
+			}, testutil.CreateTestLogger(t))
+			defer destregistry.CloseForTest(registry)
 
-		provider, err := newMockProvider()
-		require.NoError(t, err)
-		provider.publishDelay = timeout * 2
-		provider.mockError = destregistry.NewErrDestinationPublishAttempt(context.DeadlineExceeded, "test", map[string]interface{}{"error": context.DeadlineExceeded})
-		err = registry.RegisterProvider("test", provider)
-		require.NoError(t, err)
+			provider, err := newMockProvider()
+			require.NoError(t, err)
+			provider.publishDelay = timeout + time.Millisecond
+			provider.mockError = destregistry.NewErrDestinationPublishAttempt(context.DeadlineExceeded, "test", map[string]interface{}{"error": context.DeadlineExceeded})
+			err = registry.RegisterProvider("test", provider)
+			require.NoError(t, err)
 
-		destination := &models.Destination{
-			Type: "test",
+			destination := &models.Destination{
+				Type: "test",
+			}
+			event := &models.Event{}
+
+			_, err = registry.PublishEvent(context.Background(), destination, event)
+			assert.Error(t, err)
+
+			var publishErr *destregistry.ErrDestinationPublishAttempt
+			assert.ErrorAs(t, err, &publishErr)
+			assert.Equal(t, "test", publishErr.Provider)
+			assert.Equal(t, "timeout", publishErr.Data["error"])
+			assert.Equal(t, timeout.String(), publishErr.Data["timeout"])
+		})
+	})
+}
+
+// TestPublishEventLatency tests that LatencyMs is set on successful and failed
+// attempts and unset when the provider was never reached.
+func TestPublishEventLatency(t *testing.T) {
+	t.Parallel()
+
+	const delay = 50 * time.Millisecond
+
+	t.Run("successful attempt records latency", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			registry := destregistry.NewRegistry(&destregistry.Config{
+				DeliveryTimeout: time.Second,
+			}, testutil.CreateTestLogger(t))
+			defer destregistry.CloseForTest(registry)
+
+			provider, err := newMockProvider()
+			require.NoError(t, err)
+			provider.publishDelay = delay
+			require.NoError(t, registry.RegisterProvider("test", provider))
+
+			attempt, err := registry.PublishEvent(context.Background(), &models.Destination{Type: "test"}, &models.Event{})
+			require.NoError(t, err)
+			require.NotNil(t, attempt)
+			require.NotNil(t, attempt.LatencyMs, "latency must be recorded on success")
+			assert.Equal(t, delay.Milliseconds(), *attempt.LatencyMs)
+		})
+	})
+
+	t.Run("failed attempt with delivery records latency", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			registry := destregistry.NewRegistry(&destregistry.Config{
+				DeliveryTimeout: time.Second,
+			}, testutil.CreateTestLogger(t))
+			defer destregistry.CloseForTest(registry)
+
+			provider, err := newMockProvider()
+			require.NoError(t, err)
+			provider.publishDelay = delay
+			provider.failDelivery = &destregistry.Delivery{Status: "failed", Code: "503"}
+			provider.mockError = destregistry.NewErrDestinationPublishAttempt(
+				errors.New("request failed with status 503"),
+				"test",
+				map[string]interface{}{"status": 503},
+			)
+			require.NoError(t, registry.RegisterProvider("test", provider))
+
+			attempt, err := registry.PublishEvent(context.Background(), &models.Destination{Type: "test"}, &models.Event{})
+			require.Error(t, err)
+			require.NotNil(t, attempt)
+			assert.Equal(t, "failed", attempt.Status)
+			require.NotNil(t, attempt.LatencyMs, "a failed attempt still took time to fail")
+			assert.Equal(t, delay.Milliseconds(), *attempt.LatencyMs)
+		})
+	})
+
+	t.Run("attempt that never reached the provider has no latency", func(t *testing.T) {
+		t.Parallel()
+
+		registry := destregistry.NewRegistry(&destregistry.Config{}, testutil.CreateTestLogger(t))
+
+		provider := &mockFailingProvider{
+			createErr: destregistry.NewErrDestinationPublishAttempt(
+				errors.New("bad credentials"),
+				"test",
+				map[string]interface{}{"error": "client_creation_failed"},
+			),
 		}
-		event := &models.Event{}
+		require.NoError(t, registry.RegisterProvider("test", provider))
 
-		_, err = registry.PublishEvent(context.Background(), destination, event)
-		assert.Error(t, err)
-
-		var publishErr *destregistry.ErrDestinationPublishAttempt
-		assert.ErrorAs(t, err, &publishErr)
-		assert.Equal(t, "test", publishErr.Provider)
-		assert.Equal(t, "timeout", publishErr.Data["error"])
-		assert.Equal(t, timeout.String(), publishErr.Data["timeout"])
+		attempt, err := registry.PublishEvent(context.Background(), &models.Destination{ID: "dest-1", Type: "test"}, &models.Event{ID: "evt-1"})
+		require.Error(t, err)
+		require.NotNil(t, attempt)
+		assert.Nil(t, attempt.LatencyMs, "no publish call happened, so there is nothing to measure")
 	})
 }
 

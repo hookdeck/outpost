@@ -35,7 +35,8 @@ type AWSKinesisCredentials struct {
 // Provider implementation
 type AWSKinesisProvider struct {
 	*destregistry.BaseProvider
-	metadataInPayload bool
+	metadataInPayload    bool
+	allowCustomEndpoints bool
 }
 
 var _ destregistry.Provider = (*AWSKinesisProvider)(nil) // Ensure interface compliance
@@ -47,6 +48,12 @@ type Option func(*AWSKinesisProvider)
 func WithMetadataInPayload(include bool) Option {
 	return func(p *AWSKinesisProvider) {
 		p.metadataInPayload = include
+	}
+}
+
+func WithAllowCustomEndpoints(allow bool) Option {
+	return func(p *AWSKinesisProvider) {
+		p.allowCustomEndpoints = allow
 	}
 }
 
@@ -65,18 +72,29 @@ func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePu
 		opt(provider)
 	}
 
+	if !provider.allowCustomEndpoints {
+		provider.OmitConfigField(destregistry.ConfigKeyEndpoint)
+	}
+
 	return provider, nil
 }
 
 // Validate performs destination-specific validation
 func (p *AWSKinesisProvider) Validate(ctx context.Context, destination *models.Destination) error {
-	_, _, err := p.resolveConfig(ctx, destination)
-	return err
+	if _, _, err := p.resolveConfig(ctx, destination); err != nil {
+		return err
+	}
+	return partitionkey.Validate(destination.Config["partition_key_template"])
 }
 
 // CreatePublisher creates a new publisher instance
 func (p *AWSKinesisProvider) CreatePublisher(ctx context.Context, destination *models.Destination) (destregistry.Publisher, error) {
 	config, credentials, err := p.resolveConfig(ctx, destination)
+	if err != nil {
+		return nil, err
+	}
+
+	partitionKeyTemplate, err := partitionkey.New(config.PartitionKeyTemplate)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +123,7 @@ func (p *AWSKinesisProvider) CreatePublisher(ctx context.Context, destination *m
 		BasePublisher:        p.BaseProvider.NewPublisher(destregistry.WithDeliveryMetadata(destination.DeliveryMetadata)),
 		client:               kinesisClient,
 		streamName:           config.StreamName,
-		partitionKeyTemplate: config.PartitionKeyTemplate,
+		partitionKeyTemplate: partitionKeyTemplate,
 		metadataInPayload:    p.metadataInPayload,
 	}, nil
 }
@@ -114,6 +132,10 @@ func (p *AWSKinesisProvider) CreatePublisher(ctx context.Context, destination *m
 func (p *AWSKinesisProvider) resolveConfig(ctx context.Context, destination *models.Destination) (*AWKKinesisConfig, *AWSKinesisCredentials, error) {
 	// Validate basic requirements using the base provider
 	if err := p.BaseProvider.Validate(ctx, destination); err != nil {
+		return nil, nil, err
+	}
+
+	if err := destregistry.ValidateCustomEndpointAllowed(p.allowCustomEndpoints, destination); err != nil {
 		return nil, nil, err
 	}
 
@@ -171,7 +193,7 @@ type AWSKinesisPublisher struct {
 	*destregistry.BasePublisher
 	client               *kinesis.Client
 	streamName           string
-	partitionKeyTemplate string
+	partitionKeyTemplate *partitionkey.Template
 	metadataInPayload    bool
 }
 
@@ -234,7 +256,7 @@ func (p *AWSKinesisPublisher) Format(ctx context.Context, event *models.Event) (
 	}
 
 	// Get partition key from template or use event ID as default
-	partitionKey, err := partitionkey.Evaluate(p.partitionKeyTemplate, payload, event.ID)
+	partitionKey, err := p.partitionKeyTemplate.Evaluate(payload, event.ID)
 	if err != nil {
 		// If template evaluation fails, log the error and fall back to event ID
 		partitionKey = event.ID
@@ -258,14 +280,7 @@ func (p *AWSKinesisPublisher) Publish(ctx context.Context, event *models.Event) 
 	// Format the event into a PutRecordInput
 	input, err := p.Format(ctx, event)
 	if err != nil {
-		return nil, destregistry.NewErrDestinationPublishAttempt(
-			err,
-			"aws_kinesis",
-			map[string]interface{}{
-				"error":   "format_failed",
-				"message": err.Error(),
-			},
-		)
+		return destregistry.NewFormatError("aws_kinesis", "", err)
 	}
 
 	// Send the record to Kinesis
@@ -293,8 +308,8 @@ func (p *AWSKinesisPublisher) Publish(ctx context.Context, event *models.Event) 
 		Status: "success",
 		Code:   "OK",
 		Response: map[string]interface{}{
-			"shard_id":        *result.ShardId,
-			"sequence_number": *result.SequenceNumber,
+			"shard_id":        awssdk.ToString(result.ShardId),
+			"sequence_number": awssdk.ToString(result.SequenceNumber),
 			"partition_key":   *input.PartitionKey,
 		},
 	}, nil
@@ -316,11 +331,15 @@ func formatAWSError(err error) string {
 
 // NewAWSKinesisPublisher creates a new publisher for testing purposes
 func NewAWSKinesisPublisher(client *kinesis.Client, streamName, partitionKeyTemplate string, metadataInPayload bool) *AWSKinesisPublisher {
+	template, err := partitionkey.New(partitionKeyTemplate)
+	if err != nil {
+		panic(fmt.Sprintf("invalid partition key template: %v", err))
+	}
 	return &AWSKinesisPublisher{
 		BasePublisher:        &destregistry.BasePublisher{},
 		client:               client,
 		streamName:           streamName,
-		partitionKeyTemplate: partitionKeyTemplate,
+		partitionKeyTemplate: template,
 		metadataInPayload:    metadataInPayload,
 	}
 }

@@ -24,6 +24,10 @@ export type Event = {
    */
   time?: Date | undefined;
   /**
+   * Whether this event can be retried.
+   */
+  eligibleForRetry?: boolean | undefined;
+  /**
    * Key-value string pairs of metadata associated with the event.
    */
   metadata?: { [k: string]: string } | null | undefined;
@@ -42,12 +46,14 @@ export const Event$inboundSchema: z.ZodType<Event, z.ZodTypeDef, unknown> = z
     topic: z.string().optional(),
     time: z.string().datetime({ offset: true }).transform(v => new Date(v))
       .optional(),
+    eligible_for_retry: z.boolean().optional(),
     metadata: z.nullable(z.record(z.string())).optional(),
     data: z.record(z.any()).optional(),
   }).transform((v) => {
     return remap$(v, {
       "tenant_id": "tenantId",
       "matched_destination_ids": "matchedDestinationIds",
+      "eligible_for_retry": "eligibleForRetry",
     });
   });
 /** @internal */
@@ -57,6 +63,7 @@ export type Event$Outbound = {
   matched_destination_ids?: Array<string> | undefined;
   topic?: string | undefined;
   time?: string | undefined;
+  eligible_for_retry?: boolean | undefined;
   metadata?: { [k: string]: string } | null | undefined;
   data?: { [k: string]: any } | undefined;
 };
@@ -72,12 +79,14 @@ export const Event$outboundSchema: z.ZodType<
   matchedDestinationIds: z.array(z.string()).optional(),
   topic: z.string().optional(),
   time: z.date().transform(v => v.toISOString()).optional(),
+  eligibleForRetry: z.boolean().optional(),
   metadata: z.nullable(z.record(z.string())).optional(),
   data: z.record(z.any()).optional(),
 }).transform((v) => {
   return remap$(v, {
     tenantId: "tenant_id",
     matchedDestinationIds: "matched_destination_ids",
+    eligibleForRetry: "eligible_for_retry",
   });
 });
 

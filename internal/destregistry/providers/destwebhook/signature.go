@@ -17,6 +17,30 @@ import (
 	"github.com/Masterminds/sprig/v3"
 )
 
+// templateFuncNames are the sprig functions available in webhook templates, in
+// addition to Go's built-in template functions. Keep in sync with the list in
+// docs/content/destinations/webhook.mdoc.
+var templateFuncNames = []string{
+	"join",
+	"upper",
+	"lower",
+	"trim",
+	"trimPrefix",
+	"trimSuffix",
+	"replace",
+	"b64enc",
+	"default",
+}
+
+var templateFuncs = func() template.FuncMap {
+	all := sprig.TxtFuncMap()
+	funcs := make(template.FuncMap, len(templateFuncNames))
+	for _, name := range templateFuncNames {
+		funcs[name] = all[name]
+	}
+	return funcs
+}()
+
 type SignaturePayload struct {
 	EventID   string
 	Topic     string
@@ -38,11 +62,11 @@ type SigningAlgorithm interface {
 }
 
 type SignatureFormatter interface {
-	Format(content SignaturePayload) string
+	Format(content SignaturePayload) (string, error)
 }
 
 type HeaderFormatter interface {
-	Format(content HeaderPayload) string
+	Format(content HeaderPayload) (string, error)
 }
 
 type SignatureEncoder interface {
@@ -65,56 +89,60 @@ type SignatureFormatterImpl struct {
 	template *template.Template
 }
 
-func NewSignatureFormatter(templateStr string) *SignatureFormatterImpl {
+func NewSignatureFormatter(templateStr string) (*SignatureFormatterImpl, error) {
 	if templateStr == "" {
-		panic("signature content template is required — config must provide an explicit value")
+		return nil, fmt.Errorf("signature content template is required")
 	}
 
-	tmpl := template.New("signature").Funcs(sprig.TxtFuncMap())
+	tmpl := template.New("signature").Funcs(templateFuncs)
 
 	parsed, err := tmpl.Parse(templateStr)
 	if err != nil {
-		panic(fmt.Sprintf("invalid signature content template %q: %v", templateStr, err))
+		return nil, fmt.Errorf("invalid signature content template %q: %w", templateStr, err)
 	}
 
-	return &SignatureFormatterImpl{template: parsed}
+	return &SignatureFormatterImpl{template: parsed}, nil
 }
 
-func (f *SignatureFormatterImpl) Format(content SignaturePayload) string {
+// Format renders the content template. Parsing only validates syntax; field
+// references are resolved against the payload at execution, so a template that
+// constructs fine can still fail here. The error is returned so the caller can
+// fail the delivery instead of taking the process down.
+func (f *SignatureFormatterImpl) Format(content SignaturePayload) (string, error) {
 	var buf bytes.Buffer
 	if err := f.template.Execute(&buf, content); err != nil {
-		// Template was validated at construction time, so execution errors
-		// indicate a bug (e.g., nil field). Panic to surface it immediately.
-		panic(fmt.Sprintf("signature content template execution failed: %v", err))
+		return "", fmt.Errorf("signature content template execution failed: %w", err)
 	}
-	return buf.String()
+	return buf.String(), nil
 }
 
 type HeaderFormatterImpl struct {
 	template *template.Template
 }
 
-func NewHeaderFormatter(templateStr string) *HeaderFormatterImpl {
+func NewHeaderFormatter(templateStr string) (*HeaderFormatterImpl, error) {
 	if templateStr == "" {
-		panic("signature header template is required — config must provide an explicit value")
+		return nil, fmt.Errorf("signature header template is required")
 	}
 
-	tmpl := template.New("header").Funcs(sprig.TxtFuncMap())
+	tmpl := template.New("header").Funcs(templateFuncs)
 
 	parsed, err := tmpl.Parse(templateStr)
 	if err != nil {
-		panic(fmt.Sprintf("invalid signature header template %q: %v", templateStr, err))
+		return nil, fmt.Errorf("invalid signature header template %q: %w", templateStr, err)
 	}
 
-	return &HeaderFormatterImpl{template: parsed}
+	return &HeaderFormatterImpl{template: parsed}, nil
 }
 
-func (f *HeaderFormatterImpl) Format(content HeaderPayload) string {
+// Format renders the header template. See SignatureFormatterImpl.Format for why
+// execution errors are returned rather than fatal.
+func (f *HeaderFormatterImpl) Format(content HeaderPayload) (string, error) {
 	var buf bytes.Buffer
 	if err := f.template.Execute(&buf, content); err != nil {
-		panic(fmt.Sprintf("signature header template execution failed: %v", err))
+		return "", fmt.Errorf("signature header template execution failed: %w", err)
 	}
-	return buf.String()
+	return buf.String(), nil
 }
 
 type HmacAlgo struct {
@@ -214,9 +242,9 @@ func NewSignatureManager(secrets []WebhookSecret, opts ...SignatureManagerOption
 	return sm
 }
 
-func (sm *SignatureManager) GenerateSignatures(content SignaturePayload) []string {
+func (sm *SignatureManager) GenerateSignatures(content SignaturePayload) ([]string, error) {
 	if len(sm.secrets) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	// Sort secrets by creation date, newest first
@@ -226,7 +254,10 @@ func (sm *SignatureManager) GenerateSignatures(content SignaturePayload) []strin
 		return sortedSecrets[i].CreatedAt.After(sortedSecrets[j].CreatedAt)
 	})
 
-	formattedContent := sm.sigFormatter.Format(content)
+	formattedContent, err := sm.sigFormatter.Format(content)
+	if err != nil {
+		return nil, err
+	}
 	var signatures []string
 	now := time.Now()
 
@@ -252,13 +283,16 @@ func (sm *SignatureManager) GenerateSignatures(content SignaturePayload) []strin
 		signatures = append(signatures, sm.algorithm.Sign(secret.Key, formattedContent, sm.encoder))
 	}
 
-	return signatures
+	return signatures, nil
 }
 
-func (sm *SignatureManager) GenerateSignatureHeader(content SignaturePayload) string {
-	signatures := sm.GenerateSignatures(content)
+func (sm *SignatureManager) GenerateSignatureHeader(content SignaturePayload) (string, error) {
+	signatures, err := sm.GenerateSignatures(content)
+	if err != nil {
+		return "", err
+	}
 	if len(signatures) == 0 {
-		return ""
+		return "", nil
 	}
 	return sm.headerFormatter.Format(HeaderPayload{
 		EventID:    content.EventID,
@@ -268,7 +302,12 @@ func (sm *SignatureManager) GenerateSignatureHeader(content SignaturePayload) st
 	})
 }
 
+// VerifySignature reports whether signature matches key. It returns false when
+// the content template fails to render, since no signature can be verified.
 func (sm *SignatureManager) VerifySignature(signature, key string, content SignaturePayload) bool {
-	formattedContent := sm.sigFormatter.Format(content)
+	formattedContent, err := sm.sigFormatter.Format(content)
+	if err != nil {
+		return false
+	}
 	return sm.algorithm.Verify(key, formattedContent, signature, sm.encoder)
 }

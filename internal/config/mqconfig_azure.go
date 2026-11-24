@@ -24,6 +24,9 @@ type AzureServiceBusConfig struct {
 	LogTopic             string `yaml:"log_topic" env:"AZURE_SERVICEBUS_LOG_TOPIC" desc:"Topic name for log queue" required:"N" default:"outpost-log"`
 	LogSubscription      string `yaml:"log_subscription" env:"AZURE_SERVICEBUS_LOG_SUBSCRIPTION" desc:"Subscription name for log queue" required:"N" default:"outpost-log-sub"`
 
+	// No DLQ name settings: Azure dead-letters into each subscription's built-in
+	// $DeadLetterQueue sub-queue, whose name is fixed by the platform.
+
 	// connectionStringOnce  sync.Once
 	// connectionString      string
 	// connectionStringError error

@@ -64,7 +64,7 @@ func (c *ClickHouseTTL) alterTableTTL(ctx context.Context, tableName, timeColumn
 	if ttlDays == 0 {
 		query = fmt.Sprintf("ALTER TABLE %s REMOVE TTL", tableName)
 	} else {
-		query = fmt.Sprintf("ALTER TABLE %s MODIFY TTL %s + INTERVAL %d DAY", tableName, timeColumn, ttlDays)
+		query = fmt.Sprintf("ALTER TABLE %s MODIFY TTL toDateTime(%s) + INTERVAL %d DAY", tableName, timeColumn, ttlDays)
 	}
 
 	return c.conn.Exec(ctx, query)

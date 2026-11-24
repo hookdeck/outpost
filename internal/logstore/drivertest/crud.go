@@ -57,6 +57,7 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 				testutil.AttemptFactory.WithDestinationID(destID),
 				testutil.AttemptFactory.WithStatus("success"),
 				testutil.AttemptFactory.WithTime(baseTime.Add(-30*time.Minute)),
+				testutil.AttemptFactory.WithLatencyMs(123),
 			)
 
 			err := logStore.InsertMany(ctx, []*models.LogEntry{{Event: event, Attempt: delivery}})
@@ -79,6 +80,8 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 			require.Len(t, response.Data, 1)
 			assert.Equal(t, event.ID, response.Data[0].Event.ID)
 			assert.Equal(t, "success", response.Data[0].Attempt.Status)
+			require.NotNil(t, response.Data[0].Attempt.LatencyMs, "latency must round-trip")
+			assert.Equal(t, int64(123), *response.Data[0].Attempt.LatencyMs)
 
 			// Verify via Retrieve
 			retrieved, err := logStore.RetrieveEvent(ctx, driver.RetrieveEventRequest{
@@ -145,6 +148,112 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 		t.Run("empty batch is no-op", func(t *testing.T) {
 			err := logStore.InsertMany(ctx, []*models.LogEntry{})
 			require.NoError(t, err)
+		})
+
+		t.Run("nil metadata persists as empty", func(t *testing.T) {
+			// An event published without metadata has a nil Metadata map.
+			// Stores must persist it without error and round-trip it as an
+			// empty (non-nil) map, regardless of backend. Postgres in
+			// particular has `metadata jsonb NOT NULL`, so a nil map that
+			// encodes to SQL NULL is rejected at insert time.
+			nilTenantID := idgen.String()
+			destID := idgen.Destination()
+
+			event := testutil.EventFactory.AnyPointer(
+				testutil.EventFactory.WithID("nil_meta_evt"),
+				testutil.EventFactory.WithTenantID(nilTenantID),
+				testutil.EventFactory.WithDestinationID(destID),
+				testutil.EventFactory.WithMatchedDestinationIDs([]string{destID}),
+				testutil.EventFactory.WithMetadata(nil),
+				testutil.EventFactory.WithTime(baseTime.Add(-8*time.Minute)),
+			)
+			delivery := testutil.AttemptFactory.AnyPointer(
+				testutil.AttemptFactory.WithID("nil_meta_del"),
+				testutil.AttemptFactory.WithTenantID(nilTenantID),
+				testutil.AttemptFactory.WithEventID(event.ID),
+				testutil.AttemptFactory.WithDestinationID(destID),
+				testutil.AttemptFactory.WithStatus("success"),
+				testutil.AttemptFactory.WithTime(baseTime.Add(-8*time.Minute)),
+			)
+
+			err := logStore.InsertMany(ctx, []*models.LogEntry{{Event: event, Attempt: delivery}})
+			require.NoError(t, err, "inserting an event with nil metadata must not error")
+			require.NoError(t, h.FlushWrites(ctx))
+
+			retrieved, err := logStore.RetrieveEvent(ctx, driver.RetrieveEventRequest{
+				TenantID: nilTenantID,
+				EventID:  event.ID,
+			})
+			require.NoError(t, err)
+			require.NotNil(t, retrieved)
+			assert.NotNil(t, retrieved.Metadata, "nil metadata should round-trip as a non-nil empty map")
+			assert.Empty(t, retrieved.Metadata)
+		})
+
+		t.Run("duplicate entries in batch", func(t *testing.T) {
+			// Duplicates arise from MQ redelivery and producer re-publish;
+			// InsertMany must tolerate intra-batch duplicates (same Attempt.ID)
+			// without error and persist a single attempt row.
+			// Isolated tenant so shared filter counts above stay intact.
+			dupTenantID := idgen.String()
+			destID := idgen.Destination()
+
+			event := testutil.EventFactory.AnyPointer(
+				testutil.EventFactory.WithID("dup_evt"),
+				testutil.EventFactory.WithTenantID(dupTenantID),
+				testutil.EventFactory.WithDestinationID(destID),
+				testutil.EventFactory.WithMatchedDestinationIDs([]string{destID}),
+				testutil.EventFactory.WithTime(baseTime.Add(-10*time.Minute)),
+			)
+			delivery := testutil.AttemptFactory.AnyPointer(
+				testutil.AttemptFactory.WithID("dup_del"),
+				testutil.AttemptFactory.WithTenantID(dupTenantID),
+				testutil.AttemptFactory.WithEventID(event.ID),
+				testutil.AttemptFactory.WithDestinationID(destID),
+				testutil.AttemptFactory.WithStatus("failed"),
+				testutil.AttemptFactory.WithTime(baseTime.Add(-10*time.Minute)),
+			)
+			otherEvent := testutil.EventFactory.AnyPointer(
+				testutil.EventFactory.WithID("dup_evt_other"),
+				testutil.EventFactory.WithTenantID(dupTenantID),
+				testutil.EventFactory.WithDestinationID(destID),
+				testutil.EventFactory.WithMatchedDestinationIDs([]string{destID}),
+				testutil.EventFactory.WithTime(baseTime.Add(-9*time.Minute)),
+			)
+			otherDelivery := testutil.AttemptFactory.AnyPointer(
+				testutil.AttemptFactory.WithID("dup_del_other"),
+				testutil.AttemptFactory.WithTenantID(dupTenantID),
+				testutil.AttemptFactory.WithEventID(otherEvent.ID),
+				testutil.AttemptFactory.WithDestinationID(destID),
+				testutil.AttemptFactory.WithStatus("success"),
+				testutil.AttemptFactory.WithTime(baseTime.Add(-9*time.Minute)),
+			)
+
+			err := logStore.InsertMany(ctx, []*models.LogEntry{
+				{Event: event, Attempt: delivery},
+				{Event: otherEvent, Attempt: otherDelivery},
+				{Event: event, Attempt: delivery}, // duplicate copy
+			})
+			require.NoError(t, err)
+			require.NoError(t, h.FlushWrites(ctx))
+
+			response, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
+				TenantIDs:  []string{dupTenantID},
+				Limit:      10,
+				TimeFilter: driver.TimeFilter{GTE: &startTime},
+			})
+			require.NoError(t, err)
+			require.Len(t, response.Data, 2, "duplicate entry should persist a single attempt row")
+
+			dupResponse, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
+				TenantIDs:  []string{dupTenantID},
+				EventIDs:   []string{event.ID},
+				Limit:      10,
+				TimeFilter: driver.TimeFilter{GTE: &startTime},
+			})
+			require.NoError(t, err)
+			require.Len(t, dupResponse.Data, 1)
+			assert.Equal(t, delivery.ID, dupResponse.Data[0].Attempt.ID)
 		})
 	})
 
@@ -260,6 +369,85 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 		})
 	})
 
+	// The retry scheduler's attempt lookup relies on this bound
+	// (deliverymq RetryTask.attemptLookupRequest).
+	t.Run("ListAttempt attempt time lower bound", func(t *testing.T) {
+		boundTenantID := idgen.String()
+		destID := idgen.Destination()
+		t0 := baseTime.Add(-20*time.Minute + 123456789*time.Nanosecond)
+		event := testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithID("bound_evt"),
+			testutil.EventFactory.WithTenantID(boundTenantID),
+			testutil.EventFactory.WithDestinationID(destID),
+			testutil.EventFactory.WithMatchedDestinationIDs([]string{destID}),
+			testutil.EventFactory.WithTime(t0),
+		)
+		otherEvent := testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithID("bound_evt_other"),
+			testutil.EventFactory.WithTenantID(boundTenantID),
+			testutil.EventFactory.WithDestinationID(destID),
+			testutil.EventFactory.WithMatchedDestinationIDs([]string{destID}),
+			testutil.EventFactory.WithTime(t0),
+		)
+		var entries []*models.LogEntry
+		for i := 0; i < 3; i++ {
+			entries = append(entries, &models.LogEntry{
+				Event: event,
+				Attempt: testutil.AttemptFactory.AnyPointer(
+					testutil.AttemptFactory.WithID(fmt.Sprintf("bound_del_%d", i)),
+					testutil.AttemptFactory.WithTenantID(boundTenantID),
+					testutil.AttemptFactory.WithEventID(event.ID),
+					testutil.AttemptFactory.WithDestinationID(destID),
+					testutil.AttemptFactory.WithAttemptNumber(i+1),
+					testutil.AttemptFactory.WithStatus("failed"),
+					testutil.AttemptFactory.WithTime(t0.Add(time.Duration(i)*time.Minute)),
+				),
+			})
+		}
+		entries = append(entries, &models.LogEntry{
+			Event: otherEvent,
+			Attempt: testutil.AttemptFactory.AnyPointer(
+				testutil.AttemptFactory.WithID("bound_del_other"),
+				testutil.AttemptFactory.WithTenantID(boundTenantID),
+				testutil.AttemptFactory.WithEventID(otherEvent.ID),
+				testutil.AttemptFactory.WithDestinationID(destID),
+				testutil.AttemptFactory.WithStatus("failed"),
+				testutil.AttemptFactory.WithTime(t0.Add(10*time.Minute)),
+			),
+		})
+		require.NoError(t, logStore.InsertMany(ctx, entries))
+		require.NoError(t, h.FlushWrites(ctx))
+
+		latest := func(gte time.Time) []*driver.AttemptRecord {
+			resp, err := logStore.ListAttempt(ctx, driver.ListAttemptRequest{
+				TenantIDs:      []string{boundTenantID},
+				EventIDs:       []string{event.ID},
+				DestinationIDs: []string{destID},
+				Limit:          1,
+				SortOrder:      "desc",
+				TimeFilter:     driver.TimeFilter{GTE: &gte},
+			})
+			require.NoError(t, err)
+			return resp.Data
+		}
+
+		t.Run("newer attempt than the bound is found", func(t *testing.T) {
+			data := latest(t0.Add(time.Minute - time.Second))
+			require.Len(t, data, 1)
+			assert.Equal(t, "bound_del_2", data[0].Attempt.ID)
+		})
+
+		t.Run("bound at the latest attempt time minus skew finds it", func(t *testing.T) {
+			data := latest(t0.Add(2*time.Minute - time.Second))
+			require.Len(t, data, 1)
+			assert.Equal(t, "bound_del_2", data[0].Attempt.ID)
+		})
+
+		t.Run("older attempts are excluded", func(t *testing.T) {
+			assert.Empty(t, latest(t0.Add(3*time.Minute)))
+		})
+	})
+
 	t.Run("retrieve", func(t *testing.T) {
 		// Use one of our batch events for retrieve tests
 		knownEventID := "batch_evt_00"
@@ -302,6 +490,26 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 			require.NoError(t, err)
 			require.NotNil(t, retrieved)
 			assert.Equal(t, knownAttemptID, retrieved.Attempt.ID)
+		})
+
+		t.Run("RetrieveAttempt round-trips latency", func(t *testing.T) {
+			retrieved, err := logStore.RetrieveAttempt(ctx, driver.RetrieveAttemptRequest{
+				TenantID:  tenantID,
+				AttemptID: "single_del",
+			})
+			require.NoError(t, err)
+			require.NotNil(t, retrieved)
+			require.NotNil(t, retrieved.Attempt.LatencyMs)
+			assert.Equal(t, int64(123), *retrieved.Attempt.LatencyMs)
+
+			// Inserted without a latency: nil must round-trip as nil.
+			noLatency, err := logStore.RetrieveAttempt(ctx, driver.RetrieveAttemptRequest{
+				TenantID:  tenantID,
+				AttemptID: "batch_del_00",
+			})
+			require.NoError(t, err)
+			require.NotNil(t, noLatency)
+			assert.Nil(t, noLatency.Attempt.LatencyMs)
 		})
 
 		t.Run("RetrieveAttempt non-existent returns nil", func(t *testing.T) {

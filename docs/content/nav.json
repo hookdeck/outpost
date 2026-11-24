@@ -47,9 +47,9 @@
             "title": "Operator Events & Alerts"
           },
           { "slug": "features/tenant-user-portal", "title": "Tenant Portal" },
+          { "slug": "features/mcp-events", "title": "MCP Events (Experimental)" },
           { "slug": "features/metrics", "title": "Metrics" },
-          { "slug": "features/opentelemetry", "title": "OpenTelemetry" },
-          { "slug": "features/webhook-proxy", "title": "Webhook Forward Proxy" }
+          { "slug": "features/opentelemetry", "title": "OpenTelemetry" }
         ]
       ]
     },
@@ -63,6 +63,7 @@
             "title": "Hookdeck Event Gateway"
           },
           { "slug": "destinations/aws-sqs", "title": "AWS SQS" },
+          { "slug": "destinations/aws-eventbridge", "title": "AWS EventBridge" },
           { "slug": "destinations/aws-kinesis", "title": "AWS Kinesis" },
           { "slug": "destinations/aws-s3", "title": "AWS S3" },
           { "slug": "destinations/gcp-pubsub", "title": "GCP Pub/Sub" },
@@ -71,7 +72,9 @@
             "title": "Azure Service Bus"
           },
           { "slug": "destinations/rabbitmq", "title": "RabbitMQ" },
-          { "slug": "destinations/kafka", "title": "Apache Kafka" }
+          { "slug": "destinations/kafka", "title": "Apache Kafka" },
+          { "slug": "destinations/cloudflare-queues", "title": "Cloudflare Queues" },
+          { "slug": "destinations/mcp", "title": "MCP Events Delivery (Experimental)" }
         ]
       ]
     },
@@ -82,6 +85,14 @@
           {
             "slug": "guides/migrate-to-outpost",
             "title": "Migrate to Outpost"
+          },
+          {
+            "slug": "guides/verify-webhook-signatures",
+            "title": "Verify Webhook Signatures"
+          },
+          {
+            "slug": "guides/change-webhook-signature-scheme",
+            "title": "Change Webhook Signature Scheme"
           },
           {
             "slug": "guides/building-your-own-ui",
@@ -171,6 +182,7 @@
               "slug": "self-hosting/configuration",
               "title": "Configuration Reference"
             },
+            { "slug": "self-hosting/data-model", "title": "Data Model" },
             {
               "title": "Github Repository",
               "href": "https://github.com/hookdeck/outpost"
@@ -221,6 +233,10 @@
             {
               "slug": "self-hosting/guides/troubleshooting-redis",
               "title": "Redis Troubleshooting"
+            },
+            {
+              "slug": "self-hosting/guides/webhook-proxy",
+              "title": "Webhook Forward Proxy"
             }
           ]
         ]
@@ -230,24 +246,52 @@
         "sections": [
           [
             {
-              "slug": "self-hosting/changelog/upgrade-v0.12",
-              "title": "Upgrade to v0.12"
+              "slug": "self-hosting/changelog/upgrade-v1.10",
+              "title": "Upgrade to v1.10"
             },
             {
-              "slug": "self-hosting/changelog/upgrade-v0.13",
-              "title": "Upgrade to v0.13"
+              "slug": "self-hosting/changelog/upgrade-v1.8",
+              "title": "Upgrade to v1.8"
+            },
+            {
+              "slug": "self-hosting/changelog/upgrade-v1.7",
+              "title": "Upgrade to v1.7"
+            },
+            {
+              "slug": "self-hosting/changelog/upgrade-v1.6",
+              "title": "Upgrade to v1.6"
+            },
+            {
+              "slug": "self-hosting/changelog/upgrade-v1.2",
+              "title": "Upgrade to v1.2"
+            },
+            {
+              "slug": "self-hosting/changelog/upgrade-v1.1",
+              "title": "Upgrade to v1.1"
+            },
+            {
+              "slug": "self-hosting/changelog/upgrade-v1.0",
+              "title": "Upgrade to v1.0"
+            },
+            {
+              "slug": "self-hosting/changelog/upgrade-v0.17",
+              "title": "Upgrade to v0.17"
+            },
+            {
+              "slug": "self-hosting/changelog/upgrade-v0.16",
+              "title": "Upgrade to v0.16"
             },
             {
               "slug": "self-hosting/changelog/upgrade-v0.14",
               "title": "Upgrade to v0.14"
             },
             {
-              "slug": "self-hosting/upgrade-v0.16",
-              "title": "Upgrade to v0.16"
+              "slug": "self-hosting/changelog/upgrade-v0.13",
+              "title": "Upgrade to v0.13"
             },
             {
-              "slug": "self-hosting/changelog/upgrade-v0.17",
-              "title": "Upgrade to v0.17"
+              "slug": "self-hosting/changelog/upgrade-v0.12",
+              "title": "Upgrade to v0.12"
             }
           ]
         ]

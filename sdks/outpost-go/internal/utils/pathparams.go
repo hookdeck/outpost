@@ -15,6 +15,14 @@ import (
 	"github.com/hookdeck/outpost/sdks/outpost-go/types"
 )
 
+type InvalidPathParameterError struct {
+	Name string
+}
+
+func (e *InvalidPathParameterError) Error() string {
+	return fmt.Sprintf("path parameter %q contains a dot segment", e.Name)
+}
+
 func GenerateURL(_ context.Context, serverURL, path string, pathParams interface{}, globals interface{}) (string, error) {
 	uri := strings.TrimSuffix(serverURL, "/") + path
 
@@ -79,7 +87,7 @@ func populateParsedParameters(pathParams interface{}, globals interface{}, parse
 			// TODO: support other styles
 			switch ppTag.Style {
 			case "simple":
-				simpleParams := getSimplePathParams(ppTag.ParamName, fieldType.Type, valType, ppTag.Explode)
+				simpleParams := getSimplePathParams(ppTag.ParamName, fieldType.Type, valType, ppTag.Explode, ppTag.AllowReserved)
 				for k, v := range simpleParams {
 					parsedParameters[k] = v
 				}
@@ -90,7 +98,7 @@ func populateParsedParameters(pathParams interface{}, globals interface{}, parse
 	return globalsAlreadyPopulated, nil
 }
 
-func getSimplePathParams(parentName string, objType reflect.Type, objValue reflect.Value, explode bool) map[string]string {
+func getSimplePathParams(parentName string, objType reflect.Type, objValue reflect.Value, explode bool, allowReserved bool) map[string]string {
 	pathParams := make(map[string]string)
 
 	if isNil(objType, objValue) {
@@ -109,15 +117,16 @@ func getSimplePathParams(parentName string, objType reflect.Type, objValue refle
 		}
 		var ppVals []string
 		for i := 0; i < objValue.Len(); i++ {
-			ppVals = append(ppVals, valToString(objValue.Index(i).Interface()))
+			ppVals = append(ppVals, escapePathValue(objValue.Index(i).Interface(), allowReserved))
 		}
 		pathParams[parentName] = strings.Join(ppVals, ",")
 	case reflect.Map:
 		// check if optionalnullable.OptionalNullable[T]
 		if nullableValue, ok := optionalnullable.AsOptionalNullable(objValue); ok {
-			// Handle optionalnullable.OptionalNullable[T] using GetUntyped method
+			// Serialize the wrapped value using the rules for its own type
 			if value, isSet := nullableValue.GetUntyped(); isSet && value != nil {
-				pathParams[parentName] = valToString(value)
+				innerValue := reflect.ValueOf(value)
+				return getSimplePathParams(parentName, innerValue.Type(), innerValue, explode, allowReserved)
 			}
 			// If not set or explicitly null, return nil (skip parameter)
 			return pathParams
@@ -130,20 +139,16 @@ func getSimplePathParams(parentName string, objType reflect.Type, objValue refle
 		objMap := objValue.MapRange()
 		for objMap.Next() {
 			if explode {
-				ppVals = append(ppVals, fmt.Sprintf("%s=%s", objMap.Key().String(), valToString(objMap.Value().Interface())))
+				ppVals = append(ppVals, fmt.Sprintf("%s=%s", escapePathValue(objMap.Key().String(), false), escapePathValue(objMap.Value().Interface(), allowReserved)))
 			} else {
-				ppVals = append(ppVals, fmt.Sprintf("%s,%s", objMap.Key().String(), valToString(objMap.Value().Interface())))
+				ppVals = append(ppVals, fmt.Sprintf("%s,%s", escapePathValue(objMap.Key().String(), false), escapePathValue(objMap.Value().Interface(), allowReserved)))
 			}
 		}
 		pathParams[parentName] = strings.Join(ppVals, ",")
 	case reflect.Struct:
 		switch objValue.Interface().(type) {
-		case time.Time:
-			pathParams[parentName] = valToString(objValue.Interface())
-		case types.Date:
-			pathParams[parentName] = valToString(objValue.Interface())
-		case big.Int:
-			pathParams[parentName] = valToString(objValue.Interface())
+		case time.Time, types.Date, big.Int:
+			pathParams[parentName] = escapePathValue(objValue.Interface(), allowReserved)
 		default:
 			var ppVals []string
 			for i := 0; i < objType.NumField(); i++ {
@@ -163,16 +168,21 @@ func getSimplePathParams(parentName string, objType reflect.Type, objValue refle
 					valType = valType.Elem()
 				}
 
+				valType, hasValue := unwrapOptionalNullable(valType)
+				if !hasValue {
+					continue
+				}
+
 				if explode {
-					ppVals = append(ppVals, fmt.Sprintf("%s=%s", ppTag.ParamName, valToString(valType.Interface())))
+					ppVals = append(ppVals, fmt.Sprintf("%s=%s", escapePathValue(ppTag.ParamName, false), escapePathValue(valType.Interface(), allowReserved)))
 				} else {
-					ppVals = append(ppVals, fmt.Sprintf("%s,%s", ppTag.ParamName, valToString(valType.Interface())))
+					ppVals = append(ppVals, fmt.Sprintf("%s,%s", escapePathValue(ppTag.ParamName, false), escapePathValue(valType.Interface(), allowReserved)))
 				}
 			}
 			pathParams[parentName] = strings.Join(ppVals, ",")
 		}
 	default:
-		pathParams[parentName] = valToString(objValue.Interface())
+		pathParams[parentName] = escapePathValue(objValue.Interface(), allowReserved)
 	}
 
 	return pathParams

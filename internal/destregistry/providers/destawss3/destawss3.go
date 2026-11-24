@@ -16,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
+	"github.com/hookdeck/outpost/internal/destregistry/safejmespath"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/jmespath/go-jmespath"
 )
@@ -43,18 +44,31 @@ type AWSS3Credentials struct {
 // AWSS3Provider is the S3 Provider implementation
 type AWSS3Provider struct {
 	*destregistry.BaseProvider
+	allowCustomEndpoints bool
 }
 
 var _ destregistry.Provider = (*AWSS3Provider)(nil)
 
+type Option func(*AWSS3Provider)
+
+func WithAllowCustomEndpoints(allow bool) Option {
+	return func(p *AWSS3Provider) {
+		p.allowCustomEndpoints = allow
+	}
+}
+
 // New creates a new AWSS3Provider
-func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption) (*AWSS3Provider, error) {
+func New(loader metadata.MetadataLoader, basePublisherOpts []destregistry.BasePublisherOption, opts ...Option) (*AWSS3Provider, error) {
 	base, err := destregistry.NewBaseProvider(loader, "aws_s3", basePublisherOpts...)
 	if err != nil {
 		return nil, err
 	}
 
-	return &AWSS3Provider{BaseProvider: base}, nil
+	provider := &AWSS3Provider{BaseProvider: base}
+	for _, opt := range opts {
+		opt(provider)
+	}
+	return provider, nil
 }
 
 // Validate checks if the destination configuration is valid
@@ -115,6 +129,10 @@ func (p *AWSS3Provider) resolveConfig(ctx context.Context, destination *models.D
 		return nil, nil, err
 	}
 
+	if err := destregistry.ValidateCustomEndpointAllowed(p.allowCustomEndpoints, destination); err != nil {
+		return nil, nil, err
+	}
+
 	sc := destination.Config["storage_class"]
 	_, err := parseStorageClass(sc)
 	if err != nil {
@@ -132,8 +150,8 @@ func (p *AWSS3Provider) resolveConfig(ctx context.Context, destination *models.D
 		keyTemplate = defaultKeyTemplate
 	}
 
-	// Validate the JMESPath expression by compiling it
-	if _, err := jmespath.Compile(keyTemplate); err != nil {
+	// The template must parse and be one of the accepted forms
+	if err := safejmespath.Check(keyTemplate); err != nil {
 		return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
 			{
 				Field: "config.key_template",
@@ -304,7 +322,7 @@ func (p *AWSS3Publisher) Publish(ctx context.Context, event *models.Event) (*des
 
 	input, err := p.Format(ctx, event)
 	if err != nil {
-		return nil, err
+		return destregistry.NewFormatError("aws_s3", "", err)
 	}
 
 	_, err = p.client.PutObject(ctx, input)
@@ -354,7 +372,7 @@ func NewAWSS3Publisher(
 	bucket, keyTemplateStr, storageClass string,
 ) *AWSS3Publisher {
 	// Compile the JMESPath expression (we assume it's already validated)
-	tmpl, err := jmespath.Compile(keyTemplateStr)
+	tmpl, err := safejmespath.Compile(keyTemplateStr)
 	if err != nil {
 		// This should not happen as template is validated in resolveConfig
 		panic(fmt.Sprintf("invalid key template: %v", err))

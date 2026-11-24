@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"slices"
 	"syscall"
 	"time"
 
@@ -65,6 +66,13 @@ func (a *App) PreRun(ctx context.Context) (err error) {
 	}()
 
 	a.logger.Info("starting outpost", a.config.LogConfigurationSummary()...)
+
+	for _, warning := range slices.Concat(a.config.DeprecationWarnings(), a.config.RetryTimingWarnings(), a.config.MCPWarnings()) {
+		a.logger.Warn(warning)
+	}
+	if err := a.config.MCPEventsError(); err != nil {
+		a.logger.Error("MCP Events is unavailable: invalid event definitions", zap.Error(err))
+	}
 
 	if err := a.configureIDGenerators(); err != nil {
 		return err
@@ -163,7 +171,6 @@ func (a *App) run(ctx context.Context) error {
 func (a *App) setupLogger() error {
 	logger, err := logging.NewLogger(
 		logging.WithLogLevel(a.config.LogLevel),
-		logging.WithAuditLog(a.config.AuditLog),
 	)
 	if err != nil {
 		return err
@@ -217,6 +224,7 @@ func (a *App) initializeInfrastructure(ctx context.Context) error {
 		DeliveryMQ:    a.config.MQs.ToInfraConfig("deliverymq"),
 		LogMQ:         a.config.MQs.ToInfraConfig("logmq"),
 		AutoProvision: a.config.MQs.AutoProvision,
+		DeploymentID:  a.config.DeploymentID,
 	}, a.redisClient, a.logger, a.config.MQs.GetInfraType()); err != nil {
 		a.logger.Error("infrastructure initialization failed", zap.Error(err))
 		return err

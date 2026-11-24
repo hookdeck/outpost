@@ -24,3 +24,7 @@ value = GetAttemptMetricsMeasuresEnum2.COUNT
 | `RATE`                | rate                  |
 | `SUCCESSFUL_RATE`     | successful_rate       |
 | `FAILED_RATE`         | failed_rate           |
+| `AVG_LATENCY`         | avg_latency           |
+| `P50_LATENCY`         | p50_latency           |
+| `P95_LATENCY`         | p95_latency           |
+| `P99_LATENCY`         | p99_latency           |

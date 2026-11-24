@@ -4,8 +4,11 @@
 package pagination
 
 import (
+	"cmp"
 	"context"
 	"slices"
+
+	"github.com/hookdeck/outpost/internal/cursor"
 )
 
 // Direction indicates whether pagination is moving forward or backward.
@@ -57,16 +60,14 @@ func Run[T any](ctx context.Context, cfg Config[T]) (*Result[T], error) {
 
 	// 2. Decode cursor position
 	var cursorPos string
-	if cfg.Next != "" {
-		pos, err := cfg.Cursor.Decode(cfg.Next)
+	if encoded := cmp.Or(cfg.Next, cfg.Prev); encoded != "" {
+		pos, err := cfg.Cursor.Decode(encoded)
 		if err != nil {
 			return nil, err
 		}
-		cursorPos = pos
-	} else if cfg.Prev != "" {
-		pos, err := cfg.Cursor.Decode(cfg.Prev)
-		if err != nil {
-			return nil, err
+		// An empty position is the first page, which only a request without a cursor asks for.
+		if pos == "" {
+			return nil, cursor.ErrInvalidCursor
 		}
 		cursorPos = pos
 	}

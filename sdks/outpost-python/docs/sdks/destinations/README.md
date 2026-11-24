@@ -48,7 +48,7 @@ with Outpost(
 | Parameter                                                                                                                                    | Type                                                                                                                                         | Required                                                                                                                                     | Description                                                                                                                                  |
 | -------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `tenant_id`                                                                                                                                  | *str*                                                                                                                                        | :heavy_check_mark:                                                                                                                           | The ID of the tenant. Required when using AdminApiKey authentication.                                                                        |
-| `type`                                                                                                                                       | [Optional[models.ListTenantDestinationsType]](../../models/listtenantdestinationstype.md)                                                    | :heavy_minus_sign:                                                                                                                           | Filter destinations by type(s). Use bracket notation for multiple values (e.g., `type[0]=webhook&type[1]=aws_sqs`).                          |
+| `type_`                                                                                                                                      | [Optional[models.ListTenantDestinationsType]](../../models/listtenantdestinationstype.md)                                                    | :heavy_minus_sign:                                                                                                                           | Filter destinations by type(s). Use bracket notation for multiple values (e.g., `type[0]=webhook&type[1]=aws_sqs`).                          |
 | `topics`                                                                                                                                     | [Optional[models.ListTenantDestinationsTopics]](../../models/listtenantdestinationstopics.md)                                                | :heavy_minus_sign:                                                                                                                           | Filter destinations by supported topic(s). Use bracket notation for multiple values (e.g., `topics[0]=user.created&topics[1]=user.deleted`). |
 | `retries`                                                                                                                                    | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)                                                                             | :heavy_minus_sign:                                                                                                                           | Configuration to override the default retry behavior of the client.                                                                          |
 
@@ -61,6 +61,7 @@ with Outpost(
 | Error Type                 | Status Code                | Content Type               |
 | -------------------------- | -------------------------- | -------------------------- |
 | errors.UnauthorizedError   | 401                        | application/json           |
+| errors.APIErrorResponse    | 403                        | application/json           |
 | errors.NotFoundError       | 404                        | application/json           |
 | errors.InternalServerError | 500                        | application/json           |
 | errors.APIError            | 4XX, 5XX                   | \*/\*                      |
@@ -142,9 +143,10 @@ with Outpost(
 
 | Error Type                 | Status Code                | Content Type               |
 | -------------------------- | -------------------------- | -------------------------- |
+| errors.BadRequestError     | 400                        | application/json           |
 | errors.UnauthorizedError   | 401                        | application/json           |
 | errors.NotFoundError       | 404                        | application/json           |
-| errors.APIErrorResponse    | 422                        | application/json           |
+| errors.APIErrorResponse    | 403, 413, 422              | application/json           |
 | errors.InternalServerError | 500                        | application/json           |
 | errors.APIError            | 4XX, 5XX                   | \*/\*                      |
 
@@ -187,6 +189,7 @@ with Outpost(
 | Error Type                 | Status Code                | Content Type               |
 | -------------------------- | -------------------------- | -------------------------- |
 | errors.UnauthorizedError   | 401                        | application/json           |
+| errors.APIErrorResponse    | 403                        | application/json           |
 | errors.NotFoundError       | 404                        | application/json           |
 | errors.InternalServerError | 500                        | application/json           |
 | errors.APIError            | 4XX, 5XX                   | \*/\*                      |
@@ -207,16 +210,7 @@ with Outpost(
 ) as outpost:
 
     res = outpost.destinations.update(tenant_id="<id>", destination_id="<id>", body={
-        "topics": models.TopicsEnum.WILDCARD_,
-        "config": {
-            "server_url": "localhost:5672",
-            "exchange": "my-exchange",
-            "tls": models.RabbitMQConfigTLS.FALSE,
-        },
-        "credentials": {
-            "username": "guest",
-            "password": "guest",
-        },
+        "type": models.DestinationUpdateKafkaType.KAFKA,
     })
 
     # Handle response
@@ -227,7 +221,7 @@ with Outpost(
 
 <!-- UsageSnippet language="python" operationID="updateTenantDestination" method="patch" path="/tenants/{tenant_id}/destinations/{destination_id}" example="WebhookUpdateExample" -->
 ```python
-from outpost_sdk import Outpost
+from outpost_sdk import Outpost, models
 
 
 with Outpost(
@@ -235,12 +229,7 @@ with Outpost(
 ) as outpost:
 
     res = outpost.destinations.update(tenant_id="<id>", destination_id="<id>", body={
-        "topics": [
-            "user.created",
-        ],
-        "config": {
-            "url": "https://my-service.com/webhook/new-handler",
-        },
+        "type": models.DestinationUpdateHookdeckType.HOOKDECK,
     })
 
     # Handle response
@@ -267,7 +256,7 @@ with Outpost(
 | -------------------------- | -------------------------- | -------------------------- |
 | errors.UnauthorizedError   | 401                        | application/json           |
 | errors.NotFoundError       | 404                        | application/json           |
-| errors.APIErrorResponse    | 422                        | application/json           |
+| errors.APIErrorResponse    | 403, 409, 413, 422         | application/json           |
 | errors.InternalServerError | 500                        | application/json           |
 | errors.APIError            | 4XX, 5XX                   | \*/\*                      |
 
@@ -310,6 +299,7 @@ with Outpost(
 | Error Type                 | Status Code                | Content Type               |
 | -------------------------- | -------------------------- | -------------------------- |
 | errors.UnauthorizedError   | 401                        | application/json           |
+| errors.APIErrorResponse    | 403                        | application/json           |
 | errors.NotFoundError       | 404                        | application/json           |
 | errors.InternalServerError | 500                        | application/json           |
 | errors.APIError            | 4XX, 5XX                   | \*/\*                      |
@@ -354,6 +344,7 @@ with Outpost(
 | -------------------------- | -------------------------- | -------------------------- |
 | errors.UnauthorizedError   | 401                        | application/json           |
 | errors.NotFoundError       | 404                        | application/json           |
+| errors.APIErrorResponse    | 403, 409                   | application/json           |
 | errors.InternalServerError | 500                        | application/json           |
 | errors.APIError            | 4XX, 5XX                   | \*/\*                      |
 
@@ -397,12 +388,16 @@ with Outpost(
 | -------------------------- | -------------------------- | -------------------------- |
 | errors.UnauthorizedError   | 401                        | application/json           |
 | errors.NotFoundError       | 404                        | application/json           |
+| errors.APIErrorResponse    | 403, 409                   | application/json           |
 | errors.InternalServerError | 500                        | application/json           |
 | errors.APIError            | 4XX, 5XX                   | \*/\*                      |
 
 ## list_attempts
 
 Retrieves a paginated list of attempts scoped to a specific destination.
+
+Returns `404` if the destination does not exist or has been deleted. The attempts of a deleted destination remain available from `GET /attempts?destination_id=`.
+
 
 ### Example Usage
 
@@ -420,10 +415,8 @@ with Outpost(
         "destination_id": "<id>",
     })
 
-    while res is not None:
-        # Handle items
-
-        res = res.next()
+    # Handle response
+    print(res)
 
 ```
 
@@ -436,20 +429,25 @@ with Outpost(
 
 ### Response
 
-**[models.ListTenantDestinationAttemptsResponse](../../models/listtenantdestinationattemptsresponse.md)**
+**[models.AttemptPaginatedResult](../../models/attemptpaginatedresult.md)**
 
 ### Errors
 
 | Error Type                 | Status Code                | Content Type               |
 | -------------------------- | -------------------------- | -------------------------- |
+| errors.BadRequestError     | 400                        | application/json           |
 | errors.UnauthorizedError   | 401                        | application/json           |
 | errors.NotFoundError       | 404                        | application/json           |
+| errors.APIErrorResponse    | 403, 422                   | application/json           |
 | errors.InternalServerError | 500                        | application/json           |
 | errors.APIError            | 4XX, 5XX                   | \*/\*                      |
 
 ## get_attempt
 
 Retrieves details for a specific attempt scoped to a destination.
+
+Returns `404` if the destination does not exist or has been deleted, or if the destination has no attempt with this ID. An attempt of a deleted destination remains available from `GET /attempts/{attempt_id}`.
+
 
 ### Example Usage
 
@@ -471,13 +469,13 @@ with Outpost(
 
 ### Parameters
 
-| Parameter                                                                                                                                                                                                                                                                                                                         | Type                                                                                                                                                                                                                                                                                                                              | Required                                                                                                                                                                                                                                                                                                                          | Description                                                                                                                                                                                                                                                                                                                       |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tenant_id`                                                                                                                                                                                                                                                                                                                       | *str*                                                                                                                                                                                                                                                                                                                             | :heavy_check_mark:                                                                                                                                                                                                                                                                                                                | The ID of the tenant. Required when using AdminApiKey authentication.                                                                                                                                                                                                                                                             |
-| `destination_id`                                                                                                                                                                                                                                                                                                                  | *str*                                                                                                                                                                                                                                                                                                                             | :heavy_check_mark:                                                                                                                                                                                                                                                                                                                | The ID of the destination.                                                                                                                                                                                                                                                                                                        |
-| `attempt_id`                                                                                                                                                                                                                                                                                                                      | *str*                                                                                                                                                                                                                                                                                                                             | :heavy_check_mark:                                                                                                                                                                                                                                                                                                                | The ID of the attempt.                                                                                                                                                                                                                                                                                                            |
-| `include`                                                                                                                                                                                                                                                                                                                         | [Optional[models.GetTenantDestinationAttemptInclude]](../../models/gettenantdestinationattemptinclude.md)                                                                                                                                                                                                                         | :heavy_minus_sign:                                                                                                                                                                                                                                                                                                                | Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).<br/>- `event`: Include event summary<br/>- `event.data`: Include full event with payload data<br/>- `response_data`: Include response body and headers<br/>- `destination`: Include the full destination object<br/> |
-| `retries`                                                                                                                                                                                                                                                                                                                         | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)                                                                                                                                                                                                                                                                  | :heavy_minus_sign:                                                                                                                                                                                                                                                                                                                | Configuration to override the default retry behavior of the client.                                                                                                                                                                                                                                                               |
+| Parameter                                                                                                                                                                                                                                                                                                                                         | Type                                                                                                                                                                                                                                                                                                                                              | Required                                                                                                                                                                                                                                                                                                                                          | Description                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tenant_id`                                                                                                                                                                                                                                                                                                                                       | *str*                                                                                                                                                                                                                                                                                                                                             | :heavy_check_mark:                                                                                                                                                                                                                                                                                                                                | The ID of the tenant. Required when using AdminApiKey authentication.                                                                                                                                                                                                                                                                             |
+| `destination_id`                                                                                                                                                                                                                                                                                                                                  | *str*                                                                                                                                                                                                                                                                                                                                             | :heavy_check_mark:                                                                                                                                                                                                                                                                                                                                | The ID of the destination.                                                                                                                                                                                                                                                                                                                        |
+| `attempt_id`                                                                                                                                                                                                                                                                                                                                      | *str*                                                                                                                                                                                                                                                                                                                                             | :heavy_check_mark:                                                                                                                                                                                                                                                                                                                                | The ID of the attempt.                                                                                                                                                                                                                                                                                                                            |
+| `include`                                                                                                                                                                                                                                                                                                                                         | [Optional[models.GetTenantDestinationAttemptInclude]](../../models/gettenantdestinationattemptinclude.md)                                                                                                                                                                                                                                         | :heavy_minus_sign:                                                                                                                                                                                                                                                                                                                                | Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).<br/>- `event`: Include event summary<br/>- `event.data`: Include full event with payload data<br/>- `response_data`: Include response body and headers<br/>- `destination`: Include the destination object, without credentials<br/> |
+| `retries`                                                                                                                                                                                                                                                                                                                                         | [Optional[utils.RetryConfig]](../../models/utils/retryconfig.md)                                                                                                                                                                                                                                                                                  | :heavy_minus_sign:                                                                                                                                                                                                                                                                                                                                | Configuration to override the default retry behavior of the client.                                                                                                                                                                                                                                                                               |
 
 ### Response
 
@@ -488,6 +486,7 @@ with Outpost(
 | Error Type                 | Status Code                | Content Type               |
 | -------------------------- | -------------------------- | -------------------------- |
 | errors.UnauthorizedError   | 401                        | application/json           |
+| errors.APIErrorResponse    | 403                        | application/json           |
 | errors.NotFoundError       | 404                        | application/json           |
 | errors.InternalServerError | 500                        | application/json           |
 | errors.APIError            | 4XX, 5XX                   | \*/\*                      |

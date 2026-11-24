@@ -44,6 +44,7 @@ export function publish(
     | errors.NotFoundError
     | errors.UnauthorizedError
     | errors.TimeoutError
+    | errors.APIErrorResponse
     | errors.RateLimitedError
     | errors.BadRequestError
     | errors.InternalServerError
@@ -75,6 +76,7 @@ async function $do(
       | errors.NotFoundError
       | errors.UnauthorizedError
       | errors.TimeoutError
+      | errors.APIErrorResponse
       | errors.RateLimitedError
       | errors.BadRequestError
       | errors.InternalServerError
@@ -163,6 +165,7 @@ async function $do(
     | errors.NotFoundError
     | errors.UnauthorizedError
     | errors.TimeoutError
+    | errors.APIErrorResponse
     | errors.RateLimitedError
     | errors.BadRequestError
     | errors.InternalServerError
@@ -179,6 +182,7 @@ async function $do(
     M.jsonErr(404, errors.NotFoundError$inboundSchema),
     M.jsonErr([401, 403, 407], errors.UnauthorizedError$inboundSchema),
     M.jsonErr(408, errors.TimeoutError$inboundSchema),
+    M.jsonErr(409, errors.APIErrorResponse$inboundSchema),
     M.jsonErr(429, errors.RateLimitedError$inboundSchema),
     M.jsonErr([413, 414, 415, 422, 431], errors.BadRequestError$inboundSchema),
     M.jsonErr(504, errors.TimeoutError$inboundSchema),
@@ -189,7 +193,7 @@ async function $do(
     ),
     M.jsonErr(510, errors.BadRequestError$inboundSchema),
     M.jsonErr(511, errors.UnauthorizedError$inboundSchema),
-    M.fail([409, "4XX"]),
+    M.fail("4XX"),
     M.fail("5XX"),
   )(response, req, { extraFields: responseFields });
   if (!result.ok) {

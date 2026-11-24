@@ -2,6 +2,7 @@ package drivertest
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -59,6 +60,58 @@ func testMisc(t *testing.T, newHarness HarnessMaker) {
 		)
 		err = store.CreateDestination(ctx, destination)
 		require.NoError(t, err, "Should be able to create destination after deleting one")
+	})
+
+	t.Run("MaxDestinationsPerTenant concurrent creates at the limit", func(t *testing.T) {
+		ctx := context.Background()
+		h, err := newHarness(ctx, t)
+		require.NoError(t, err)
+		t.Cleanup(h.Close)
+
+		maxDestinations := 3
+		store, err := h.MakeDriverWithMaxDest(ctx, maxDestinations)
+		require.NoError(t, err)
+
+		for round := 0; round < 20; round++ {
+			tenant := models.Tenant{
+				ID:        idgen.String(),
+				CreatedAt: time.Now(),
+			}
+			require.NoError(t, store.UpsertTenant(ctx, tenant))
+
+			for i := 0; i < maxDestinations-1; i++ {
+				require.NoError(t, store.CreateDestination(ctx, testutil.DestinationFactory.Any(
+					testutil.DestinationFactory.WithTenantID(tenant.ID),
+				)))
+			}
+
+			errs := make([]error, 16)
+			var wg sync.WaitGroup
+			for i := range errs {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					errs[i] = store.CreateDestination(ctx, testutil.DestinationFactory.Any(
+						testutil.DestinationFactory.WithTenantID(tenant.ID),
+					))
+				}()
+			}
+			wg.Wait()
+
+			created := 0
+			for _, err := range errs {
+				if err == nil {
+					created++
+				} else {
+					assert.ErrorIs(t, err, driver.ErrMaxDestinationsPerTenantReached)
+				}
+			}
+			assert.Equal(t, 1, created)
+
+			destinations, err := store.ListDestination(ctx, driver.ListDestinationRequest{TenantID: tenant.ID})
+			require.NoError(t, err)
+			assert.Len(t, destinations, maxDestinations)
+		}
 	})
 
 	t.Run("DeploymentIsolation", func(t *testing.T) {
@@ -125,5 +178,46 @@ func testMisc(t *testing.T, newHarness HarnessMaker) {
 		retrieved2Again, err := store2.RetrieveDestination(ctx, tenantID, destinationID)
 		require.NoError(t, err)
 		assert.Equal(t, "dp_002", retrieved2Again.Config["deployment"])
+	})
+
+	t.Run("TenantIDWithBraces", func(t *testing.T) {
+		ctx := context.Background()
+		h, err := newHarness(ctx, t)
+		require.NoError(t, err)
+		t.Cleanup(h.Close)
+
+		store, err := h.MakeDriver(ctx)
+		require.NoError(t, err)
+
+		outer := idgen.String()
+		nested := outer + "}:destination:y"
+		require.NoError(t, store.UpsertTenant(ctx, models.Tenant{ID: outer, CreatedAt: time.Now()}))
+
+		// A destination of the outer tenant whose ID mirrors the nested
+		// tenant's destination list key.
+		require.NoError(t, store.CreateDestination(ctx, testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithID("y}:destinations"),
+			testutil.DestinationFactory.WithTenantID(outer),
+		)))
+
+		require.NoError(t, store.UpsertTenant(ctx, models.Tenant{ID: nested, CreatedAt: time.Now()}))
+		require.NoError(t, store.CreateDestination(ctx, testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithID("d"),
+			testutil.DestinationFactory.WithTenantID(nested),
+		)))
+
+		tenant, err := store.RetrieveTenant(ctx, nested)
+		require.NoError(t, err)
+		assert.Equal(t, nested, tenant.ID)
+		assert.Equal(t, 1, tenant.DestinationsCount)
+
+		got, err := store.RetrieveDestination(ctx, outer, "y}:destination:d")
+		require.NoError(t, err)
+		assert.Nil(t, got, "the nested tenant's destination is not reachable through the outer tenant")
+
+		own, err := store.RetrieveDestination(ctx, nested, "d")
+		require.NoError(t, err)
+		require.NotNil(t, own)
+		assert.Equal(t, "d", own.ID)
 	})
 }

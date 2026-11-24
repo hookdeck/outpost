@@ -23,8 +23,9 @@
       "key": "key_template",
       "type": "text",
       "label": "Object Key Template",
-      "description": "JMESPath expression for generating S3 object keys. Default: join('', [time.rfc3339_nano, '_', metadata.\"event-id\", '.json'])",
+      "description": "JMESPath expression for generating S3 object keys. Default: join('', [time.rfc3339_nano, '_', metadata.\"event-id\", '.json']). Templates may use field paths, string literals, join, to_string, not_null and ||.",
       "required": false,
+      "maxlength": 1024,
       "placeholder": "join('/', [time.year, time.month, time.day, metadata.\"event-id\", '.json'])"
     },
     {

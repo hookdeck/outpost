@@ -1,5 +1,22 @@
 .sidebar-open #root {
   margin-right: 408px;
+
+  // Below 1024px the sidebar overlays content instead of pushing it.
+  @media (max-width: 1024px) {
+    margin-right: 0;
+  }
+}
+
+#sidebar-backdrop {
+  display: none;
+
+  @media (max-width: 1024px) {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.32);
+    z-index: 9;
+  }
 }
 
 #sidebar {
@@ -12,6 +29,14 @@
   border-left: 1px solid var(--colors-outline-neutral);
   overflow-y: auto;
   box-sizing: border-box;
+  background: var(--colors-background);
+  z-index: 10;
+
+  @media (max-width: 640px) {
+    width: 100vw;
+    max-width: 100vw;
+    padding: var(--spacing-4);
+  }
 
   .close-button {
     margin-left: calc(var(--spacing-2) * -1);

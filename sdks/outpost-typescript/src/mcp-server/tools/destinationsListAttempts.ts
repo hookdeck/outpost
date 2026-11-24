@@ -14,13 +14,16 @@ export const tool$destinationsListAttempts: ToolDefinition<typeof args> = {
   name: "destinations-list-attempts",
   description: `List Destination Attempts
 
-Retrieves a paginated list of attempts scoped to a specific destination.`,
+Retrieves a paginated list of attempts scoped to a specific destination.
+
+Returns \`404\` if the destination does not exist or has been deleted. The attempts of a deleted destination remain available from \`GET /attempts?destination_id=\`.
+`,
   args,
   tool: async (client, args, ctx) => {
     const [result, apiCall] = await destinationsListAttempts(
       client,
       args.request,
-      { fetchOptions: { signal: ctx.signal } },
+      { fetchOptions: { signal: ctx.mcpReq.signal } },
     ).$inspect();
 
     if (!result.ok) {
@@ -30,7 +33,7 @@ Retrieves a paginated list of attempts scoped to a specific destination.`,
       };
     }
 
-    const value = result.value.result;
+    const value = result.value;
 
     return formatResult(value, apiCall);
   },

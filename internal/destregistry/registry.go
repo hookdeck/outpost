@@ -4,10 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hash"
 	"hash/fnv"
+	"maps"
+	"slices"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/backoff"
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/logging"
@@ -19,6 +24,19 @@ import (
 // PreprocessDestinationOpts contains options for preprocessing a destination
 type PreprocessDestinationOpts struct {
 	Role string
+	// Request holds the destination fields exactly as the caller sent them in
+	// the API request. On updates, newDestination carries the result of
+	// merge-patching the request into the stored values, so it cannot answer
+	// "did the caller provide this field" — the request can.
+	Request PreprocessRequest
+}
+
+// PreprocessRequest is the caller's view of the provider-owned destination
+// fields, before any merging with stored state. Maps are nil when the request
+// did not contain the corresponding field.
+type PreprocessRequest struct {
+	Config      map[string]string
+	Credentials map[string]string
 }
 
 // Registry manages providers, their metadata, and publishers
@@ -32,12 +50,27 @@ type Registry interface {
 	// Provider management
 	RegisterProvider(destinationType string, provider Provider) error
 	ResolveProvider(destination *models.Destination) (Provider, error)
+	// ResolvePublisher returns the destination's cached publisher, creating it
+	// on a miss. For a provider that bypasses the cache (see
+	// PublisherCacheBypasser) it returns a fresh publisher the caller owns and
+	// must Close.
 	ResolvePublisher(ctx context.Context, destination *models.Destination) (Publisher, error)
 
 	// Metadata access
 	MetadataLoader() metadata.MetadataLoader
 	RetrieveProviderMetadata(providerType string) (*metadata.ProviderMetadata, error)
 	ListProviderMetadata() []*metadata.ProviderMetadata
+
+	// RetryPolicy returns the retry policy of a destination type's provider;
+	// ok is false when the type has none and the global policy applies.
+	RetryPolicy(destinationType string) (b backoff.Backoff, maxRetries int, ok bool)
+}
+
+// RetryPolicyProvider is implemented by providers whose destinations retry on
+// their own schedule. maxRetries is the number of retries after the first
+// attempt. ok=false falls back to the global policy.
+type RetryPolicyProvider interface {
+	RetryPolicy() (b backoff.Backoff, maxRetries int, ok bool)
 }
 
 // Provider interface handles validation and publisher creation
@@ -54,6 +87,21 @@ type Provider interface {
 	ComputeTarget(destination *models.Destination) DestinationTarget
 	// Preprocess modifies the destination before it is stored in the DB
 	Preprocess(newDestination *models.Destination, originalDestination *models.Destination, opts *PreprocessDestinationOpts) error
+}
+
+// PublisherCacheBypasser is an optional Provider interface. A provider that
+// returns true gets a fresh publisher for every PublishEvent, closed right
+// after the attempt, instead of a cached one. It suits providers whose
+// publishers hold no resources, where one cache entry per destination would
+// only evict expensive publishers.
+type PublisherCacheBypasser interface {
+	BypassPublisherCache() bool
+}
+
+// CreateValidator is an optional Provider interface. ValidateCreate checks a
+// new destination before Validate, which may call it. Updates skip it.
+type CreateValidator interface {
+	ValidateCreate(destination *models.Destination) error
 }
 
 type Delivery struct {
@@ -74,6 +122,7 @@ type registry struct {
 	providerList   []string
 	publishers     *lru.Cache[string, Publisher]
 	config         Config
+	logger         *logging.Logger
 }
 
 type Config struct {
@@ -95,10 +144,23 @@ func NewRegistry(cfg *Config, logger *logging.Logger) Registry {
 	}
 
 	onEvict := func(key string, p Publisher) {
+		// Log only the destination ID prefix, not the full key: the key
+		// folds credentials and delivery metadata into an FNV hash, so the
+		// hash suffix is a secret-derived value that should stay out of logs.
+		destID, _, _ := strings.Cut(key, ".")
+		defer func() {
+			if rec := recover(); rec != nil {
+				logger.Error("panic closing publisher on eviction",
+					zap.String("destination_id", destID),
+					zap.Any("panic", rec),
+					zap.Stack("stack"),
+				)
+			}
+		}()
 		if err := p.Close(); err != nil {
 			// TODO: consider how to get context for OTEL logging
 			logger.Error("failed to close publisher on eviction",
-				zap.String("key", key),
+				zap.String("destination_id", destID),
 				zap.Error(err),
 			)
 		}
@@ -112,6 +174,7 @@ func NewRegistry(cfg *Config, logger *logging.Logger) Registry {
 		providers:      make(map[string]Provider),
 		publishers:     cache,
 		config:         *cfg,
+		logger:         logger,
 	}
 }
 
@@ -125,6 +188,11 @@ func (r *registry) ValidateDestination(ctx context.Context, destination *models.
 		if errors.As(err, &validateErr) {
 			return validateErr
 		}
+		var rateLimited *ErrDestinationRateLimited
+		var unavailable *ErrDestinationUnavailable
+		if errors.As(err, &rateLimited) || errors.As(err, &unavailable) {
+			return err
+		}
 		return NewErrDestinationValidation([]ValidationErrorDetail{
 			{
 				Field: "root",
@@ -135,15 +203,25 @@ func (r *registry) ValidateDestination(ctx context.Context, destination *models.
 	return nil
 }
 
-func (r *registry) PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) (*models.Attempt, error) {
-	publisher, err := r.ResolvePublisher(ctx, destination)
+func (r *registry) PublishEvent(ctx context.Context, destination *models.Destination, event *models.Event) (attempt *models.Attempt, err error) {
+	var publisher Publisher
+	var cached bool
+	// A panic while creating the publisher or publishing returns an error and
+	// no attempt, so the message is nacked instead of the process exiting.
+	defer func() {
+		if rec := recover(); rec != nil {
+			attempt, err = nil, r.handlePublishPanic(destination, event, publisher, cached, rec)
+		}
+	}()
+
+	publisher, cached, err = r.resolvePublisher(ctx, destination)
 	if err != nil {
 		// If the provider already signaled a delivery error, create a failed attempt
 		// so it's visible to the customer (instead of silently nacking into DLQ).
 		var pubErr *ErrDestinationPublishAttempt
 		var valErr *ErrDestinationValidation
 		if errors.As(err, &pubErr) || errors.As(err, &valErr) {
-			attempt := &models.Attempt{
+			attempt = &models.Attempt{
 				ID:              idgen.Attempt(),
 				DestinationID:   destination.ID,
 				DestinationType: destination.Type,
@@ -156,16 +234,20 @@ func (r *registry) PublishEvent(ctx context.Context, destination *models.Destina
 			if pubErr != nil {
 				return attempt, pubErr
 			}
+			attempt.ResponseData["errors"] = valErr.Errors
 			return attempt, &ErrDestinationPublishAttempt{
 				Err:      err,
 				Provider: destination.Type,
-				Data:     map[string]interface{}{"error": "validation_failed", "message": err.Error()},
+				Data:     map[string]interface{}{"error": "validation_failed", "message": err.Error(), "errors": valErr.Errors},
 			}
 		}
 		return nil, err
 	}
+	if !cached {
+		defer r.closeUncachedPublisher(destination, publisher)
+	}
 
-	attempt := &models.Attempt{
+	attempt = &models.Attempt{
 		ID:              idgen.Attempt(),
 		DestinationID:   destination.ID,
 		DestinationType: destination.Type,
@@ -176,7 +258,9 @@ func (r *registry) PublishEvent(ctx context.Context, destination *models.Destina
 	timeoutCtx, cancel := context.WithTimeout(ctx, r.config.DeliveryTimeout)
 	defer cancel()
 
+	publishStart := time.Now()
 	deliveryData, err := publisher.Publish(timeoutCtx, event)
+	latencyMs := time.Since(publishStart).Milliseconds()
 	if err != nil {
 		// Context canceled = system shutdown, return nil attempt to trigger nack → requeue.
 		// This is handled centrally so individual publishers don't need to check for it.
@@ -190,6 +274,7 @@ func (r *registry) PublishEvent(ctx context.Context, destination *models.Destina
 			attempt.Status = deliveryData.Status
 			attempt.Code = deliveryData.Code
 			attempt.ResponseData = deliveryData.Response
+			attempt.LatencyMs = &latencyMs
 		} else {
 			attempt = nil
 		}
@@ -246,8 +331,31 @@ func (r *registry) PublishEvent(ctx context.Context, destination *models.Destina
 	attempt.Status = deliveryData.Status
 	attempt.Code = deliveryData.Code
 	attempt.ResponseData = deliveryData.Response
+	attempt.LatencyMs = &latencyMs
 
 	return attempt, nil
+}
+
+// handlePublishPanic logs the panic and drops the publisher. It returns no
+// attempt: the panic is unexpected, so the caller nacks the message and the
+// queue's redelivery and dead-letter settings apply.
+func (r *registry) handlePublishPanic(destination *models.Destination, event *models.Event, publisher Publisher, cached bool, rec interface{}) error {
+	r.logger.Error("panic publishing event",
+		zap.String("destination_id", destination.ID),
+		zap.String("destination_type", destination.Type),
+		zap.String("event_id", event.ID),
+		zap.Any("panic", rec),
+		zap.Stack("stack"),
+	)
+
+	// The publisher may be left broken: drop it so the next delivery creates a
+	// new one. Only this publisher is dropped, since another delivery may have
+	// replaced it already. RemoveIf closes it through the eviction callback.
+	if cached && publisher != nil {
+		r.publishers.RemoveIf(MakePublisherKey(destination), func(p Publisher) bool { return p == publisher })
+	}
+
+	return fmt.Errorf("panic publishing to %s destination: %v", destination.Type, rec)
 }
 
 func (r *registry) RegisterProvider(destinationType string, provider Provider) error {
@@ -257,44 +365,99 @@ func (r *registry) RegisterProvider(destinationType string, provider Provider) e
 	return nil
 }
 
+func (r *registry) RetryPolicy(destinationType string) (backoff.Backoff, int, bool) {
+	if rp, ok := r.providers[destinationType].(RetryPolicyProvider); ok {
+		return rp.RetryPolicy()
+	}
+	return nil, 0, false
+}
+
+func NewErrNoProvider(destinationType string) error {
+	return fmt.Errorf("no provider registered for destination type: %s", destinationType)
+}
+
 func (r *registry) ResolveProvider(destination *models.Destination) (Provider, error) {
 	provider, exists := r.providers[destination.Type]
 	if !exists {
-		return nil, fmt.Errorf("no provider registered for destination type: %s", destination.Type)
+		return nil, NewErrNoProvider(destination.Type)
 	}
 	return provider, nil
 }
 
-// MakePublisherKey creates a unique key for a destination that includes type and config
+// MakePublisherKey creates a unique key for a destination that includes type, config,
+// credentials and delivery metadata. Any of these can be baked into the publisher when
+// it is created, so a change in any of them must produce a new cache key.
 func MakePublisherKey(dest *models.Destination) string {
 	h := fnv.New64a()
-	for k, v := range dest.Config {
-		h.Write([]byte(k))
-		h.Write([]byte(v))
-	}
+	hashSortedMap(h, dest.Config)
+	hashSortedMap(h, dest.Credentials)
+	hashSortedMap(h, dest.DeliveryMetadata)
 	h.Write([]byte(dest.Type))
 	return dest.ID + "." + strconv.FormatUint(h.Sum64(), 36)
 }
 
-func (r *registry) ResolvePublisher(ctx context.Context, destination *models.Destination) (Publisher, error) {
-	key := MakePublisherKey(destination)
-
-	if publisher, ok := r.publishers.Get(key); ok {
-		return publisher, nil
+func hashSortedMap(h hash.Hash64, m map[string]string) {
+	for _, k := range slices.Sorted(maps.Keys(m)) {
+		h.Write([]byte(k))
+		h.Write([]byte{0})
+		h.Write([]byte(m[k]))
+		h.Write([]byte{0})
 	}
+	h.Write([]byte{0})
+}
 
+func (r *registry) ResolvePublisher(ctx context.Context, destination *models.Destination) (Publisher, error) {
+	publisher, _, err := r.resolvePublisher(ctx, destination)
+	return publisher, err
+}
+
+// resolvePublisher is ResolvePublisher that also reports whether the publisher
+// lives in the cache. An uncached publisher belongs to the caller, which must
+// Close it.
+func (r *registry) resolvePublisher(ctx context.Context, destination *models.Destination) (Publisher, bool, error) {
 	provider, err := r.ResolveProvider(destination)
 	if err != nil {
-		return nil, err
+		return nil, false, err
+	}
+
+	if bypasser, ok := provider.(PublisherCacheBypasser); ok && bypasser.BypassPublisherCache() {
+		publisher, err := provider.CreatePublisher(ctx, destination)
+		if err != nil {
+			return nil, false, fmt.Errorf("failed to create publisher: %w", err)
+		}
+		return publisher, false, nil
+	}
+
+	key := MakePublisherKey(destination)
+	if publisher, ok := r.publishers.Get(key); ok {
+		return publisher, true, nil
 	}
 
 	publisher, err := provider.CreatePublisher(ctx, destination)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create publisher: %w", err)
+		return nil, false, fmt.Errorf("failed to create publisher: %w", err)
 	}
 
 	r.publishers.Add(key, publisher)
-	return publisher, nil
+	return publisher, true, nil
+}
+
+func (r *registry) closeUncachedPublisher(destination *models.Destination, publisher Publisher) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			r.logger.Error("panic closing publisher",
+				zap.String("destination_id", destination.ID),
+				zap.Any("panic", rec),
+				zap.Stack("stack"),
+			)
+		}
+	}()
+	if err := publisher.Close(); err != nil {
+		r.logger.Error("failed to close publisher",
+			zap.String("destination_id", destination.ID),
+			zap.Error(err),
+		)
+	}
 }
 
 func (r *registry) MetadataLoader() metadata.MetadataLoader {

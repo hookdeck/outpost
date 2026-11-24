@@ -5,8 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
@@ -19,7 +22,7 @@ func ErrorHandlerMiddleware() gin.HandlerFunc {
 		c.Next()
 
 		err := c.Errors.Last()
-		if err == nil {
+		if err == nil || c.Writer.Written() {
 			return
 		}
 
@@ -29,12 +32,16 @@ func ErrorHandlerMiddleware() gin.HandlerFunc {
 	}
 }
 
+const expectedRFC3339 = "expected RFC3339 (e.g. 2024-01-15T09:30:00Z or 2024-01-15T09:30:00.123Z)"
+
 type ErrorResponse struct {
 	Err     error       `json:"-"`
 	Code    int         `json:"-"`
 	Status  int         `json:"status"`
 	Message string      `json:"message"`
 	Data    interface{} `json:"data,omitempty"`
+	// RetryAfter sets the Retry-After header, in whole seconds (at least 1).
+	RetryAfter time.Duration `json:"-"`
 }
 
 func (e ErrorResponse) Error() string {
@@ -63,6 +70,14 @@ func (e *ErrorResponse) Parse(err error) {
 	if isInvalidJSON(err) {
 		e.Code = http.StatusUnprocessableEntity
 		e.Message = "invalid JSON"
+		e.Err = err
+		return
+	}
+
+	var timeParseErr *time.ParseError
+	if errors.As(err, &timeParseErr) {
+		e.Code = http.StatusUnprocessableEntity
+		e.Message = fmt.Sprintf("invalid timestamp %q: %s", timeParseErr.Value, expectedRFC3339)
 		e.Err = err
 		return
 	}
@@ -101,6 +116,8 @@ func formatValidationError(field, tag, param string) string {
 		return fmt.Sprintf("%s must be at most %s characters", field, param)
 	case "email":
 		return fmt.Sprintf("%s must be a valid email address", field)
+	case "address_not_allowed":
+		return fmt.Sprintf("%s must resolve to a public address", field)
 	case "url":
 		return fmt.Sprintf("%s must be a valid URL", field)
 	case "oneof":
@@ -136,6 +153,10 @@ func isInvalidJSON(err error) bool {
 
 func handleErrorResponse(c *gin.Context, response ErrorResponse) {
 	response.Status = response.Code
+	if response.RetryAfter > 0 {
+		seconds := max(1, int64(math.Ceil(response.RetryAfter.Seconds())))
+		c.Header("Retry-After", strconv.FormatInt(seconds, 10))
+	}
 	c.JSON(response.Code, response)
 }
 
@@ -155,9 +176,37 @@ func NewErrBadRequest(err error) ErrorResponse {
 	}
 }
 
+func NewErrUnauthorized() ErrorResponse {
+	return ErrorResponse{
+		Code:    http.StatusUnauthorized,
+		Message: "unauthorized",
+	}
+}
+
+func NewErrForbidden() ErrorResponse {
+	return ErrorResponse{
+		Code:    http.StatusForbidden,
+		Message: "forbidden",
+	}
+}
+
+func NewErrRequestBodyTooLarge() ErrorResponse {
+	return ErrorResponse{
+		Code:    http.StatusRequestEntityTooLarge,
+		Message: "request body too large",
+	}
+}
+
 func NewErrNotFound(resource string) ErrorResponse {
 	return ErrorResponse{
 		Code:    http.StatusNotFound,
 		Message: fmt.Sprintf("%s not found", resource),
+	}
+}
+
+func NewErrConflict(message string) ErrorResponse {
+	return ErrorResponse{
+		Code:    http.StatusConflict,
+		Message: message,
 	}
 }

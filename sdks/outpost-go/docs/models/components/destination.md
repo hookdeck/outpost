@@ -57,6 +57,18 @@ destination := components.CreateDestinationGcpPubsub(components.DestinationGCPPu
 destination := components.CreateDestinationKafka(components.DestinationKafka{/* values here */})
 ```
 
+### DestinationCloudflareQueues
+
+```go
+destination := components.CreateDestinationCloudflareQueues(components.DestinationCloudflareQueues{/* values here */})
+```
+
+### DestinationAWSEventBridge
+
+```go
+destination := components.CreateDestinationAwsEventbridge(components.DestinationAWSEventBridge{/* values here */})
+```
+
 ## Union Discrimination
 
 Use the `Type` field to determine which variant is active, then access the corresponding field:
@@ -81,5 +93,9 @@ switch destination.Type {
 		// destination.DestinationGCPPubSub is populated
 	case components.DestinationUnionTypeKafka:
 		// destination.DestinationKafka is populated
+	case components.DestinationUnionTypeCloudflareQueues:
+		// destination.DestinationCloudflareQueues is populated
+	case components.DestinationUnionTypeAwsEventbridge:
+		// destination.DestinationAWSEventBridge is populated
 }
 ```

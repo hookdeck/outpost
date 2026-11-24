@@ -2,6 +2,7 @@ package chlogstore
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -61,6 +62,28 @@ func setupClickHouseConnection(t *testing.T) clickhouse.DB {
 	return chDB
 }
 
+// stopMerges holds duplicate rows in place for tests that assert on them —
+// ReplacingMergeTree collapses rows sharing the ORDER BY key on merge.
+//
+// The table must be qualified: bare SYSTEM STOP MERGES is server-wide, and every
+// test shares one ClickHouse server.
+func stopMerges(t *testing.T, chDB clickhouse.DB, table string) {
+	t.Helper()
+
+	ctx := context.Background()
+	var database string
+	require.NoError(t, chDB.QueryRow(ctx, "SELECT currentDatabase()").Scan(&database))
+
+	// SYSTEM STOP MERGES reports success for a table that does not exist.
+	var exists uint64
+	require.NoError(t, chDB.QueryRow(ctx,
+		"SELECT count() FROM system.tables WHERE database = ? AND name = ?",
+		database, table).Scan(&exists))
+	require.Equal(t, uint64(1), exists, "no table %s.%s to stop merges on", database, table)
+
+	require.NoError(t, chDB.Exec(ctx, "SYSTEM STOP MERGES "+database+"."+table))
+}
+
 func newHarness(_ context.Context, t *testing.T) (drivertest.Harness, error) {
 	t.Helper()
 
@@ -94,6 +117,13 @@ func (h *harness) FlushWrites(ctx context.Context) error {
 
 func (h *harness) MakeDriver(ctx context.Context) (driver.LogStore, error) {
 	return NewLogStore(h.chDB, h.deploymentID), nil
+}
+
+func TestCursorFormat(t *testing.T) {
+	testutil.CheckIntegrationTest(t)
+	t.Parallel()
+
+	drivertest.RunCursorFormatTest(t, newHarness)
 }
 
 func TestConformance_WithDeploymentID(t *testing.T) {
@@ -156,7 +186,12 @@ func TestEventDedup(t *testing.T) {
 	chDB := setupClickHouseConnection(t)
 	defer chDB.Close()
 
-	logStore := NewLogStore(chDB, "")
+	// Concrete type: the test needs the same table name the queries use.
+	logStore := NewLogStore(chDB, "").(*logStoreImpl)
+
+	// The injected duplicates below share (event_time, event_id) with the
+	// originals, so a merge would collapse the raw count from 9 to 3.
+	stopMerges(t, chDB, logStore.eventsTable)
 
 	tenantID := "dedup-tenant"
 	baseTime := time.Now().Truncate(time.Second)
@@ -285,6 +320,13 @@ func TestFetchAndDedupTruncation(t *testing.T) {
 	chDB := setupClickHouseConnection(t)
 	defer chDB.Close()
 
+	// Concrete type: the test needs the same table name the queries use.
+	logStore := NewLogStore(chDB, "").(*logStoreImpl)
+
+	// evt-trunc-a is inserted twice at one event_time; a merge would collapse it
+	// and the first batch would come back deduplicated, so no overshoot to catch.
+	stopMerges(t, chDB, logStore.eventsTable)
+
 	tenantID := "dedup-truncation"
 	baseTime := time.Now().Truncate(time.Second)
 
@@ -309,8 +351,8 @@ func TestFetchAndDedupTruncation(t *testing.T) {
 		Limit:   limit,
 		Compare: "<",
 		SortDir: "desc",
-	}, func(qi pagination.QueryInput) (string, []any) {
-		return buildEventQuery("events", driver.ListEventRequest{
+	}, func(qi pagination.QueryInput) (string, []any, error) {
+		return buildEventQuery(logStore.eventsTable, driver.ListEventRequest{
 			TenantIDs:  []string{tenantID},
 			TimeFilter: driver.TimeFilter{GTE: &startTime},
 		}, qi)
@@ -352,4 +394,185 @@ func setupClickHouseConnectionWithDeploymentID(t *testing.T, deploymentID string
 	}()
 
 	return chDB
+}
+
+func TestListLatestAttempts_DuplicateRowsDoNotDropKeys(t *testing.T) {
+	testutil.CheckIntegrationTest(t)
+
+	chDB := setupClickHouseConnection(t)
+	ctx := context.Background()
+	stopMerges(t, chDB, "attempts")
+	store := NewLogStore(chDB, "")
+
+	tenantID, destID := "dup_tenant", "dup_dest"
+	t0 := time.Now().Truncate(time.Second).Add(-10 * time.Minute)
+	entry := func(eventID, attemptID string, at time.Time) *models.LogEntry {
+		return &models.LogEntry{
+			Event: testutil.EventFactory.AnyPointer(
+				testutil.EventFactory.WithID(eventID),
+				testutil.EventFactory.WithTenantID(tenantID),
+				testutil.EventFactory.WithDestinationID(destID),
+				testutil.EventFactory.WithTime(t0),
+			),
+			Attempt: testutil.AttemptFactory.AnyPointer(
+				testutil.AttemptFactory.WithID(attemptID),
+				testutil.AttemptFactory.WithTenantID(tenantID),
+				testutil.AttemptFactory.WithEventID(eventID),
+				testutil.AttemptFactory.WithDestinationID(destID),
+				testutil.AttemptFactory.WithStatus("failed"),
+				testutil.AttemptFactory.WithTime(at),
+			),
+		}
+	}
+
+	// The newest row of key A sits in five parts, filling the query's row
+	// limit (2 keys x 2) ahead of key B's older row.
+	for range 5 {
+		require.NoError(t, store.InsertMany(ctx, []*models.LogEntry{entry("dup_evt_a", "dup_att_a", t0.Add(2*time.Minute))}))
+	}
+	require.NoError(t, store.InsertMany(ctx, []*models.LogEntry{entry("dup_evt_b", "dup_att_b", t0)}))
+
+	var rows uint64
+	require.NoError(t, chDB.QueryRow(ctx, "SELECT count() FROM attempts WHERE attempt_id = 'dup_att_a'").Scan(&rows))
+	require.Equal(t, uint64(5), rows, "duplicates must stay unmerged")
+
+	keyA := driver.AttemptKey{TenantID: tenantID, EventID: "dup_evt_a", DestinationID: destID}
+	keyB := driver.AttemptKey{TenantID: tenantID, EventID: "dup_evt_b", DestinationID: destID}
+	got, err := store.ListLatestAttempts(ctx, []driver.LatestAttemptLookup{
+		{Key: keyA, NotBefore: t0.Add(-time.Second)},
+		{Key: keyB, NotBefore: t0.Add(-time.Second)},
+	})
+	require.NoError(t, err)
+	require.Len(t, got, 2)
+	assert.Equal(t, "dup_att_a", got[keyA].Attempt.ID)
+	assert.Equal(t, "dup_att_b", got[keyB].Attempt.ID)
+}
+
+func TestListLatestAttempts_UndecodableRowFailsOwnKey(t *testing.T) {
+	testutil.CheckIntegrationTest(t)
+
+	chDB := setupClickHouseConnection(t)
+	ctx := context.Background()
+	store := NewLogStore(chDB, "")
+
+	tenantID, destID := "bad_tenant", "bad_dest"
+	t0 := time.Now().Truncate(time.Second).Add(-10 * time.Minute)
+	var entries []*models.LogEntry
+	for _, id := range []string{"bad_evt_ok", "bad_evt_bad"} {
+		entries = append(entries, &models.LogEntry{
+			Event: testutil.EventFactory.AnyPointer(
+				testutil.EventFactory.WithID(id),
+				testutil.EventFactory.WithTenantID(tenantID),
+				testutil.EventFactory.WithDestinationID(destID),
+				testutil.EventFactory.WithTime(t0),
+			),
+			Attempt: testutil.AttemptFactory.AnyPointer(
+				testutil.AttemptFactory.WithID("att_"+id),
+				testutil.AttemptFactory.WithTenantID(tenantID),
+				testutil.AttemptFactory.WithEventID(id),
+				testutil.AttemptFactory.WithDestinationID(destID),
+				testutil.AttemptFactory.WithStatus("failed"),
+				testutil.AttemptFactory.WithTime(t0),
+			),
+		})
+	}
+	require.NoError(t, store.InsertMany(ctx, entries))
+	require.NoError(t, chDB.Exec(ctx, `ALTER TABLE attempts UPDATE metadata = '{"n":1}' WHERE event_id = 'bad_evt_bad' SETTINGS mutations_sync = 2`))
+
+	keyOK := driver.AttemptKey{TenantID: tenantID, EventID: "bad_evt_ok", DestinationID: destID}
+	keyBad := driver.AttemptKey{TenantID: tenantID, EventID: "bad_evt_bad", DestinationID: destID}
+	got, err := store.ListLatestAttempts(ctx, []driver.LatestAttemptLookup{
+		{Key: keyOK, NotBefore: t0.Add(-time.Second)},
+		{Key: keyBad, NotBefore: t0.Add(-time.Second)},
+	})
+
+	var keyErrs driver.KeyErrors
+	require.ErrorAs(t, err, &keyErrs)
+	require.Len(t, keyErrs, 1)
+	assert.ErrorContains(t, keyErrs[keyBad], "metadata")
+	require.Len(t, got, 1)
+	assert.Equal(t, "att_bad_evt_ok", got[keyOK].Attempt.ID)
+}
+
+func TestListAttempt_UndecodableRowFails(t *testing.T) {
+	testutil.CheckIntegrationTest(t)
+
+	chDB := setupClickHouseConnection(t)
+	ctx := context.Background()
+	store := NewLogStore(chDB, "")
+
+	tenantID, destID, eventID := "list_bad_tenant", "list_bad_dest", "list_bad_evt"
+	t0 := time.Now().Truncate(time.Second).Add(-10 * time.Minute)
+	require.NoError(t, store.InsertMany(ctx, []*models.LogEntry{{
+		Event: testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithID(eventID),
+			testutil.EventFactory.WithTenantID(tenantID),
+			testutil.EventFactory.WithDestinationID(destID),
+			testutil.EventFactory.WithTime(t0),
+		),
+		Attempt: testutil.AttemptFactory.AnyPointer(
+			testutil.AttemptFactory.WithID("att_"+eventID),
+			testutil.AttemptFactory.WithTenantID(tenantID),
+			testutil.AttemptFactory.WithEventID(eventID),
+			testutil.AttemptFactory.WithDestinationID(destID),
+			testutil.AttemptFactory.WithStatus("failed"),
+			testutil.AttemptFactory.WithTime(t0),
+		),
+	}}))
+	require.NoError(t, chDB.Exec(ctx, `ALTER TABLE attempts UPDATE metadata = '{"n":1}' WHERE event_id = 'list_bad_evt' SETTINGS mutations_sync = 2`))
+
+	_, err := store.ListAttempt(ctx, driver.ListAttemptRequest{TenantIDs: []string{tenantID}, Include: driver.AllFields})
+	assert.ErrorContains(t, err, "metadata")
+}
+
+func TestListLatestAttempts_UndecodableRowPushedOutFailsOwnKey(t *testing.T) {
+	testutil.CheckIntegrationTest(t)
+
+	chDB := setupClickHouseConnection(t)
+	ctx := context.Background()
+	stopMerges(t, chDB, "attempts")
+	store := NewLogStore(chDB, "")
+
+	tenantID, destID := "dup_bad_tenant", "dup_bad_dest"
+	t0 := time.Now().Truncate(time.Second).Add(-10 * time.Minute)
+	entry := &models.LogEntry{
+		Event: testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithID("dup_bad_evt_a"),
+			testutil.EventFactory.WithTenantID(tenantID),
+			testutil.EventFactory.WithDestinationID(destID),
+			testutil.EventFactory.WithTime(t0),
+		),
+		Attempt: testutil.AttemptFactory.AnyPointer(
+			testutil.AttemptFactory.WithID("dup_bad_att_a"),
+			testutil.AttemptFactory.WithTenantID(tenantID),
+			testutil.AttemptFactory.WithEventID("dup_bad_evt_a"),
+			testutil.AttemptFactory.WithDestinationID(destID),
+			testutil.AttemptFactory.WithStatus("failed"),
+			testutil.AttemptFactory.WithTime(t0.Add(2*time.Minute)),
+		),
+	}
+
+	// Key A's newest row sits in five parts and fills the row limit, so key B
+	// is looked up alone, and key B's only row has undecodable metadata.
+	for range 5 {
+		require.NoError(t, store.InsertMany(ctx, []*models.LogEntry{entry}))
+	}
+	require.NoError(t, chDB.Exec(ctx, fmt.Sprintf(`
+		INSERT INTO attempts
+		SELECT * REPLACE ('dup_bad_evt_b' AS event_id, 'dup_bad_att_b' AS attempt_id, '{"n":1}' AS metadata, fromUnixTimestamp64Milli(%d) AS attempt_time)
+		FROM (SELECT * FROM attempts WHERE attempt_id = 'dup_bad_att_a' LIMIT 1)`, t0.UnixMilli())))
+
+	keyA := driver.AttemptKey{TenantID: tenantID, EventID: "dup_bad_evt_a", DestinationID: destID}
+	keyB := driver.AttemptKey{TenantID: tenantID, EventID: "dup_bad_evt_b", DestinationID: destID}
+	got, err := store.ListLatestAttempts(ctx, []driver.LatestAttemptLookup{
+		{Key: keyA, NotBefore: t0.Add(-time.Second)},
+		{Key: keyB, NotBefore: t0.Add(-time.Second)},
+	})
+
+	var keyErrs driver.KeyErrors
+	require.ErrorAs(t, err, &keyErrs)
+	require.Len(t, keyErrs, 1)
+	assert.ErrorContains(t, keyErrs[keyB], "metadata")
+	require.Len(t, got, 1)
+	assert.Equal(t, "dup_bad_att_a", got[keyA].Attempt.ID)
 }

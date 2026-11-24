@@ -24,7 +24,7 @@ When authenticated with Admin API Key, returns events across all tenants. Use \`
     const [result, apiCall] = await eventsList(
       client,
       args.request,
-      { fetchOptions: { signal: ctx.signal } },
+      { fetchOptions: { signal: ctx.mcpReq.signal } },
     ).$inspect();
 
     if (!result.ok) {
@@ -34,7 +34,7 @@ When authenticated with Admin API Key, returns events across all tenants. Use \`
       };
     }
 
-    const value = result.value.result;
+    const value = result.value;
 
     return formatResult(value, apiCall);
   },

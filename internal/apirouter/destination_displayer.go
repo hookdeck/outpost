@@ -6,15 +6,29 @@ import (
 )
 
 type destinationDisplayer struct {
-	registry destregistry.Registry
+	registry             destregistry.Registry
+	topicsAllowWildcards bool
 }
 
-func newDestinationDisplayer(r destregistry.Registry) *destinationDisplayer {
-	return &destinationDisplayer{registry: r}
+func newDestinationDisplayer(r destregistry.Registry, topicsAllowWildcards bool) *destinationDisplayer {
+	return &destinationDisplayer{
+		registry:             r,
+		topicsAllowWildcards: topicsAllowWildcards,
+	}
 }
 
 func (d *destinationDisplayer) Display(dest *models.Destination) (*destregistry.DestinationDisplay, error) {
-	return d.registry.DisplayDestination(dest)
+	display, err := d.registry.DisplayDestination(dest)
+	if err != nil {
+		return nil, err
+	}
+	if !d.topicsAllowWildcards {
+		displayDestination := *display.Destination
+		displayDestination.Topics = display.Destination.Topics.WithoutWildcardPatterns()
+		display.Destination = &displayDestination
+	}
+
+	return display, nil
 }
 
 func (d *destinationDisplayer) DisplayList(destinations []models.Destination) ([]*destregistry.DestinationDisplay, error) {

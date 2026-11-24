@@ -4,6 +4,7 @@ import type { MetricsDataPoint } from "../../common/MetricsChart/useMetrics";
 interface DestinationEventsCellProps {
   metricsData?: MetricsDataPoint[];
   isLoading: boolean;
+  sampleCount: number;
 }
 
 function formatCount(n: number): string {
@@ -15,15 +16,22 @@ function formatCount(n: number): string {
 const DestinationEventsCell: React.FC<DestinationEventsCellProps> = ({
   metricsData,
   isLoading,
+  sampleCount,
 }) => {
   if (isLoading || !metricsData) {
     return <span className="histogram-cell__loading"></span>;
   }
 
-  const points = metricsData.map((d) => ({
-    successful: d.metrics.successful_count ?? 0,
-    failed: d.metrics.failed_count ?? 0,
-  }));
+  const points =
+    metricsData.length > 0
+      ? metricsData.map((d) => ({
+          successful: d.metrics.successful_count ?? 0,
+          failed: d.metrics.failed_count ?? 0,
+        }))
+      : Array.from({ length: sampleCount }, () => ({
+          successful: 0,
+          failed: 0,
+        }));
 
   const total = points.reduce((sum, p) => sum + p.successful + p.failed, 0);
 

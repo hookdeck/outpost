@@ -245,3 +245,101 @@ actions:
       created_at: 1745611620645
       reviewed_at: 1745611624395
       type: method-name
+  - target: $["paths"]["/operator-events/destination-types"]["get"]
+    update:
+      x-speakeasy-name-override: listDestinationTypes
+    x-speakeasy-metadata:
+      after: sdk.operatorEvents.listDestinationTypes()
+      before: sdk.OperatorEvents.listOperatorEventDestinationTypeSchemas()
+      type: method-name
+  - target: $["paths"]["/operator-events/destinations"]["get"]
+    update:
+      x-speakeasy-name-override: listDestinations
+    x-speakeasy-metadata:
+      after: sdk.operatorEvents.listDestinations()
+      before: sdk.OperatorEvents.listOperatorEventDestinations()
+      type: method-name
+  - target: $["paths"]["/operator-events/destinations"]["post"]
+    update:
+      x-speakeasy-name-override: createDestination
+    x-speakeasy-metadata:
+      after: sdk.operatorEvents.createDestination()
+      before: sdk.OperatorEvents.createOperatorEventDestination()
+      type: method-name
+  - target: $["paths"]["/operator-events/destinations/{destination_id}"]["get"]
+    update:
+      x-speakeasy-name-override: getDestination
+    x-speakeasy-metadata:
+      after: sdk.operatorEvents.getDestination()
+      before: sdk.OperatorEvents.getOperatorEventDestination()
+      type: method-name
+  - target: $["paths"]["/operator-events/destinations/{destination_id}"]["patch"]
+    update:
+      x-speakeasy-name-override: updateDestination
+    x-speakeasy-metadata:
+      after: sdk.operatorEvents.updateDestination()
+      before: sdk.OperatorEvents.updateOperatorEventDestination()
+      type: method-name
+  - target: $["paths"]["/operator-events/destinations/{destination_id}"]["delete"]
+    update:
+      x-speakeasy-name-override: deleteDestination
+    x-speakeasy-metadata:
+      after: sdk.operatorEvents.deleteDestination()
+      before: sdk.OperatorEvents.deleteOperatorEventDestination()
+      type: method-name
+  - target: $["paths"]["/operator-events/destinations/{destination_id}/enable"]["put"]
+    update:
+      x-speakeasy-name-override: enableDestination
+    x-speakeasy-metadata:
+      after: sdk.operatorEvents.enableDestination()
+      before: sdk.OperatorEvents.enableOperatorEventDestination()
+      type: method-name
+  - target: $["paths"]["/operator-events/destinations/{destination_id}/disable"]["put"]
+    update:
+      x-speakeasy-name-override: disableDestination
+    x-speakeasy-metadata:
+      after: sdk.operatorEvents.disableDestination()
+      before: sdk.OperatorEvents.disableOperatorEventDestination()
+      type: method-name
+  - target: $["paths"]["/operator-events/events"]["get"]
+    update:
+      x-speakeasy-name-override: listEvents
+    x-speakeasy-metadata:
+      after: sdk.operatorEvents.listEvents()
+      before: sdk.OperatorEvents.listOperatorEvents()
+      type: method-name
+  - target: $["paths"]["/operator-events/events/{event_id}"]["get"]
+    update:
+      x-speakeasy-name-override: getEvent
+    x-speakeasy-metadata:
+      after: sdk.operatorEvents.getEvent()
+      before: sdk.OperatorEvents.getOperatorEvent()
+      type: method-name
+  - target: $["paths"]["/operator-events/events/{event_id}/attempts"]["get"]
+    update:
+      x-speakeasy-name-override: listEventAttempts
+    x-speakeasy-metadata:
+      after: sdk.operatorEvents.listEventAttempts()
+      before: sdk.OperatorEvents.listOperatorEventAttemptsByEvent()
+      type: method-name
+  - target: $["paths"]["/operator-events/attempts"]["get"]
+    update:
+      x-speakeasy-name-override: listAttempts
+    x-speakeasy-metadata:
+      after: sdk.operatorEvents.listAttempts()
+      before: sdk.OperatorEvents.listOperatorEventAttempts()
+      type: method-name
+  - target: $["paths"]["/operator-events/attempts/{attempt_id}"]["get"]
+    update:
+      x-speakeasy-name-override: getAttempt
+    x-speakeasy-metadata:
+      after: sdk.operatorEvents.getAttempt()
+      before: sdk.OperatorEvents.getOperatorEventAttempt()
+      type: method-name
+  - target: $["paths"]["/operator-events/retry"]["post"]
+    update:
+      x-speakeasy-name-override: retry
+    x-speakeasy-metadata:
+      after: sdk.operatorEvents.retry()
+      before: sdk.OperatorEvents.retryOperatorEvent()
+      type: method-name

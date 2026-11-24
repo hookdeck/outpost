@@ -8,6 +8,7 @@ const CONFIGS =
     REFRESH_URL: string;
     FORCE_THEME: string;
     TOPICS: string;
+    TOPICS_ALLOW_WILDCARDS: string;
     DISABLE_OUTPOST_BRANDING: string;
     DISABLE_TELEMETRY: string;
     BRAND_COLOR: string;

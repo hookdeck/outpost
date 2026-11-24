@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/hookdeck/outpost/internal/cursor"
 	"github.com/hookdeck/outpost/internal/models"
 )
 
@@ -18,9 +19,16 @@ type TenantStore interface {
 	ListDestination(ctx context.Context, req ListDestinationRequest) ([]models.Destination, error)
 	RetrieveDestination(ctx context.Context, tenantID, destinationID string) (*models.Destination, error)
 	CreateDestination(ctx context.Context, destination models.Destination) error
+	// UpsertDestination writes unconditionally, skipping the tenant, duplicate,
+	// limit and version checks. It is for seeding and tests.
 	UpsertDestination(ctx context.Context, destination models.Destination) error
+	// UpdateDestination writes a destination retrieved earlier, only if it still
+	// exists and is unchanged since that read. It returns ErrDestinationNotFound
+	// when the destination is gone or deleted and ErrDestinationConflict when it
+	// was written meanwhile.
+	UpdateDestination(ctx context.Context, destination models.Destination) error
 	DeleteDestination(ctx context.Context, tenantID, destinationID string) error
-	MatchEvent(ctx context.Context, event models.Event) ([]string, error)
+	MatchEvent(ctx context.Context, event models.Event, allowWildcards bool) ([]string, error)
 }
 
 var (
@@ -29,9 +37,10 @@ var (
 	ErrDuplicateDestination            = errors.New("destination already exists")
 	ErrDestinationNotFound             = errors.New("destination does not exist")
 	ErrDestinationDeleted              = errors.New("destination has been deleted")
+	ErrDestinationConflict             = errors.New("destination was modified concurrently")
 	ErrMaxDestinationsPerTenantReached = errors.New("maximum number of destinations per tenant reached")
 	ErrListTenantNotSupported          = errors.New("list tenant feature is not enabled")
-	ErrInvalidCursor                   = errors.New("invalid cursor")
+	ErrInvalidCursor                   = cursor.ErrInvalidCursor
 	ErrInvalidOrder                    = errors.New("invalid order: must be 'asc' or 'desc'")
 	ErrConflictingCursors              = errors.New("cannot specify both next and prev cursors")
 )
@@ -63,8 +72,10 @@ type TenantPaginatedResult struct {
 
 // ListDestinationRequest contains parameters for listing destinations.
 type ListDestinationRequest struct {
-	TenantID string   // required — destinations are always tenant-scoped
-	IDs      []string // optional — filter to these destination IDs only
-	Type     []string // optional — OR semantics (matches any)
-	Topics   []string // optional — AND semantics ("*" = wildcard-only)
+	TenantID        string   // required — destinations are always tenant-scoped
+	IDs             []string // optional — filter to these destination IDs only
+	Type            []string // optional — OR semantics (matches any)
+	Topics          []string // optional — AND semantics ("*" = wildcard-only)
+	AllowWildcards  bool     // whether persisted wildcard patterns participate in topic matching
+	ExcludeInternal bool     // skip destinations of internal types
 }

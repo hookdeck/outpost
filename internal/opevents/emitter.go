@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/hookdeck/outpost/internal/idgen"
+	"github.com/hookdeck/outpost/internal/logging"
+	"go.uber.org/zap"
 )
 
 const (
@@ -15,9 +17,24 @@ const (
 	backoffFactor = 2
 )
 
+// Event is a request to emit an operator event. Callers (alert eval, apirouter)
+// build it and hand it to Emit, which owns envelope construction and delivery.
+type Event struct {
+	Topic    string
+	TenantID string
+	Data     any
+	// LogFields is caller context attached to the delivery audit line —
+	// typically set by the payload constructors, not at emit call sites.
+	LogFields []zap.Field
+}
+
 // Emitter is the interface for emitting operator events.
 type Emitter interface {
-	Emit(ctx context.Context, topic string, tenantID string, data any) error
+	Emit(ctx context.Context, ev Event) error
+	// Enabled reports whether events on topic would be sent rather than
+	// discarded by the topic filter. Lets callers skip building events that
+	// would be dropped.
+	Enabled(topic string) bool
 }
 
 // emitter is the default Emitter implementation.
@@ -25,12 +42,15 @@ type emitter struct {
 	sink         Sink
 	deploymentID string
 	topicFilter  map[string]bool // nil means accept all ("*")
+	logger       *logging.Logger
 }
 
 // NewEmitter creates an Emitter that filters by topics, builds the envelope, and
 // delegates to the provided Sink. If topics contains "*", all topics are accepted.
-// If topics is empty, a noop emitter is returned.
-func NewEmitter(sink Sink, deploymentID string, topics []string) Emitter {
+// If topics is empty, a noop emitter is returned. The emitter owns the delivery
+// audit log: a line is written iff an event was actually sent — filtered topics
+// and the noop emitter return nil without logging.
+func NewEmitter(sink Sink, deploymentID string, topics []string, logger *logging.Logger) Emitter {
 	if len(topics) == 0 {
 		return &noopEmitter{}
 	}
@@ -51,30 +71,45 @@ func NewEmitter(sink Sink, deploymentID string, topics []string) Emitter {
 		sink:         sink,
 		deploymentID: deploymentID,
 		topicFilter:  filter,
+		logger:       logger,
 	}
 }
 
-func (e *emitter) Emit(ctx context.Context, topic string, tenantID string, data any) error {
-	// Topic filtering: nil filter means accept all ("*")
-	if e.topicFilter != nil && !e.topicFilter[topic] {
+func (e *emitter) Enabled(topic string) bool {
+	// nil filter means accept all ("*")
+	return e.topicFilter == nil || e.topicFilter[topic]
+}
+
+func (e *emitter) Emit(ctx context.Context, ev Event) error {
+	if !e.Enabled(ev.Topic) {
 		return nil
 	}
 
-	rawData, err := json.Marshal(data)
+	rawData, err := json.Marshal(ev.Data)
 	if err != nil {
 		return fmt.Errorf("opevents: failed to marshal data: %w", err)
 	}
 
 	event := &OperatorEvent{
 		ID:           idgen.String(),
-		Topic:        topic,
+		Topic:        ev.Topic,
 		Time:         time.Now(),
 		DeploymentID: e.deploymentID,
-		TenantID:     tenantID,
+		TenantID:     ev.TenantID,
 		Data:         rawData,
 	}
 
-	return e.sendWithRetry(ctx, event)
+	if err := e.sendWithRetry(ctx, event); err != nil {
+		return err
+	}
+
+	e.logger.Ctx(ctx).Audit("opevent delivered",
+		append([]zap.Field{
+			zap.String("opevent_id", event.ID),
+			zap.String("topic", event.Topic),
+			zap.String("tenant_id", event.TenantID),
+		}, ev.LogFields...)...)
+	return nil
 }
 
 func (e *emitter) sendWithRetry(ctx context.Context, event *OperatorEvent) error {
@@ -104,6 +139,8 @@ func (e *emitter) sendWithRetry(ctx context.Context, event *OperatorEvent) error
 // noopEmitter discards all events. Used when operator events are disabled.
 type noopEmitter struct{}
 
-func (e *noopEmitter) Emit(ctx context.Context, topic string, tenantID string, data any) error {
+func (e *noopEmitter) Emit(ctx context.Context, ev Event) error {
 	return nil
 }
+
+func (e *noopEmitter) Enabled(topic string) bool { return false }

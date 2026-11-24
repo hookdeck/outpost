@@ -2,6 +2,7 @@ package destkafka_test
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -11,18 +12,22 @@ import (
 	testsuite "github.com/hookdeck/outpost/internal/destregistry/testing"
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/proxychain"
+	"github.com/hookdeck/outpost/internal/proxychain/proxychaintest"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
-	"github.com/segmentio/kafka-go"
-	"github.com/segmentio/kafka-go/sasl/plain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"github.com/twmb/franz-go/pkg/kadm"
+	"github.com/twmb/franz-go/pkg/kerr"
+	"github.com/twmb/franz-go/pkg/kgo"
+	"github.com/twmb/franz-go/pkg/sasl/plain"
 )
 
 // KafkaConsumer implements testsuite.MessageConsumer
 type KafkaConsumer struct {
-	reader       *kafka.Reader
+	client       *kgo.Client
 	msgChan      chan testsuite.Message
 	done         chan struct{}
 	shuttingDown atomic.Bool
@@ -30,21 +35,19 @@ type KafkaConsumer struct {
 }
 
 func NewKafkaConsumer(brokerAddr, topic string) (*KafkaConsumer, error) {
-	mechanism := plain.Mechanism{Username: "admin", Password: "admin-secret"}
-	dialer := &kafka.Dialer{
-		SASLMechanism: mechanism,
-		Timeout:       10 * time.Second,
+	client, err := kgo.NewClient(
+		kgo.SeedBrokers(brokerAddr),
+		kgo.SASL(plain.Auth{User: "admin", Pass: "admin-secret"}.AsMechanism()),
+		kgo.ConsumeTopics(topic),
+		kgo.ConsumeResetOffset(kgo.NewOffset().AtStart()),
+		kgo.FetchMaxWait(500*time.Millisecond),
+	)
+	if err != nil {
+		return nil, err
 	}
-	reader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers:     []string{brokerAddr},
-		Topic:       topic,
-		Dialer:      dialer,
-		StartOffset: kafka.FirstOffset,
-		MaxWait:     500 * time.Millisecond,
-	})
 
 	c := &KafkaConsumer{
-		reader:  reader,
+		client:  client,
 		msgChan: make(chan testsuite.Message, 100),
 		done:    make(chan struct{}),
 	}
@@ -61,27 +64,27 @@ func (c *KafkaConsumer) consume() {
 		case <-c.done:
 			return
 		default:
-			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-			msg, err := c.reader.ReadMessage(ctx)
-			cancel()
-			if err != nil {
-				continue
-			}
+		}
 
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+		fetches := c.client.PollFetches(ctx)
+		cancel()
+
+		fetches.EachRecord(func(rec *kgo.Record) {
 			// Extract metadata from headers
 			metadata := make(map[string]string)
-			for _, h := range msg.Headers {
+			for _, h := range rec.Headers {
 				metadata[h.Key] = string(h.Value)
 			}
 
 			if !c.shuttingDown.Load() {
 				c.msgChan <- testsuite.Message{
-					Data:     msg.Value,
+					Data:     rec.Value,
 					Metadata: metadata,
-					Raw:      msg,
+					Raw:      rec,
 				}
 			}
-		}
+		})
 	}
 }
 
@@ -94,15 +97,16 @@ func (c *KafkaConsumer) Close() error {
 	close(c.done)
 	c.wg.Wait()
 	close(c.msgChan)
-	return c.reader.Close()
+	c.client.Close()
+	return nil
 }
 
 // KafkaAsserter implements testsuite.MessageAsserter
 type KafkaAsserter struct{}
 
 func (a *KafkaAsserter) AssertMessage(t testsuite.TestingT, msg testsuite.Message, event models.Event) {
-	kafkaMsg, ok := msg.Raw.(kafka.Message)
-	assert.True(t, ok, "raw message should be kafka.Message")
+	kafkaMsg, ok := msg.Raw.(*kgo.Record)
+	assert.True(t, ok, "raw message should be *kgo.Record")
 
 	// Verify content-type header
 	assert.Equal(t, "application/json", msg.Metadata["content-type"])
@@ -127,19 +131,28 @@ func (a *KafkaAsserter) AssertMessage(t testsuite.TestingT, msg testsuite.Messag
 type KafkaPublishSuite struct {
 	testsuite.PublisherSuite
 	consumer *KafkaConsumer
+	// proxied publishes through a two-hop CONNECT proxy chain.
+	proxied bool
 }
 
 func (s *KafkaPublishSuite) SetupSuite() {
 	t := s.T()
+	testutil.SkipUnlessDest(t)
 	t.Cleanup(testinfra.Start(t))
 
-	brokerAddr := testinfra.EnsureKafka()
+	brokerAddr := testinfra.EnsureKafka(t)
 	topic := "test-topic-" + idgen.String()
 
 	// Ensure topic exists by creating it
 	ensureKafkaTopic(t, brokerAddr, topic)
 
-	provider, err := destkafka.New(testutil.Registry.MetadataLoader(), nil)
+	var opts []destkafka.Option
+	if s.proxied {
+		hops, err := proxychain.Parse(proxychaintest.New(t, false).URL + " " + proxychaintest.New(t, false).URL)
+		require.NoError(t, err)
+		opts = append(opts, destkafka.WithProxy(hops))
+	}
+	provider, err := destkafka.New(testutil.Registry.MetadataLoader(), nil, opts...)
 	require.NoError(t, err)
 
 	dest := testutil.DestinationFactory.Any(
@@ -178,6 +191,13 @@ func TestKafkaPublishIntegration(t *testing.T) {
 		t.Skip("Skipping integration test in short mode")
 	}
 	suite.Run(t, new(KafkaPublishSuite))
+}
+
+func TestKafkaPublishThroughProxyIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+	suite.Run(t, &KafkaPublishSuite{proxied: true})
 }
 
 // TestKafkaPublisher_ConnectionErrors tests that connection errors return a Delivery object alongside the error.
@@ -245,23 +265,63 @@ func TestKafkaPublisher_ConnectionErrors(t *testing.T) {
 	}
 }
 
+// TestKafkaPublisher_TopicNotFoundIntegration tests that publishing to a missing topic fails with topic_not_found.
+func TestKafkaPublisher_TopicNotFoundIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+	testutil.SkipUnlessDest(t)
+	t.Cleanup(testinfra.Start(t))
+	brokerAddr := testinfra.EnsureKafka(t)
+
+	provider, err := destkafka.New(testutil.Registry.MetadataLoader(), nil)
+	require.NoError(t, err)
+	destination := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("kafka"),
+		testutil.DestinationFactory.WithConfig(map[string]string{
+			"brokers":        brokerAddr,
+			"topic":          "test-topic-missing-" + idgen.String(),
+			"sasl_mechanism": "plain",
+		}),
+		testutil.DestinationFactory.WithCredentials(map[string]string{
+			"username": "admin",
+			"password": "admin-secret",
+		}),
+	)
+	publisher, err := provider.CreatePublisher(context.Background(), &destination)
+	require.NoError(t, err)
+	defer publisher.Close()
+
+	event := testutil.EventFactory.Any(
+		testutil.EventFactory.WithDataMap(map[string]interface{}{"key": "value"}),
+	)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	delivery, err := publisher.Publish(ctx, &event)
+	require.Error(t, err)
+	require.NotNil(t, delivery)
+	assert.Equal(t, "failed", delivery.Status)
+	assert.Equal(t, "topic_not_found", delivery.Code)
+}
+
 // Helper to ensure a Kafka topic exists
 func ensureKafkaTopic(t *testing.T, brokerAddr, topic string) {
 	t.Helper()
 
-	mechanism := plain.Mechanism{Username: "admin", Password: "admin-secret"}
-	dialer := &kafka.Dialer{SASLMechanism: mechanism, Timeout: 10 * time.Second}
-
-	conn, err := dialer.DialContext(context.Background(), "tcp", brokerAddr)
+	client, err := kgo.NewClient(
+		kgo.SeedBrokers(brokerAddr),
+		kgo.SASL(plain.Auth{User: "admin", Pass: "admin-secret"}.AsMechanism()),
+	)
 	require.NoError(t, err)
-	defer conn.Close()
+	defer client.Close()
 
-	err = conn.CreateTopics(kafka.TopicConfig{
-		Topic:             topic,
-		NumPartitions:     1,
-		ReplicationFactor: 1,
-	})
-	require.NoError(t, err)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	_, err = kadm.NewClient(client).CreateTopic(ctx, 1, 1, nil, topic)
+	if !errors.Is(err, kerr.TopicAlreadyExists) {
+		require.NoError(t, err)
+	}
 
 	// Give Kafka a moment to fully create the topic
 	time.Sleep(500 * time.Millisecond)

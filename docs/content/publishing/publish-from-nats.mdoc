@@ -45,6 +45,8 @@ Outpost does **not** create streams or consumers — the operator is expected to
 ```
 PUBLISH_NATS_SERVERS="nats://nats:4222"
 PUBLISH_NATS_ACCOUNTS_DIR="/etc/outpost/nats-accounts"
+# Optional. Defaults to 60. Negative disables the periodic re-read.
+PUBLISH_NATS_ACCOUNTS_RESCAN_INTERVAL_SECONDS="60"
 ```
 
 `PUBLISH_NATS_SERVERS` accepts a comma-separated list of URLs to support NATS clusters.
@@ -57,6 +59,9 @@ publishmq:
     servers:
       - nats://nats:4222
     accounts_dir: /etc/outpost/nats-accounts
+    # Re-read accounts_dir on a timer as well as on filesystem events.
+    # 0 uses the 60s default; negative disables it.
+    accounts_rescan_interval_seconds: 60
     # Optional inline accounts (combined with accounts_dir if both are set):
     accounts:
       - name: static-tenant
@@ -69,6 +74,8 @@ publishmq:
 ### Accounts Directory Layout
 
 When `accounts_dir` is set, Outpost watches it for tenant subdirectories and reconciles its connections at runtime — new accounts are added without restart, removed accounts have their connections drained.
+
+Alongside the watch, Outpost re-reads the directory every 60 seconds. Do not remove that safety net without knowing your filesystem delivers events: the watch uses inotify, which is local to one kernel, so if `accounts_dir` is a network mount (NFS, CIFS) written by a process on **another host**, Outpost is never notified and the periodic re-read becomes the only way a new account is ever discovered. Set `PUBLISH_NATS_ACCOUNTS_RESCAN_INTERVAL_SECONDS` to tune it, or to a negative value to switch it off.
 
 ```
 /etc/outpost/nats-accounts/

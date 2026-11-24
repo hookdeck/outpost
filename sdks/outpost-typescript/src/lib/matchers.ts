@@ -6,7 +6,7 @@ import { APIError } from "../models/errors/apierror.js";
 import { ResponseValidationError } from "../models/errors/responsevalidationerror.js";
 import { ERR, OK, Result } from "../types/fp.js";
 import { matchResponse, matchStatusCode, StatusCodePredicate } from "./http.js";
-import { isPlainObject } from "./is-plain-object.js";
+import { isPlainObject } from "./primitives.js";
 
 export type Encoding =
   | "jsonl"

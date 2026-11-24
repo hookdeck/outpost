@@ -9,7 +9,7 @@ from typing import Any, Mapping, Optional, Union, cast
 
 
 class Configuration(BaseSDK):
-    r"""The Configuration API is available for **managed Outpost** deployments only. It allows you to read and update instance-level settings — the same settings available as environment variables in self-hosted deployments."""
+    r"""The Configuration API is only available on managed Outpost. It allows you to read and update instance-level settings, the same settings available as environment variables in self-hosted deployments."""
 
     def get_managed_config(
         self,
@@ -23,7 +23,7 @@ class Configuration(BaseSDK):
 
         Returns managed Outpost configuration values.
 
-        This endpoint is only available for the managed version.
+        This endpoint is only available on managed Outpost.
         In self-hosted deployments, configuration is controlled through environment variables instead.
 
 
@@ -73,6 +73,8 @@ class Configuration(BaseSDK):
                 operation_id="getManagedConfig",
                 oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
+                tags=["Configuration"],
+                extensions={"x-outpost-deployment": "managed"},
             ),
             request=req,
             is_error_status_code=lambda c: utils.match_status_codes(["4XX", "5XX"], c),
@@ -113,7 +115,7 @@ class Configuration(BaseSDK):
 
         Returns managed Outpost configuration values.
 
-        This endpoint is only available for the managed version.
+        This endpoint is only available on managed Outpost.
         In self-hosted deployments, configuration is controlled through environment variables instead.
 
 
@@ -163,6 +165,8 @@ class Configuration(BaseSDK):
                 operation_id="getManagedConfig",
                 oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
+                tags=["Configuration"],
+                extensions={"x-outpost-deployment": "managed"},
             ),
             request=req,
             is_error_status_code=lambda c: utils.match_status_codes(["4XX", "5XX"], c),
@@ -204,7 +208,7 @@ class Configuration(BaseSDK):
 
         Updates one or more managed Outpost configuration values. Null values clear the configuration and reverts to Outpost default behavior.
 
-        This endpoint is only available for the managed version.
+        This endpoint is only available on managed Outpost.
         In self-hosted deployments, configuration is controlled through environment variables instead.
 
         Only the supported configuration keys are accepted.
@@ -265,6 +269,8 @@ class Configuration(BaseSDK):
                 operation_id="updateManagedConfig",
                 oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
+                tags=["Configuration"],
+                extensions={"x-outpost-deployment": "managed"},
             ),
             request=req,
             is_error_status_code=lambda c: utils.match_status_codes(["4XX", "5XX"], c),
@@ -316,7 +322,7 @@ class Configuration(BaseSDK):
 
         Updates one or more managed Outpost configuration values. Null values clear the configuration and reverts to Outpost default behavior.
 
-        This endpoint is only available for the managed version.
+        This endpoint is only available on managed Outpost.
         In self-hosted deployments, configuration is controlled through environment variables instead.
 
         Only the supported configuration keys are accepted.
@@ -377,6 +383,8 @@ class Configuration(BaseSDK):
                 operation_id="updateManagedConfig",
                 oauth2_scopes=None,
                 security_source=self.sdk_configuration.security,
+                tags=["Configuration"],
+                extensions={"x-outpost-deployment": "managed"},
             ),
             request=req,
             is_error_status_code=lambda c: utils.match_status_codes(["4XX", "5XX"], c),

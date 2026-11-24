@@ -25,7 +25,7 @@ Return a list of the destinations for the tenant. The endpoint is not paged.`,
       args.tenantId,
       args.type,
       args.topics,
-      { fetchOptions: { signal: ctx.signal } },
+      { fetchOptions: { signal: ctx.mcpReq.signal } },
     ).$inspect();
 
     if (!result.ok) {

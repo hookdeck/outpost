@@ -147,6 +147,8 @@ func testRedisOperations(client RedisClientInterface) {
 	rsmqKeys := []string{
 		"rsmq:deliverymq-retry:Q",
 		"rsmq:deliverymq-retry",
+		"rsmq:deliverymq-retry-dlq:Q",
+		"rsmq:deliverymq-retry-dlq",
 		"rsmq:QUEUES",
 	}
 

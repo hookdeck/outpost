@@ -1,8 +1,9 @@
 /**
  * Automated Outpost onboarding agent evals via the Claude Agent SDK.
  *
- * Requires ANTHROPIC_API_KEY (and EVAL_TEST_DESTINATION_URL). Does not call Outpost.
- * For a full eval, humans (or a separate verifier) run generated artifacts using OUTPOST_API_KEY — see README.
+ * Requires ANTHROPIC_API_KEY and EVAL_TEST_DESTINATION_URL. When OUTPOST_API_KEY is set,
+ * it is forwarded to the agent sandbox so smoke tests can hit live Outpost during eval.
+ * CI also runs execute-ci-artifacts.sh to re-run saved artifacts — see README.
  *
  * @see https://platform.claude.com/docs/en/agent-sdk/overview
  */
@@ -23,6 +24,7 @@ import {
 import { applyEvalHarness, parseEvalHarness } from "./eval-harness.js";
 import { writeTrajectoryHtmlForTranscript } from "./generate-trajectory-html.js";
 import { llmJudgeRun, scenarioMdPathFromRun } from "./llm-judge.js";
+import { redactEvalArtifactJson } from "./redact-secrets.js";
 import { scoreRunFile } from "./score-transcript.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -786,6 +788,9 @@ Environment:
   Values can be set in docs/agent-evaluation/.env (loaded automatically) or exported in the shell.
   ANTHROPIC_API_KEY     Required
   EVAL_TEST_DESTINATION_URL   Required — Hookdeck Console Source URL (fed into {{TEST_DESTINATION_URL}})
+  OUTPOST_API_KEY       Required for ci-eval.sh / GitHub Actions; forwarded to the agent when set (live smoke tests). Optional for local transcript-only runs without execution.
+  OUTPOST_TEST_WEBHOOK_URL  Optional — defaults to EVAL_TEST_DESTINATION_URL in ci-eval.sh
+  OUTPOST_API_BASE_URL  Optional — managed default when unset in ci-eval.sh
   EVAL_API_BASE_URL     Optional (default: managed production URL)
   EVAL_TOPICS_LIST      Optional
   EVAL_DOCS_URL         Optional (ignored for Documentation links when EVAL_LOCAL_DOCS is set; still used to derive the default EVAL_LLMS_FULL_URL unless that is set)
@@ -992,7 +997,7 @@ Agent cwd is usually the run directory. Scenarios may define ## Eval harness (JS
         messages: result.allMessages,
       };
 
-      await writeFile(outPath, JSON.stringify(payload, null, 2), "utf8");
+      await writeFile(outPath, redactEvalArtifactJson(payload), "utf8");
       console.error(`Wrote ${outPath}`);
 
       if (wantScore) {
@@ -1008,6 +1013,11 @@ Agent cwd is usually the run directory. Scenarios may define ## Eval harness (JS
         );
         if (report.overallTranscriptPass === false) {
           anyScoreFailure = true;
+          for (const c of report.transcript.checks) {
+            if (!c.pass) {
+              console.error(`  [FAIL] ${c.id}: ${c.detail}`);
+            }
+          }
         }
       }
 
@@ -1022,16 +1032,17 @@ Agent cwd is usually the run directory. Scenarios may define ## Eval harness (JS
           apiKey: process.env.ANTHROPIC_API_KEY!.trim(),
         });
         const llmPath = join(runDir, "llm-score.json");
-        await writeFile(
-          llmPath,
-          `${JSON.stringify(llmReport, null, 2)}\n`,
-          "utf8",
-        );
+        await writeFile(llmPath, redactEvalArtifactJson(llmReport), "utf8");
         console.error(
           `Wrote ${llmPath} (LLM overall_transcript_pass=${String(llmReport.overall_transcript_pass)})`,
         );
         if (!llmReport.overall_transcript_pass) {
           anyScoreFailure = true;
+          for (const c of llmReport.criteria) {
+            if (!c.pass) {
+              console.error(`  [FAIL] ${c.criterion}: ${c.evidence}`);
+            }
+          }
         }
       }
 
@@ -1051,7 +1062,12 @@ Agent cwd is usually the run directory. Scenarios may define ## Eval harness (JS
       const stack = err instanceof Error ? err.stack : undefined;
       await writeFile(
         sidecars.failure,
-        `${JSON.stringify({ failedAt: new Date().toISOString(), message, stack, runDirectory: runDir }, null, 2)}\n`,
+        redactEvalArtifactJson({
+          failedAt: new Date().toISOString(),
+          message,
+          stack,
+          runDirectory: runDir,
+        }),
         "utf8",
       );
       console.error(`Eval scenario failed (${file}):`, err);

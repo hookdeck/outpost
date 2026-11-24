@@ -8,16 +8,14 @@ import { CreateTenantDestinationRequest } from "@hookdeck/outpost-sdk/models/ope
 let value: CreateTenantDestinationRequest = {
   tenantId: "<id>",
   body: {
-    type: "gcp_pubsub",
+    type: "cloudflare_queues",
     topics: "*",
     config: {
-      projectId: "my-project-123",
-      topic: "events-topic",
-      endpoint: "pubsub.googleapis.com:443",
+      accountId: "023e105f4ecef8ad9ca31a8372d0c353",
+      queueId: "9d7d4cf8a3a14d9aaeb50c3e74e2f4b1",
     },
     credentials: {
-      serviceAccountJson:
-        "{\"type\":\"service_account\",\"project_id\":\"my-project\",\"private_key_id\":\"key123\",\"private_key\":\"-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n\",\"client_email\":\"my-service@my-project.iam.gserviceaccount.com\"}",
+      apiToken: "v1.0-1234567890abcdef...",
     },
   },
 };

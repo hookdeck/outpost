@@ -16,6 +16,7 @@ type MQInfraConfig struct {
 	AzureServiceBus *AzureServiceBusInfraConfig
 	GCPPubSub       *GCPPubSubInfraConfig
 	RabbitMQ        *RabbitMQInfraConfig
+	NATS            *NATSInfraConfig
 
 	Policy Policy
 }
@@ -30,6 +31,7 @@ type AWSSQSInfraConfig struct {
 	Region                    string
 	ServiceAccountCredentials string
 	Topic                     string
+	DLQ                       string // optional
 }
 
 type AzureServiceBusInfraConfig struct {
@@ -49,6 +51,8 @@ type GCPPubSubInfraConfig struct {
 	ProjectID                 string
 	TopicID                   string
 	SubscriptionID            string
+	DLQTopicID                string // optional
+	DLQSubscriptionID         string // optional
 	ServiceAccountCredentials string
 	MinRetryBackoff           int // seconds, for PubSub RetryPolicy (default: 10)
 	MaxRetryBackoff           int // seconds, for PubSub RetryPolicy (default: 600)
@@ -58,6 +62,14 @@ type RabbitMQInfraConfig struct {
 	ServerURL string
 	Exchange  string
 	Queue     string
+	DLQ       string // optional
+}
+
+type NATSInfraConfig struct {
+	ServerURL string
+	Stream    string
+	Subject   string
+	DLQ       string // optional
 }
 
 func New(cfg *MQInfraConfig) MQInfra {
@@ -72,6 +84,9 @@ func New(cfg *MQInfraConfig) MQInfra {
 	}
 	if cfg.RabbitMQ != nil {
 		return &infraRabbitMQ{cfg: cfg}
+	}
+	if cfg.NATS != nil {
+		return &infraNATS{cfg: cfg}
 	}
 
 	return &infraInvalid{}

@@ -9,9 +9,11 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destwebhook"
 	testsuite "github.com/hookdeck/outpost/internal/destregistry/testing"
 	"github.com/hookdeck/outpost/internal/models"
@@ -350,25 +352,25 @@ func TestWebhookPublisher_DisableDefaultHeaders(t *testing.T) {
 	}{
 		{
 			name:           "disable event id header",
-			options:        []destwebhook.Option{destwebhook.WithDisableDefaultEventIDHeader(true)},
+			options:        []destwebhook.Option{destwebhook.WithEventIDHeader("", true)},
 			expectedHeader: "x-outpost-event-id",
 			shouldExist:    false,
 		},
 		{
 			name:           "disable signature header",
-			options:        []destwebhook.Option{destwebhook.WithDisableDefaultSignatureHeader(true)},
+			options:        []destwebhook.Option{destwebhook.WithSignatureHeader("", true)},
 			expectedHeader: "x-outpost-signature",
 			shouldExist:    false,
 		},
 		{
 			name:           "disable timestamp header",
-			options:        []destwebhook.Option{destwebhook.WithDisableDefaultTimestampHeader(true)},
+			options:        []destwebhook.Option{destwebhook.WithTimestampHeader("", true)},
 			expectedHeader: "x-outpost-timestamp",
 			shouldExist:    false,
 		},
 		{
 			name:           "disable topic header",
-			options:        []destwebhook.Option{destwebhook.WithDisableDefaultTopicHeader(true)},
+			options:        []destwebhook.Option{destwebhook.WithTopicHeader("", true)},
 			expectedHeader: "x-outpost-topic",
 			shouldExist:    false,
 		},
@@ -473,6 +475,179 @@ func TestWebhookPublisher_EmptyHeaderPrefix(t *testing.T) {
 			assert.NotEmpty(t, req.Header.Get(tt.want+"signature"))
 		})
 	}
+}
+
+func TestWebhookPublisher_SignatureHeaderName(t *testing.T) {
+	t.Parallel()
+
+	t.Run("unset uses <prefix>signature", func(t *testing.T) {
+		t.Parallel()
+
+		provider := NewTestProvider(t, destwebhook.WithHeaderPrefix("x-outpost-"))
+
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url": "http://example.com/webhook",
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secret": "test-secret",
+			}),
+		)
+
+		publisher, err := provider.CreatePublisher(context.Background(), &destination)
+		require.NoError(t, err)
+
+		event := testutil.EventFactory.Any(
+			testutil.EventFactory.WithDataMap(map[string]interface{}{"key": "value"}),
+		)
+
+		req, err := publisher.(*destwebhook.WebhookPublisher).Format(context.Background(), &event)
+		require.NoError(t, err)
+
+		assert.NotEmpty(t, req.Header.Get("x-outpost-signature"))
+	})
+
+	t.Run("set uses exact name regardless of prefix", func(t *testing.T) {
+		t.Parallel()
+
+		provider := NewTestProvider(t,
+			destwebhook.WithHeaderPrefix("x-outpost-"),
+			destwebhook.WithSignatureHeader("x-acme-digest", false),
+		)
+
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url": "http://example.com/webhook",
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secret": "test-secret",
+			}),
+		)
+
+		publisher, err := provider.CreatePublisher(context.Background(), &destination)
+		require.NoError(t, err)
+
+		event := testutil.EventFactory.Any(
+			testutil.EventFactory.WithDataMap(map[string]interface{}{"key": "value"}),
+		)
+
+		req, err := publisher.(*destwebhook.WebhookPublisher).Format(context.Background(), &event)
+		require.NoError(t, err)
+
+		assert.NotEmpty(t, req.Header.Get("x-acme-digest"))
+		assert.Empty(t, req.Header.Get("x-outpost-signature"), "default signature header must be absent")
+	})
+
+	t.Run("disabled signature header suppresses even when name configured", func(t *testing.T) {
+		t.Parallel()
+
+		provider := NewTestProvider(t,
+			destwebhook.WithSignatureHeader("x-acme-digest", true),
+		)
+
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("webhook"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"url": "http://example.com/webhook",
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"secret": "test-secret",
+			}),
+		)
+
+		publisher, err := provider.CreatePublisher(context.Background(), &destination)
+		require.NoError(t, err)
+
+		event := testutil.EventFactory.Any(
+			testutil.EventFactory.WithDataMap(map[string]interface{}{"key": "value"}),
+		)
+
+		req, err := publisher.(*destwebhook.WebhookPublisher).Format(context.Background(), &event)
+		require.NoError(t, err)
+
+		assert.Empty(t, req.Header.Get("x-acme-digest"))
+		assert.Empty(t, req.Header.Get("x-outpost-signature"))
+	})
+
+	t.Run("two destinations sign under their own configured names", func(t *testing.T) {
+		t.Parallel()
+
+		makeReq := func(name string) *http.Request {
+			provider := NewTestProvider(t, destwebhook.WithSignatureHeader(name, false))
+			destination := testutil.DestinationFactory.Any(
+				testutil.DestinationFactory.WithType("webhook"),
+				testutil.DestinationFactory.WithConfig(map[string]string{
+					"url": "http://example.com/webhook",
+				}),
+				testutil.DestinationFactory.WithCredentials(map[string]string{
+					"secret": "test-secret",
+				}),
+			)
+			publisher, err := provider.CreatePublisher(context.Background(), &destination)
+			require.NoError(t, err)
+			event := testutil.EventFactory.Any(
+				testutil.EventFactory.WithDataMap(map[string]interface{}{"key": "value"}),
+			)
+			req, err := publisher.(*destwebhook.WebhookPublisher).Format(context.Background(), &event)
+			require.NoError(t, err)
+			return req
+		}
+
+		reqA := makeReq("x-acme-digest")
+		reqB := makeReq("x-globex-sig")
+
+		assert.NotEmpty(t, reqA.Header.Get("x-acme-digest"))
+		assert.Empty(t, reqA.Header.Get("x-globex-sig"))
+
+		assert.NotEmpty(t, reqB.Header.Get("x-globex-sig"))
+		assert.Empty(t, reqB.Header.Get("x-acme-digest"))
+	})
+}
+
+func TestWebhookPublisher_CustomHeaderNames(t *testing.T) {
+	t.Parallel()
+
+	// A custom name pins the exact header for each system header, bypassing the
+	// "<prefix>" + key construction.
+	provider := NewTestProvider(t,
+		destwebhook.WithHeaderPrefix("x-outpost-"),
+		destwebhook.WithEventIDHeader("x-acme-event", false),
+		destwebhook.WithTimestampHeader("x-acme-time", false),
+		destwebhook.WithTopicHeader("x-acme-topic", false),
+	)
+
+	destination := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("webhook"),
+		testutil.DestinationFactory.WithConfig(map[string]string{
+			"url": "http://example.com/webhook",
+		}),
+		testutil.DestinationFactory.WithCredentials(map[string]string{
+			"secret": "test-secret",
+		}),
+	)
+
+	publisher, err := provider.CreatePublisher(context.Background(), &destination)
+	require.NoError(t, err)
+
+	event := testutil.EventFactory.Any(
+		testutil.EventFactory.WithID("evt_123"),
+		testutil.EventFactory.WithTopic("user.created"),
+		testutil.EventFactory.WithDataMap(map[string]interface{}{"key": "value"}),
+	)
+
+	req, err := publisher.(*destwebhook.WebhookPublisher).Format(context.Background(), &event)
+	require.NoError(t, err)
+
+	assert.Equal(t, "evt_123", req.Header.Get("x-acme-event"))
+	assert.NotEmpty(t, req.Header.Get("x-acme-time"))
+	assert.Equal(t, "user.created", req.Header.Get("x-acme-topic"))
+
+	// Default-prefixed names must be absent when a custom name is pinned.
+	assert.Empty(t, req.Header.Get("x-outpost-event-id"))
+	assert.Empty(t, req.Header.Get("x-outpost-timestamp"))
+	assert.Empty(t, req.Header.Get("x-outpost-topic"))
 }
 
 func TestWebhookPublisher_DeliveryMetadata(t *testing.T) {
@@ -663,8 +838,8 @@ func TestWebhookPublisher_CustomHeaders(t *testing.T) {
 		t.Parallel()
 
 		provider := NewTestProvider(t,
-			destwebhook.WithDisableDefaultTimestampHeader(true),
-			destwebhook.WithDisableDefaultTopicHeader(true),
+			destwebhook.WithTimestampHeader("", true),
+			destwebhook.WithTopicHeader("", true),
 		)
 
 		destination := testutil.DestinationFactory.Any(
@@ -874,6 +1049,59 @@ func TestWebhookPublisher_PreservesKeyOrder(t *testing.T) {
 	assert.Equal(t, `{"z":1,"a":2,"m":3}`, string(body))
 }
 
+// A template that parses but references a field of the other payload type only
+// fails when it renders. That must fail the delivery, not the process.
+func TestWebhookPublisher_SignatureTemplateRenderFailure(t *testing.T) {
+	dest := testutil.DestinationFactory.Any(
+		testutil.DestinationFactory.WithType("webhook"),
+		testutil.DestinationFactory.WithConfig(map[string]string{
+			"url": "http://example.com",
+		}),
+		testutil.DestinationFactory.WithCredentials(map[string]string{
+			"secret": "test-secret",
+		}),
+	)
+
+	// Wrong-field templates now fail provider construction (see
+	// TestNew_ValidatesSignatureTemplates), so this uses a value-dependent
+	// template: it survives the construction dry-run, which renders against
+	// two synthetic signatures, and fails here where the single configured
+	// secret yields only one.
+	tests := []struct {
+		name string
+		opt  destwebhook.Option
+	}{
+		{
+			name: "header template indexes a signature that doesn't exist",
+			opt:  destwebhook.WithSignatureHeaderTemplate("v0={{index .Signatures 1}}"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			provider := NewTestProvider(t, tt.opt)
+
+			publisher, err := provider.CreatePublisher(context.Background(), &dest)
+			require.NoError(t, err)
+
+			event := testutil.EventFactory.Any(
+				testutil.EventFactory.WithDataMap(map[string]interface{}{"hello": "world"}),
+			)
+
+			assert.NotPanics(t, func() {
+				delivery, err := publisher.Publish(context.Background(), &event)
+				require.Error(t, err)
+				require.NotNil(t, delivery)
+				assert.Equal(t, "failed", delivery.Status)
+
+				var publishErr *destregistry.ErrDestinationPublishAttempt
+				require.ErrorAs(t, err, &publishErr)
+				assert.Equal(t, "format_failed", publishErr.Data["error"])
+			})
+		})
+	}
+}
+
 func TestWebhookPublisher_SignatureTemplates(t *testing.T) {
 	dest := testutil.DestinationFactory.Any(
 		testutil.DestinationFactory.WithType("webhook"),
@@ -985,10 +1213,14 @@ func TestWebhookPublisher_SignatureTemplates(t *testing.T) {
 			if verifyHeaderTemplate == "" {
 				verifyHeaderTemplate = destwebhook.DefaultSignatureHeaderTmpl
 			}
+			sigFormatter, err := destwebhook.NewSignatureFormatter(verifyContentTemplate)
+			require.NoError(t, err)
+			headerFormatter, err := destwebhook.NewHeaderFormatter(verifyHeaderTemplate)
+			require.NoError(t, err)
 			sm := destwebhook.NewSignatureManager(
 				secrets,
-				destwebhook.WithSignatureFormatter(destwebhook.NewSignatureFormatter(verifyContentTemplate)),
-				destwebhook.WithHeaderFormatter(destwebhook.NewHeaderFormatter(verifyHeaderTemplate)),
+				destwebhook.WithSignatureFormatter(sigFormatter),
+				destwebhook.WithHeaderFormatter(headerFormatter),
 			)
 
 			// Verify signature matches expected content
@@ -1003,5 +1235,77 @@ func TestWebhookPublisher_SignatureTemplates(t *testing.T) {
 				},
 			), "signature should verify with expected content")
 		})
+	}
+}
+
+func TestWebhookPublisher_DoesNotFollowRedirects(t *testing.T) {
+	t.Parallel()
+
+	modes := map[string][]destwebhook.Option{
+		"default":  nil,
+		"standard": standardOptions(destwebhook.StandardHeaderPrefix),
+	}
+	secrets := map[string]string{"default": "test-secret", "standard": standardSecret}
+
+	for mode, opts := range modes {
+		for _, tc := range []struct {
+			code         int
+			withLocation bool
+		}{
+			{300, true}, {301, true}, {302, true}, {303, true}, {304, true}, {307, true}, {308, true},
+			{300, false}, {302, false}, {304, false},
+		} {
+			code := tc.code
+			t.Run(fmt.Sprintf("%s/%d/location=%t", mode, code, tc.withLocation), func(t *testing.T) {
+				t.Parallel()
+
+				var targetHits atomic.Int32
+				target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					targetHits.Add(1)
+					w.WriteHeader(http.StatusOK)
+				}))
+				defer target.Close()
+
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if tc.withLocation {
+						w.Header().Set("Location", target.URL)
+					}
+					w.WriteHeader(code)
+				}))
+				defer server.Close()
+
+				provider := NewTestProvider(t, opts...)
+				destination := testutil.DestinationFactory.Any(
+					testutil.DestinationFactory.WithType("webhook"),
+					testutil.DestinationFactory.WithConfig(map[string]string{
+						"url": server.URL + "/webhook",
+					}),
+					testutil.DestinationFactory.WithCredentials(map[string]string{
+						"secret": secrets[mode],
+					}),
+				)
+
+				publisher, err := provider.CreatePublisher(context.Background(), &destination)
+				require.NoError(t, err)
+				defer publisher.Close()
+
+				event := testutil.EventFactory.Any(
+					testutil.EventFactory.WithDataMap(map[string]interface{}{"key": "value"}),
+				)
+
+				delivery, err := publisher.Publish(context.Background(), &event)
+
+				require.Error(t, err)
+				require.NotNil(t, delivery)
+				assert.Equal(t, "failed", delivery.Status)
+				assert.Equal(t, fmt.Sprintf("%d", code), delivery.Code)
+				assert.Zero(t, targetHits.Load())
+				if tc.withLocation {
+					assert.Equal(t, target.URL, delivery.Response["location"])
+				} else {
+					assert.NotContains(t, delivery.Response, "location")
+				}
+			})
+		}
 	}
 }

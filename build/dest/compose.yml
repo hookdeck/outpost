@@ -1,0 +1,74 @@
+# Destination stack: the brokers Outpost delivers *to*. One stack serves manual
+# testing against `make up`, the destination helpers in cmd/destinations and the
+# TESTDEST=1 / TESTCOMPAT=1 test groups.
+#
+#   make up/dest                     # every broker
+#   make up/dest DEST="kafka aws"    # only some (profiles below)
+#   make down/dest
+#
+# Host ports are 10000 + the broker's port. The dev services (api, delivery,
+# log) share the outpost-dest network, so destinations configured in the local
+# Outpost use the in-network addresses (dest-rabbitmq:5672, ...).
+# Image tags come from .env.test (passed as --env-file), the same pins the
+# tests use when they start containers themselves.
+
+name: "outpost-dest"
+
+services:
+  dest-rabbitmq:
+    profiles: ["rabbitmq"]
+    image: ${TEST_IMAGE_RABBITMQ:?run via `make up/dest`, which passes --env-file .env.test}
+    ports:
+      - 15672:5672   # AMQP: amqp://guest:guest@dest-rabbitmq:5672 | localhost:15672
+      - 15673:15672  # management UI (guest/guest)
+
+  # SQS, SNS, Kinesis, EventBridge, S3: http://dest-aws:4566 | localhost:14566,
+  # credentials test/test.
+  dest-aws:
+    profiles: ["aws"]
+    image: ${TEST_IMAGE_LOCALSTACK:?run via `make up/dest`, which passes --env-file .env.test}
+    environment:
+      - SERVICES=s3,sns,sts,sqs,kinesis,events
+    ports:
+      - 14566:4566
+
+  # Pub/Sub emulator: dest-gcp:8085 | localhost:18085, any project id.
+  dest-gcp:
+    profiles: ["gcp"]
+    image: ${TEST_IMAGE_GCP:?run via `make up/dest`, which passes --env-file .env.test}
+    command:
+      [
+        "gcloud",
+        "beta",
+        "emulators",
+        "pubsub",
+        "start",
+        "--host-port=0.0.0.0:8085",
+        "--project=test",
+      ]
+    ports:
+      - 18085:8085
+
+  # Kafka with two listener pairs:
+  #   plaintext: dest-kafka:29092 | localhost:19092
+  #   SASL PLAIN (admin/admin-secret, what the tests use): dest-kafka:29094 | localhost:19093
+  dest-kafka:
+    profiles: ["kafka"]
+    image: ${TEST_IMAGE_KAFKA:?run via `make up/dest`, which passes --env-file .env.test}
+    environment:
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,CONTROLLER://localhost:29093,HOST://0.0.0.0:9092,SASL_INTERNAL://0.0.0.0:29094,SASL_HOST://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://dest-kafka:29092,HOST://localhost:19092,SASL_INTERNAL://dest-kafka:29094,SASL_HOST://localhost:19093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,HOST:PLAINTEXT,CONTROLLER:PLAINTEXT,SASL_INTERNAL:SASL_PLAINTEXT,SASL_HOST:SASL_PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_SASL_ENABLED_MECHANISMS: PLAIN
+      KAFKA_OPTS: "-Djava.security.auth.login.config=/etc/kafka/jaas.conf"
+    volumes:
+      - ./kafka_jaas.conf:/etc/kafka/jaas.conf:ro
+    ports:
+      - 19092:9092
+      - 19093:9093
+
+networks:
+  default:
+    name: outpost-dest
+    external: true

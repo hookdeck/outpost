@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 from enum import Enum
-from outpost_sdk.types import BaseModel, UNSET_SENTINEL
+from outpost_sdk.types import (
+    BaseModel,
+    UNSET_SENTINEL,
+    current_exclude_none,
+    serialize_with_info,
+)
+from outpost_sdk.types.basemodel import current_filtered_dump
 from pydantic import model_serializer
 from typing import Optional
 from typing_extensions import NotRequired, TypedDict
 
 
-class SaslMechanism(str, Enum):
+class KafkaConfigSaslMechanism(str, Enum):
     r"""SASL authentication mechanism."""
 
     PLAIN = "plain"
@@ -28,7 +34,7 @@ class KafkaConfigTypedDict(TypedDict):
     r"""Comma-separated list of Kafka broker addresses."""
     topic: str
     r"""The Kafka topic to publish messages to."""
-    sasl_mechanism: SaslMechanism
+    sasl_mechanism: KafkaConfigSaslMechanism
     r"""SASL authentication mechanism."""
     tls: NotRequired[KafkaConfigTLS]
     r"""Whether to enable TLS for the connection."""
@@ -43,7 +49,7 @@ class KafkaConfig(BaseModel):
     topic: str
     r"""The Kafka topic to publish messages to."""
 
-    sasl_mechanism: SaslMechanism
+    sasl_mechanism: KafkaConfigSaslMechanism
     r"""SASL authentication mechanism."""
 
     tls: Optional[KafkaConfigTLS] = KafkaConfigTLS.TRUE
@@ -53,13 +59,20 @@ class KafkaConfig(BaseModel):
     r"""Optional JMESPath template to extract the partition key from the event payload. Defaults to the event ID."""
 
     @model_serializer(mode="wrap")
+    def _serialize_model_with_info(self, handler, info):
+        return serialize_with_info(self.serialize_model, handler, info)
+
     def serialize_model(self, handler):
         optional_fields = set(["tls", "partition_key_template"])
+        exclude_none = current_exclude_none()
+        skip_filtered = exclude_none is False or current_filtered_dump()
         serialized = handler(self)
         m = {}
 
         for n, f in type(self).model_fields.items():
-            k = f.alias or n
+            k = f.alias if f.alias is not None else n
+            if k not in serialized and n not in serialized and skip_filtered:
+                continue
             val = serialized.get(k, serialized.get(n))
 
             if val != UNSET_SENTINEL:

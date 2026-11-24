@@ -109,3 +109,17 @@ func (e *EnableTenantDestinationResponse) GetDestinationKafka() *components.Dest
 	}
 	return nil
 }
+
+func (e *EnableTenantDestinationResponse) GetDestinationCloudflareQueues() *components.DestinationCloudflareQueues {
+	if v := e.GetDestination(); v != nil {
+		return v.DestinationCloudflareQueues
+	}
+	return nil
+}
+
+func (e *EnableTenantDestinationResponse) GetDestinationAwsEventbridge() *components.DestinationAWSEventBridge {
+	if v := e.GetDestination(); v != nil {
+		return v.DestinationAWSEventBridge
+	}
+	return nil
+}

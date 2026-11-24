@@ -44,7 +44,14 @@ func CreateDataMapOfAny(mapOfAny map[string]any) Data {
 	}
 }
 
-func (u *Data) UnmarshalJSON(data []byte) error {
+func (u *Data) UnmarshalJSON(data []byte) (err error) {
+	previous := *u
+	*u = Data{}
+	defer func() {
+		if err != nil {
+			*u = previous
+		}
+	}()
 
 	var arrayOfStr []string = []string{}
 	if err := utils.UnmarshalJSON(data, &arrayOfStr, "", true, nil); err == nil {
@@ -101,6 +108,12 @@ type APIErrorResponse struct {
 var _ error = &APIErrorResponse{}
 
 func (e *APIErrorResponse) Error() string {
+	if e != nil {
+		if e.Message != nil {
+			return *e.Message
+		}
+	}
+
 	data, _ := json.Marshal(e)
 	return string(data)
 }

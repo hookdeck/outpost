@@ -221,6 +221,103 @@ var attemptCases = []struct {
 		},
 	},
 	{
+		name: "AvgLatencyAll",
+		req: driver.MetricsRequest{
+			TimeRange: fullMonth,
+			Measures:  []string{"avg_latency"},
+			Filters:   tenant0(),
+		},
+	},
+	{
+		name: "LatencyPercentilesAll",
+		req: driver.MetricsRequest{
+			TimeRange: fullMonth,
+			Measures:  []string{"p50_latency", "p95_latency", "p99_latency"},
+			Filters:   tenant0(),
+		},
+	},
+	{
+		name: "LatencyPercentilesByDestinationHourly",
+		req: driver.MetricsRequest{
+			TimeRange:   oneDay,
+			Granularity: hourly(),
+			Measures:    []string{"count", "avg_latency", "p95_latency"},
+			Dimensions:  []string{"destination_id"},
+			Filters:     tenant0(),
+		},
+	},
+	{
+		name: "LatencyPercentilesSingleDestinationDaily",
+		req: driver.MetricsRequest{
+			TimeRange:   fullMonth,
+			Granularity: daily(),
+			Measures:    []string{"count", "error_rate", "avg_latency", "p50_latency", "p95_latency", "p99_latency"},
+			Filters:     withTenant0(map[string][]string{"destination_id": {"dest_42"}}),
+		},
+	},
+	// Marginal cost of latency on a query a dashboard already runs: the same
+	// count + error_rate by destination, with and without avg + p95 latency.
+	{
+		name: "Dashboard_Hourly_1Day",
+		req: driver.MetricsRequest{
+			TimeRange:   oneDay,
+			Granularity: hourly(),
+			Measures:    []string{"count", "error_rate"},
+			Dimensions:  []string{"destination_id"},
+			Filters:     tenant0(),
+		},
+	},
+	{
+		name: "DashboardWithLatency_Hourly_1Day",
+		req: driver.MetricsRequest{
+			TimeRange:   oneDay,
+			Granularity: hourly(),
+			Measures:    []string{"count", "error_rate", "avg_latency", "p95_latency"},
+			Dimensions:  []string{"destination_id"},
+			Filters:     tenant0(),
+		},
+	},
+	{
+		name: "Dashboard_Hourly_1Month",
+		req: driver.MetricsRequest{
+			TimeRange:   fullMonth,
+			Granularity: hourly(),
+			Measures:    []string{"count", "error_rate"},
+			Dimensions:  []string{"destination_id"},
+			Filters:     tenant0(),
+		},
+	},
+	{
+		name: "DashboardWithLatency_Hourly_1Month",
+		req: driver.MetricsRequest{
+			TimeRange:   fullMonth,
+			Granularity: hourly(),
+			Measures:    []string{"count", "error_rate", "avg_latency", "p95_latency"},
+			Dimensions:  []string{"destination_id"},
+			Filters:     tenant0(),
+		},
+	},
+	{
+		name: "Dashboard_Daily_1Month",
+		req: driver.MetricsRequest{
+			TimeRange:   fullMonth,
+			Granularity: daily(),
+			Measures:    []string{"count", "error_rate"},
+			Dimensions:  []string{"destination_id"},
+			Filters:     tenant0(),
+		},
+	},
+	{
+		name: "DashboardWithLatency_Daily_1Month",
+		req: driver.MetricsRequest{
+			TimeRange:   fullMonth,
+			Granularity: daily(),
+			Measures:    []string{"count", "error_rate", "avg_latency", "p95_latency"},
+			Dimensions:  []string{"destination_id"},
+			Filters:     tenant0(),
+		},
+	},
+	{
 		name: "FailedRate",
 		req: driver.MetricsRequest{
 			TimeRange: fullMonth,

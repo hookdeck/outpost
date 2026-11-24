@@ -98,6 +98,14 @@ func retryIntervalFromResponse(res *http.Response) time.Duration {
 		return 0
 	}
 
+	retryAfterMsVal := res.Header.Get("retry-after-ms")
+	if retryAfterMsVal != "" {
+		parsedMs, err := strconv.ParseInt(retryAfterMsVal, 10, 64)
+		if err == nil && parsedMs >= 0 {
+			return time.Duration(parsedMs) * time.Millisecond
+		}
+	}
+
 	retryVal := res.Header.Get("retry-after")
 	if retryVal == "" {
 		return 0

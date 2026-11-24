@@ -2,15 +2,19 @@ package apirouter_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
-	"github.com/hookdeck/outpost/internal/apirouter"
 	"github.com/hookdeck/outpost/internal/destregistry"
+	"github.com/hookdeck/outpost/internal/destregistry/metadata"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/opevents"
 	"github.com/hookdeck/outpost/internal/tenantstore"
+	"github.com/hookdeck/outpost/internal/tenantstore/memtenantstore"
+	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -57,6 +61,23 @@ func TestAPI_Destinations(t *testing.T) {
 			require.Equal(t, http.StatusCreated, resp.Code)
 		})
 
+		t.Run("max destinations per tenant returns 400", func(t *testing.T) {
+			h := newAPITest(t, withTenantStore(memtenantstore.New(memtenantstore.WithMaxDestinationsPerTenant(1))))
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", validDestination())
+			resp := h.do(h.withAPIKey(req))
+			require.Equal(t, http.StatusCreated, resp.Code)
+
+			req = h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", validDestination())
+			resp = h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusBadRequest, resp.Code)
+			var body map[string]any
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
+			assert.Equal(t, "maximum number of destinations per tenant reached", body["message"])
+		})
+
 		t.Run("missing type returns 422", func(t *testing.T) {
 			h := newAPITest(t)
 			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
@@ -67,6 +88,9 @@ func TestAPI_Destinations(t *testing.T) {
 			resp := h.do(h.withAPIKey(req))
 
 			require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+			var body map[string]any
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
+			assert.Equal(t, "validation error", body["message"])
 		})
 
 		t.Run("missing topics returns 422", func(t *testing.T) {
@@ -92,6 +116,91 @@ func TestAPI_Destinations(t *testing.T) {
 			resp := h.do(h.withAPIKey(req))
 
 			require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+		})
+
+		t.Run("wildcard topic pattern matching configured topic requires opt-in", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", map[string]any{
+				"type":   "webhook",
+				"topics": []string{"user.*"},
+				"config": map[string]string{"url": "https://example.com/hook"},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+		})
+
+		t.Run("wildcard topic pattern matching configured topic is accepted when enabled", func(t *testing.T) {
+			h := newAPITest(t, withTopicsAllowWildcards(true))
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", map[string]any{
+				"type":   "webhook",
+				"topics": []string{"user.*"},
+				"config": map[string]string{"url": "https://example.com/hook"},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusCreated, resp.Code)
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, models.Topics{"user.*"}, dest.Topics)
+		})
+
+		t.Run("wildcard topic pattern not matching configured topic returns 422", func(t *testing.T) {
+			h := newAPITest(t, withTopicsAllowWildcards(true))
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", map[string]any{
+				"type":   "webhook",
+				"topics": []string{"order.*"},
+				"config": map[string]string{"url": "https://example.com/hook"},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
+		})
+
+		t.Run("duplicate topics are normalized", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			payload := validDestination()
+			payload["topics"] = []string{"user.created", "user.created"}
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", payload)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusCreated, resp.Code)
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, models.Topics{"user.created"}, dest.Topics)
+
+			stored, err := h.tenantStore.RetrieveDestination(t.Context(), "t1", dest.ID)
+			require.NoError(t, err)
+			assert.Equal(t, models.Topics{"user.created"}, stored.Topics)
+		})
+
+		t.Run("topic covered by sibling wildcard is normalized", func(t *testing.T) {
+			h := newAPITest(t, withTopicsAllowWildcards(true))
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			payload := validDestination()
+			payload["topics"] = []string{"user.*", "user.created"}
+
+			req := h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", payload)
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusCreated, resp.Code)
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, models.Topics{"user.*"}, dest.Topics)
+
+			stored, err := h.tenantStore.RetrieveDestination(t.Context(), "t1", dest.ID)
+			require.NoError(t, err)
+			assert.Equal(t, models.Topics{"user.*"}, stored.Topics)
 		})
 
 		t.Run("import timestamps", func(t *testing.T) {
@@ -273,6 +382,70 @@ func TestAPI_Destinations(t *testing.T) {
 			assert.Equal(t, "d1", dest.ID)
 		})
 
+		t.Run("expires_at is not in the response", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			require.NoError(t, h.tenantStore.CreateDestination(t.Context(), df.Any(df.WithID("d1"), df.WithTenantID("t1"), df.WithExpiresAt(time.Now().Add(time.Hour)))))
+
+			get := func(path string) []byte {
+				resp := h.do(h.withAPIKey(httptest.NewRequest(http.MethodGet, path, nil)))
+				require.Equal(t, http.StatusOK, resp.Code)
+				return resp.Body.Bytes()
+			}
+
+			var one map[string]any
+			require.NoError(t, json.Unmarshal(get("/api/v1/tenants/t1/destinations/d1"), &one))
+			assert.NotContains(t, one, "expires_at")
+
+			var list []map[string]any
+			require.NoError(t, json.Unmarshal(get("/api/v1/tenants/t1/destinations"), &list))
+			require.Len(t, list, 1)
+			assert.NotContains(t, list[0], "expires_at")
+		})
+
+		t.Run("wildcard patterns are hidden when disabled without changing storage", func(t *testing.T) {
+			store := tenantstore.NewMemTenantStore()
+			h := newAPITest(t, withTenantStore(store))
+			reenabled := newAPITest(t, withTenantStore(store), withTopicsAllowWildcards(true))
+			restoredTopics := models.Topics{"user.*", "order.created"}
+
+			require.NoError(t, store.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1"))))
+			require.NoError(t, store.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"),
+				df.WithTenantID("t1"),
+				df.WithTopics(restoredTopics),
+			)))
+			require.NoError(t, store.CreateDestination(t.Context(), df.Any(
+				df.WithID("d2"),
+				df.WithTenantID("t1"),
+				df.WithTopics([]string{"*"}),
+			)))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/d1", nil)
+			resp := h.do(h.withAPIKey(req))
+			require.Equal(t, http.StatusOK, resp.Code)
+
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, models.Topics{"order.created"}, dest.Topics)
+
+			req = httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/d2", nil)
+			resp = h.do(h.withAPIKey(req))
+			require.Equal(t, http.StatusOK, resp.Code)
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, models.Topics{"*"}, dest.Topics)
+
+			stored, err := store.RetrieveDestination(t.Context(), "t1", "d1")
+			require.NoError(t, err)
+			assert.Equal(t, restoredTopics, stored.Topics)
+
+			req = httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/d1", nil)
+			resp = reenabled.do(reenabled.withAPIKey(req))
+			require.Equal(t, http.StatusOK, resp.Code)
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, restoredTopics, dest.Topics)
+		})
+
 		t.Run("nonexistent destination returns 404", func(t *testing.T) {
 			h := newAPITest(t)
 			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
@@ -280,7 +453,7 @@ func TestAPI_Destinations(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/nope", nil)
 			resp := h.do(h.withAPIKey(req))
 
-			require.Equal(t, http.StatusNotFound, resp.Code)
+			testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
 		})
 
 		t.Run("jwt returns destination on own tenant", func(t *testing.T) {
@@ -303,7 +476,7 @@ func TestAPI_Destinations(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/d1", nil)
 			resp := h.do(h.withAPIKey(req))
 
-			require.Equal(t, http.StatusNotFound, resp.Code)
+			testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
 		})
 	})
 
@@ -349,6 +522,10 @@ func TestAPI_Destinations(t *testing.T) {
 			h.tenantStore.CreateDestination(t.Context(), df.Any(
 				df.WithID("d2"), df.WithTenantID("t1"),
 				df.WithType("aws_sqs"), df.WithTopics([]string{"user.deleted"}),
+			))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d3"), df.WithTenantID("t1"),
+				df.WithType("aws_sqs"), df.WithTopics([]string{"user.*"}),
 			))
 
 			t.Run("type filter", func(t *testing.T) {
@@ -397,6 +574,78 @@ func TestAPI_Destinations(t *testing.T) {
 			assert.Equal(t, models.Topics{"user.deleted"}, dest.Topics)
 		})
 
+		t.Run("stored filter over the depth limit doesn't block other updates", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			deep := models.Filter{"status": "paid"} // ends up one level over the limit
+			for i := 0; i < models.MaxFilterDepth; i++ {
+				deep = models.Filter{"data": map[string]any(deep)}
+			}
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"), df.WithTopics([]string{"user.created"}), df.WithFilter(deep),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"topics": []string{"user.deleted"},
+			})
+			require.Equal(t, http.StatusOK, h.do(h.withAPIKey(req)).Code)
+
+			req = h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"filter": deep,
+			})
+			require.Equal(t, http.StatusUnprocessableEntity, h.do(h.withAPIKey(req)).Code)
+
+			req = h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"topics": []string{"user.created"},
+				"filter": map[string]any{"data": map[string]any{"status": "paid"}},
+			})
+			require.Equal(t, http.StatusOK, h.do(h.withAPIKey(req)).Code)
+		})
+
+		t.Run("duplicate topics are normalized", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"), df.WithTopics([]string{"user.created"}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"topics": []string{"user.deleted", "user.deleted"},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, models.Topics{"user.deleted"}, dest.Topics)
+
+			stored, err := h.tenantStore.RetrieveDestination(t.Context(), "t1", "d1")
+			require.NoError(t, err)
+			assert.Equal(t, models.Topics{"user.deleted"}, stored.Topics)
+		})
+
+		t.Run("topic covered by sibling wildcard is normalized", func(t *testing.T) {
+			h := newAPITest(t, withTopicsAllowWildcards(true))
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+			h.tenantStore.CreateDestination(t.Context(), df.Any(
+				df.WithID("d1"), df.WithTenantID("t1"), df.WithTopics([]string{"user.created"}),
+			))
+
+			req := h.jsonReq(http.MethodPatch, "/api/v1/tenants/t1/destinations/d1", map[string]any{
+				"topics": []string{"user.*", "user.created"},
+			})
+			resp := h.do(h.withAPIKey(req))
+
+			require.Equal(t, http.StatusOK, resp.Code)
+			var dest destregistry.DestinationDisplay
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &dest))
+			assert.Equal(t, models.Topics{"user.*"}, dest.Topics)
+
+			stored, err := h.tenantStore.RetrieveDestination(t.Context(), "t1", "d1")
+			require.NoError(t, err)
+			assert.Equal(t, models.Topics{"user.*"}, stored.Topics)
+		})
+
 		t.Run("api key updates destination config", func(t *testing.T) {
 			h := newAPITest(t)
 			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
@@ -441,7 +690,7 @@ func TestAPI_Destinations(t *testing.T) {
 			})
 			resp := h.do(h.withAPIKey(req))
 
-			require.Equal(t, http.StatusNotFound, resp.Code)
+			testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
 		})
 
 		t.Run("destination belonging to other tenant returns 404", func(t *testing.T) {
@@ -457,7 +706,7 @@ func TestAPI_Destinations(t *testing.T) {
 			})
 			resp := h.do(h.withAPIKey(req))
 
-			require.Equal(t, http.StatusNotFound, resp.Code)
+			testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
 		})
 
 		t.Run("changing type returns 422", func(t *testing.T) {
@@ -1079,7 +1328,7 @@ func TestAPI_Destinations(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants/t1/destinations/d1", nil)
 			resp := h.do(h.withAPIKey(req))
 
-			require.Equal(t, http.StatusNotFound, resp.Code)
+			testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
 		})
 
 		t.Run("jwt deletes destination on own tenant", func(t *testing.T) {
@@ -1102,7 +1351,7 @@ func TestAPI_Destinations(t *testing.T) {
 			req := httptest.NewRequest(http.MethodDelete, "/api/v1/tenants/t1/destinations/d1", nil)
 			resp := h.do(h.withAPIKey(req))
 
-			require.Equal(t, http.StatusNotFound, resp.Code)
+			testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
 		})
 	})
 
@@ -1177,7 +1426,7 @@ func TestAPI_Destinations(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPut, "/api/v1/tenants/t1/destinations/d1/enable", nil)
 			resp := h.do(h.withAPIKey(req))
 
-			require.Equal(t, http.StatusNotFound, resp.Code)
+			testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
 		})
 
 		t.Run("disable destination belonging to other tenant returns 404", func(t *testing.T) {
@@ -1189,7 +1438,7 @@ func TestAPI_Destinations(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPut, "/api/v1/tenants/t1/destinations/d1/disable", nil)
 			resp := h.do(h.withAPIKey(req))
 
-			require.Equal(t, http.StatusNotFound, resp.Code)
+			testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination not found")
 		})
 	})
 
@@ -1231,7 +1480,7 @@ func TestAPI_SubscriptionUpdated(t *testing.T) {
 		assert.Equal(t, "tenant.subscription.updated", call.topic)
 		assert.Equal(t, "t1", call.tenantID)
 
-		data := call.data.(apirouter.TenantSubscriptionUpdatedData)
+		data := call.data.(opevents.TenantSubscriptionUpdatedData)
 		assert.Equal(t, 1, data.DestinationsCount)
 		assert.Equal(t, 0, data.PreviousDestinationsCount)
 	})
@@ -1247,7 +1496,7 @@ func TestAPI_SubscriptionUpdated(t *testing.T) {
 		require.Equal(t, http.StatusOK, resp.Code)
 		require.Len(t, h.subscriptionEmitter.calls, 1)
 
-		data := h.subscriptionEmitter.calls[0].data.(apirouter.TenantSubscriptionUpdatedData)
+		data := h.subscriptionEmitter.calls[0].data.(opevents.TenantSubscriptionUpdatedData)
 		assert.Equal(t, 0, data.DestinationsCount)
 		assert.Equal(t, 1, data.PreviousDestinationsCount)
 	})
@@ -1267,7 +1516,7 @@ func TestAPI_SubscriptionUpdated(t *testing.T) {
 		require.Equal(t, http.StatusOK, resp.Code)
 		require.Len(t, h.subscriptionEmitter.calls, 1)
 
-		data := h.subscriptionEmitter.calls[0].data.(apirouter.TenantSubscriptionUpdatedData)
+		data := h.subscriptionEmitter.calls[0].data.(opevents.TenantSubscriptionUpdatedData)
 		assert.Contains(t, data.Topics, "user.deleted")
 		assert.Contains(t, data.PreviousTopics, "user.created")
 	})
@@ -1322,8 +1571,8 @@ func TestAPI_SubscriptionUpdated(t *testing.T) {
 }
 
 // TestAPI_DestinationTypes tests the /destination-types endpoints.
-// Note: response body is a passthrough from the registry stub (returns nil);
-// not validated here. 404 path not testable without enhancing the stub.
+// Note: response body is a passthrough from the registry stub (returns empty
+// metadata); not validated here.
 func TestAPI_DestinationTypes(t *testing.T) {
 	t.Run("List", func(t *testing.T) {
 		t.Run("api key returns 200", func(t *testing.T) {
@@ -1362,8 +1611,6 @@ func TestAPI_DestinationTypes(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/destination-types/webhook", nil)
 			resp := h.do(h.withAPIKey(req))
 
-			// The stub returns (nil, nil) for RetrieveProviderMetadata,
-			// so the handler returns 200 with null body.
 			require.Equal(t, http.StatusOK, resp.Code)
 		})
 
@@ -1377,6 +1624,15 @@ func TestAPI_DestinationTypes(t *testing.T) {
 			require.Equal(t, http.StatusOK, resp.Code)
 		})
 
+		t.Run("unknown type returns 404", func(t *testing.T) {
+			h := newAPITest(t, withDestRegistry(&unknownTypeRegistry{}))
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/destination-types/nope", nil)
+			resp := h.do(h.withAPIKey(req))
+
+			testutil.RequireErrorResponse(t, resp, http.StatusNotFound, "destination type not found")
+		})
+
 		t.Run("no auth returns 401", func(t *testing.T) {
 			h := newAPITest(t)
 
@@ -1386,4 +1642,13 @@ func TestAPI_DestinationTypes(t *testing.T) {
 			require.Equal(t, http.StatusUnauthorized, resp.Code)
 		})
 	})
+}
+
+// unknownTypeRegistry is a stubRegistry with no provider metadata.
+type unknownTypeRegistry struct {
+	stubRegistry
+}
+
+func (r *unknownTypeRegistry) RetrieveProviderMetadata(providerType string) (*metadata.ProviderMetadata, error) {
+	return nil, fmt.Errorf("metadata for provider %s not found", providerType)
 }

@@ -188,6 +188,25 @@ func (c *Cache[K, V]) Get(key K) (value V, ok bool) {
 	return value, false
 }
 
+// RemoveIf deletes key when match accepts its value and reports whether it
+// did. The eviction callback runs after the lock is released, so a slow
+// callback does not block other callers.
+func (c *Cache[K, V]) RemoveIf(key K, match func(V) bool) bool {
+	c.mu.Lock()
+	e, ok := c.items[key]
+	if !ok || !match(e.value) {
+		c.mu.Unlock()
+		return false
+	}
+	c.unlink(e)
+	c.mu.Unlock()
+
+	if c.onEvict != nil {
+		c.onEvict(e.key, e.value)
+	}
+	return true
+}
+
 func (c *Cache[K, V]) moveToFront(e *entry[K, V]) {
 	if e == c.head {
 		return
@@ -223,6 +242,13 @@ func (c *Cache[K, V]) removeFromList(e *entry[K, V]) {
 }
 
 func (c *Cache[K, V]) remove(e *entry[K, V]) {
+	c.unlink(e)
+	if c.onEvict != nil {
+		c.onEvict(e.key, e.value)
+	}
+}
+
+func (c *Cache[K, V]) unlink(e *entry[K, V]) {
 	if e.prev != nil {
 		e.prev.next = e.next
 	} else {
@@ -237,9 +263,6 @@ func (c *Cache[K, V]) remove(e *entry[K, V]) {
 		c.removeFromBucket(e)
 	}
 	delete(c.items, e.key)
-	if c.onEvict != nil {
-		c.onEvict(e.key, e.value)
-	}
 }
 
 func (c *Cache[K, V]) removeLRU() {

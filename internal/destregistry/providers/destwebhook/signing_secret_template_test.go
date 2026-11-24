@@ -292,18 +292,8 @@ func TestSigningSecretTemplate_StaticTemplate(t *testing.T) {
 func TestSigningSecretTemplate_UndefinedVariable(t *testing.T) {
 	t.Parallel()
 
-	provider := NewTestProvider(t,
-		destwebhook.WithSigningSecretTemplate("{{.Foo}}"),
-	)
-
-	destination := testutil.DestinationFactory.Any(
-		testutil.DestinationFactory.WithType("webhook"),
-		testutil.DestinationFactory.WithConfig(map[string]string{
-			"url": "https://example.com",
-		}),
-	)
-
-	// Should fail at execution time during Preprocess
-	err := provider.Preprocess(&destination, nil, &destregistry.PreprocessDestinationOpts{Role: "tenant"})
-	assert.Error(t, err, "template with undefined variable should fail during secret generation")
+	// Caught at boot: the template is rendered once so a bad one never
+	// reaches destination creation.
+	_, err := newTestProvider(destwebhook.WithSigningSecretTemplate("{{.Foo}}"))
+	assert.ErrorContains(t, err, "can't evaluate field Foo")
 }

@@ -39,10 +39,8 @@ with Outpost(
 
     res = outpost.tenants.list(request={})
 
-    while res is not None:
-        # Handle items
-
-        res = res.next()
+    # Handle response
+    print(res)
 
 ```
 
@@ -55,7 +53,7 @@ with Outpost(
 
 ### Response
 
-**[models.ListTenantsResponse](../../models/listtenantsresponse.md)**
+**[models.TenantPaginatedResult](../../models/tenantpaginatedresult.md)**
 
 ### Errors
 
@@ -63,6 +61,7 @@ with Outpost(
 | --------------------------- | --------------------------- | --------------------------- |
 | errors.BadRequestError      | 400                         | application/json            |
 | errors.UnauthorizedError    | 401                         | application/json            |
+| errors.APIErrorResponse     | 422                         | application/json            |
 | errors.InternalServerError  | 500                         | application/json            |
 | errors.NotImplementedErrorT | 501                         | application/json            |
 | errors.APIError             | 4XX, 5XX                    | \*/\*                       |
@@ -106,7 +105,7 @@ with Outpost(
 | Error Type                 | Status Code                | Content Type               |
 | -------------------------- | -------------------------- | -------------------------- |
 | errors.UnauthorizedError   | 401                        | application/json           |
-| errors.APIErrorResponse    | 422                        | application/json           |
+| errors.APIErrorResponse    | 403, 413, 422              | application/json           |
 | errors.InternalServerError | 500                        | application/json           |
 | errors.APIError            | 4XX, 5XX                   | \*/\*                      |
 
@@ -148,6 +147,7 @@ with Outpost(
 | Error Type                 | Status Code                | Content Type               |
 | -------------------------- | -------------------------- | -------------------------- |
 | errors.UnauthorizedError   | 401                        | application/json           |
+| errors.APIErrorResponse    | 403                        | application/json           |
 | errors.NotFoundError       | 404                        | application/json           |
 | errors.InternalServerError | 500                        | application/json           |
 | errors.APIError            | 4XX, 5XX                   | \*/\*                      |
@@ -190,6 +190,7 @@ with Outpost(
 | Error Type                 | Status Code                | Content Type               |
 | -------------------------- | -------------------------- | -------------------------- |
 | errors.UnauthorizedError   | 401                        | application/json           |
+| errors.APIErrorResponse    | 403                        | application/json           |
 | errors.NotFoundError       | 404                        | application/json           |
 | errors.InternalServerError | 500                        | application/json           |
 | errors.APIError            | 4XX, 5XX                   | \*/\*                      |
@@ -233,6 +234,7 @@ with Outpost(
 | Error Type                 | Status Code                | Content Type               |
 | -------------------------- | -------------------------- | -------------------------- |
 | errors.UnauthorizedError   | 401                        | application/json           |
+| errors.APIErrorResponse    | 403                        | application/json           |
 | errors.NotFoundError       | 404                        | application/json           |
 | errors.InternalServerError | 500                        | application/json           |
 | errors.APIError            | 4XX, 5XX                   | \*/\*                      |
@@ -275,6 +277,7 @@ with Outpost(
 | Error Type                 | Status Code                | Content Type               |
 | -------------------------- | -------------------------- | -------------------------- |
 | errors.UnauthorizedError   | 401                        | application/json           |
+| errors.APIErrorResponse    | 403                        | application/json           |
 | errors.NotFoundError       | 404                        | application/json           |
 | errors.InternalServerError | 500                        | application/json           |
 | errors.APIError            | 4XX, 5XX                   | \*/\*                      |

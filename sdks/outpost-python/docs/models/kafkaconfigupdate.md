@@ -1,0 +1,14 @@
+# KafkaConfigUpdate
+
+Partial Kafka config for PATCH updates (RFC 7396 merge-patch).
+
+
+## Fields
+
+| Field                                                                                          | Type                                                                                           | Required                                                                                       | Description                                                                                    |
+| ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `brokers`                                                                                      | *Optional[str]*                                                                                | :heavy_minus_sign:                                                                             | Comma-separated list of Kafka broker addresses.                                                |
+| `topic`                                                                                        | *Optional[str]*                                                                                | :heavy_minus_sign:                                                                             | The Kafka topic to publish messages to.                                                        |
+| `sasl_mechanism`                                                                               | [Optional[models.KafkaConfigUpdateSaslMechanism]](../models/kafkaconfigupdatesaslmechanism.md) | :heavy_minus_sign:                                                                             | SASL authentication mechanism.                                                                 |
+| `tls`                                                                                          | [Optional[models.KafkaConfigUpdateTLS]](../models/kafkaconfigupdatetls.md)                     | :heavy_minus_sign:                                                                             | Whether to enable TLS for the connection.                                                      |
+| `partition_key_template`                                                                       | *Optional[str]*                                                                                | :heavy_minus_sign:                                                                             | Optional JMESPath template to extract the partition key from the event payload.                |

@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -14,15 +15,18 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
+	"github.com/hookdeck/outpost/cmd/destinations/internal/destenv"
 )
 
-const (
-	AWSRegion             = "us-east-1"
-	AWSEndpoint           = "http://localhost:14566"
-	AWSCredentials        = "test:test:"
-	DestinationStreamName = "destination_kinesis_stream"
-	ShardCount            = 1
+// Defaults match the local destination stack (`make up/dest`).
+var (
+	AWSRegion             = destenv.Get("DEST_AWS_REGION", "us-east-1")
+	AWSEndpoint           = destenv.Get("DEST_AWS_ENDPOINT", "http://localhost:14566")
+	AWSCredentials        = destenv.Get("DEST_AWS_CREDENTIALS", "test:test:")
+	DestinationStreamName = destenv.Get("DEST_KINESIS_STREAM", "destination_kinesis_stream")
 )
+
+const ShardCount = 1
 
 func main() {
 	ctx := context.Background()
@@ -51,12 +55,7 @@ func setupKinesisClient(ctx context.Context) (*kinesis.Client, error) {
 	// Configure AWS SDK
 	awsConfig, err := config.LoadDefaultConfig(ctx,
 		config.WithRegion(AWSRegion),
-		config.WithCredentialsProvider(
-			credentials.NewStaticCredentialsProvider(
-				AWSCredentials[:len(AWSCredentials)-1], // remove the trailing colon
-				AWSCredentials[len(AWSCredentials)-1:], // just get the empty string after colon
-				""),
-		),
+		config.WithCredentialsProvider(staticCredentials(AWSCredentials)),
 	)
 	if err != nil {
 		return nil, err
@@ -64,7 +63,9 @@ func setupKinesisClient(ctx context.Context) (*kinesis.Client, error) {
 
 	// Create Kinesis client with custom endpoint
 	kinesisClient := kinesis.NewFromConfig(awsConfig, func(o *kinesis.Options) {
-		o.BaseEndpoint = aws.String(AWSEndpoint)
+		if AWSEndpoint != "" {
+			o.BaseEndpoint = aws.String(AWSEndpoint)
+		}
 	})
 
 	return kinesisClient, nil
@@ -238,4 +239,13 @@ func ensureKinesisStream(ctx context.Context, client *kinesis.Client, streamName
 	}
 
 	return err
+}
+
+// staticCredentials parses "key:secret[:session]".
+func staticCredentials(s string) credentials.StaticCredentialsProvider {
+	parts := strings.SplitN(s, ":", 3)
+	for len(parts) < 3 {
+		parts = append(parts, "")
+	}
+	return credentials.NewStaticCredentialsProvider(parts[0], parts[1], parts[2])
 }

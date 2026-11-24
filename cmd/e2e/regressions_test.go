@@ -63,12 +63,12 @@ func (c *regressionHTTPClient) doJSONWithAuth(t *testing.T, method, url string, 
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	if result != nil {
-		respBody, err := io.ReadAll(resp.Body)
-		require.NoError(t, err)
-		if len(respBody) > 0 {
-			require.NoError(t, json.Unmarshal(respBody, result))
-		}
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	requireJSONAPIResponse(t, req, resp, respBody)
+
+	if result != nil && len(respBody) > 0 {
+		require.NoError(t, json.Unmarshal(respBody, result))
 	}
 
 	return resp.StatusCode
@@ -91,7 +91,7 @@ func TestE2E_Regression_AutoDisableWithoutCallbackURL(t *testing.T) {
 		LogStorage: configs.LogStorageTypePostgres,
 	})
 	cfg.Alert.AutoDisableDestination = true
-	cfg.Alert.ConsecutiveFailureCount = 20
+	cfg.Alert.ConsecutiveFailureCount = config.NewOptionalString("20")
 
 	require.NoError(t, cfg.Validate(config.Flags{}))
 	configs.ApplyMigrations(t, &cfg)

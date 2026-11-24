@@ -3,10 +3,13 @@ package config_test
 import (
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/hookdeck/outpost/internal/config"
+	destregistrydefault "github.com/hookdeck/outpost/internal/destregistry/providers"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type mockOS struct {
@@ -17,6 +20,11 @@ type mockOS struct {
 
 func (m *mockOS) Getenv(key string) string {
 	return m.envVars[key]
+}
+
+func (m *mockOS) LookupEnv(key string) (string, bool) {
+	v, ok := m.envVars[key]
+	return v, ok
 }
 
 func (m *mockOS) Stat(name string) (os.FileInfo, error) {
@@ -55,23 +63,63 @@ func TestDefaultValues(t *testing.T) {
 
 	// Test only fields that have explicit defaults
 	assert.Equal(t, 3333, cfg.APIPort)
+	assert.False(t, cfg.PprofEnabled)
 	assert.Equal(t, "127.0.0.1", cfg.Redis.Host)
 	assert.Equal(t, 6379, cfg.Redis.Port)
 	assert.Equal(t, "outpost", cfg.MQs.RabbitMQ.Exchange)
 	assert.Equal(t, "outpost-delivery", cfg.MQs.RabbitMQ.DeliveryQueue)
 	assert.Equal(t, "outpost-log", cfg.MQs.RabbitMQ.LogQueue)
 	assert.Equal(t, 1, cfg.PublishMaxConcurrency)
+	assert.Equal(t, -1, cfg.PublishMaxRedeliveries)
 	assert.Equal(t, 1, cfg.DeliveryMaxConcurrency)
 	assert.Equal(t, 1, cfg.LogMaxConcurrency)
 	assert.Equal(t, []int{}, cfg.RetrySchedule)
 	assert.Equal(t, 30, cfg.RetryIntervalSeconds)
 	assert.Equal(t, 10, cfg.RetryMaxLimit)
+	assert.Equal(t, 100, cfg.RetryMaxConcurrency)
+	assert.Equal(t, 5, cfg.RetryMaxReceiveCount)
+	assert.Equal(t, 0, cfg.ClickHouse.MaxOpenConns)
+	assert.Equal(t, 10, cfg.ClickHouse.DialTimeoutSeconds)
+	assert.Equal(t, 30, cfg.ClickHouse.ReadTimeoutSeconds)
+	assert.Equal(t, 300, cfg.ClickHouse.IdleCloseSeconds)
 	assert.Equal(t, 20, cfg.MaxDestinationsPerTenant)
 	assert.Equal(t, 5, cfg.DeliveryTimeoutSeconds)
 	assert.Equal(t, "config/outpost/destinations", cfg.Destinations.MetadataPath)
 	assert.Equal(t, 10, cfg.LogBatchThresholdSeconds)
 	assert.Equal(t, 1000, cfg.LogBatchSize)
 	assert.Equal(t, "", cfg.Destinations.Webhook.HeaderPrefix)
+}
+
+func TestPublishMaxRedeliveries(t *testing.T) {
+	tests := []struct {
+		name    string
+		envVars map[string]string
+		yaml    string
+		want    int
+	}{
+		{name: "unset", want: -1},
+		{name: "empty env", envVars: map[string]string{"PUBLISH_MAX_REDELIVERIES": ""}, want: -1},
+		{name: "env 0", envVars: map[string]string{"PUBLISH_MAX_REDELIVERIES": "0"}, want: 0},
+		{name: "env 5", envVars: map[string]string{"PUBLISH_MAX_REDELIVERIES": "5"}, want: 5},
+		{name: "yaml 0", yaml: "publish_max_redeliveries: 0\n", want: 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockOS := &mockOS{files: map[string][]byte{}, envVars: map[string]string{}}
+			for k, v := range tt.envVars {
+				mockOS.envVars[k] = v
+			}
+			if tt.yaml != "" {
+				mockOS.files["config.yaml"] = []byte(tt.yaml)
+				mockOS.envVars["CONFIG"] = "config.yaml"
+			}
+
+			cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, cfg.PublishMaxRedeliveries)
+		})
+	}
 }
 
 func TestYAMLConfig(t *testing.T) {
@@ -103,6 +151,7 @@ retry_interval_seconds: 60
 max_destinations_per_tenant: 50
 delivery_timeout_seconds: 10
 aes_encryption_secret: test-secret
+pprof_enabled: true
 `),
 		},
 		envVars: map[string]string{
@@ -126,6 +175,7 @@ aes_encryption_secret: test-secret
 	assert.Equal(t, 5, cfg.LogMaxConcurrency)
 	assert.Equal(t, 60, cfg.RetryIntervalSeconds)
 	assert.Equal(t, 50, cfg.MaxDestinationsPerTenant)
+	assert.True(t, cfg.PprofEnabled)
 	assert.Equal(t, 10, cfg.DeliveryTimeoutSeconds)
 	assert.Equal(t, "test-secret", cfg.AESEncryptionSecret)
 	// assert.Equal(t, "localhost:9000", cfg.ClickHouse.Addr)
@@ -397,6 +447,515 @@ destinations:
 	}
 }
 
+func TestDestinationWebhookFollowRedirects(t *testing.T) {
+	tests := []struct {
+		name    string
+		files   map[string][]byte
+		envVars map[string]string
+		want    bool
+	}{
+		{
+			name:    "default is false",
+			files:   map[string][]byte{},
+			envVars: map[string]string{},
+			want:    false,
+		},
+		{
+			name: "yaml config",
+			files: map[string][]byte{
+				"config.yaml": []byte(`
+destinations:
+  webhook:
+    follow_redirects: true
+`),
+			},
+			envVars: map[string]string{"CONFIG": "config.yaml"},
+			want:    true,
+		},
+		{
+			name:    "env config",
+			files:   map[string][]byte{},
+			envVars: map[string]string{"DESTINATIONS_WEBHOOK_FOLLOW_REDIRECTS": "true"},
+			want:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockOS := &mockOS{
+				files:   tt.files,
+				envVars: tt.envVars,
+			}
+
+			cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.want, cfg.Destinations.Webhook.FollowRedirects)
+			assert.Equal(t, tt.want, cfg.Destinations.ToConfig(cfg).Webhook.FollowRedirects)
+		})
+	}
+}
+
+func TestDestinationWebhookMaxResponseBodyBytes(t *testing.T) {
+	tests := []struct {
+		name    string
+		files   map[string][]byte
+		envVars map[string]string
+		want    int
+	}{
+		{
+			name:    "default is 128 KiB",
+			files:   map[string][]byte{},
+			envVars: map[string]string{},
+			want:    config.DefaultWebhookMaxResponseBodyBytes,
+		},
+		{
+			name:    "explicit 0 disables the cap",
+			files:   map[string][]byte{},
+			envVars: map[string]string{"DESTINATIONS_WEBHOOK_MAX_RESPONSE_BODY_BYTES": "0"},
+			want:    0,
+		},
+		{
+			name: "yaml config",
+			files: map[string][]byte{
+				"config.yaml": []byte(`
+destinations:
+  webhook:
+    max_response_body_bytes: 262144
+`),
+			},
+			envVars: map[string]string{"CONFIG": "config.yaml"},
+			want:    262144,
+		},
+		{
+			name:    "env config",
+			files:   map[string][]byte{},
+			envVars: map[string]string{"DESTINATIONS_WEBHOOK_MAX_RESPONSE_BODY_BYTES": "65536"},
+			want:    65536,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockOS := &mockOS{
+				files:   tt.files,
+				envVars: tt.envVars,
+			}
+
+			cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.want, cfg.Destinations.Webhook.MaxResponseBodyBytes)
+		})
+	}
+}
+
+func TestDestinationWebhookHeaderNames(t *testing.T) {
+	// want is the resolved SignatureHeader directive after parsing.
+	tests := []struct {
+		name    string
+		files   map[string][]byte
+		envVars map[string]string
+		want    destregistrydefault.WebhookHeaderConfig
+	}{
+		{
+			name:    "unset uses default",
+			files:   map[string][]byte{},
+			envVars: map[string]string{},
+			want:    destregistrydefault.WebhookHeaderConfig{},
+		},
+		{
+			name:    "env value pins name",
+			files:   map[string][]byte{},
+			envVars: map[string]string{"DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME": "x-acme-digest"},
+			want:    destregistrydefault.WebhookHeaderConfig{Name: "x-acme-digest"},
+		},
+		{
+			name:    "empty env disables",
+			files:   map[string][]byte{},
+			envVars: map[string]string{"DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME": ""},
+			want:    destregistrydefault.WebhookHeaderConfig{Disabled: true},
+		},
+		{
+			name: "yaml value pins name",
+			files: map[string][]byte{
+				"config.yaml": []byte(`
+destinations:
+  webhook:
+    signature_header_name: x-globex-sig
+`),
+			},
+			envVars: map[string]string{"CONFIG": "config.yaml"},
+			want:    destregistrydefault.WebhookHeaderConfig{Name: "x-globex-sig"},
+		},
+		{
+			name: "empty yaml disables",
+			files: map[string][]byte{
+				"config.yaml": []byte(`
+destinations:
+  webhook:
+    signature_header_name: ""
+`),
+			},
+			envVars: map[string]string{"CONFIG": "config.yaml"},
+			want:    destregistrydefault.WebhookHeaderConfig{Disabled: true},
+		},
+		{
+			name:    "whitespace-only env disables",
+			files:   map[string][]byte{},
+			envVars: map[string]string{"DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME": " "},
+			want:    destregistrydefault.WebhookHeaderConfig{Disabled: true},
+		},
+		{
+			name:    "deprecated disable flag disables",
+			files:   map[string][]byte{},
+			envVars: map[string]string{"DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER": "true"},
+			want:    destregistrydefault.WebhookHeaderConfig{Disabled: true},
+		},
+		{
+			name:  "new config wins over deprecated flag",
+			files: map[string][]byte{},
+			envVars: map[string]string{
+				"DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER": "true",
+				"DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME":            "x-acme-digest",
+			},
+			want: destregistrydefault.WebhookHeaderConfig{Name: "x-acme-digest"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockOS := &mockOS{
+				files:   tt.files,
+				envVars: tt.envVars,
+			}
+
+			cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+			assert.NoError(t, err)
+
+			opts := cfg.Destinations.ToConfig(cfg)
+			require.NotNil(t, opts.Webhook)
+			assert.Equal(t, tt.want, opts.Webhook.SignatureHeader)
+		})
+	}
+}
+
+func TestDestinationWebhookHeaderNamesAllHeaders(t *testing.T) {
+	// Each of the four headers resolves independently through the same rule.
+	mockOS := &mockOS{
+		files: map[string][]byte{},
+		envVars: map[string]string{
+			"DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME":  "x-acme-event",
+			"DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME": "",
+			// signature left unset -> default; topic disabled via deprecated flag
+			"DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_TOPIC_HEADER": "true",
+		},
+	}
+
+	cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+	require.NoError(t, err)
+
+	opts := cfg.Destinations.ToConfig(cfg)
+	require.NotNil(t, opts.Webhook)
+	assert.Equal(t, destregistrydefault.WebhookHeaderConfig{Name: "x-acme-event"}, opts.Webhook.EventIDHeader)
+	assert.Equal(t, destregistrydefault.WebhookHeaderConfig{Disabled: true}, opts.Webhook.TimestampHeader)
+	assert.Equal(t, destregistrydefault.WebhookHeaderConfig{}, opts.Webhook.SignatureHeader)
+	assert.Equal(t, destregistrydefault.WebhookHeaderConfig{Disabled: true}, opts.Webhook.TopicHeader)
+}
+
+func TestDestinationWebhookTimestampFormat(t *testing.T) {
+	mockOS := &mockOS{
+		files:   map[string][]byte{},
+		envVars: map[string]string{"DESTINATIONS_WEBHOOK_TIMESTAMP_FORMAT": "unix"},
+	}
+
+	cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+	require.NoError(t, err)
+
+	assert.Equal(t, "unix", cfg.Destinations.ToConfig(cfg).Webhook.TimestampFormat)
+}
+
+func TestDestinationAWSEventBridgeSource(t *testing.T) {
+	t.Run("defaults to outpost", func(t *testing.T) {
+		cfg, err := config.ParseWithoutValidation(config.Flags{}, &mockOS{files: map[string][]byte{}, envVars: map[string]string{}})
+		require.NoError(t, err)
+
+		assert.Equal(t, "outpost", cfg.Destinations.ToConfig(cfg).AWSEventBridge.Source)
+	})
+
+	t.Run("reads DESTINATIONS_AWS_EVENTBRIDGE_SOURCE", func(t *testing.T) {
+		mockOS := &mockOS{
+			files:   map[string][]byte{},
+			envVars: map[string]string{"DESTINATIONS_AWS_EVENTBRIDGE_SOURCE": "com.example.app"},
+		}
+
+		cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+		require.NoError(t, err)
+
+		assert.Equal(t, "com.example.app", cfg.Destinations.ToConfig(cfg).AWSEventBridge.Source)
+	})
+}
+
+func TestDestinationWebhookStandardMode(t *testing.T) {
+	t.Run("sets the Standard Webhooks values", func(t *testing.T) {
+		mockOS := &mockOS{
+			files:   map[string][]byte{},
+			envVars: map[string]string{"DESTINATIONS_WEBHOOK_MODE": "standard"},
+		}
+
+		cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+		require.NoError(t, err)
+
+		webhook := cfg.Destinations.ToConfig(cfg).Webhook
+		assert.Equal(t, "webhook_standard", webhook.MetadataName)
+		assert.Equal(t, "webhook-", webhook.HeaderPrefix)
+		assert.Equal(t, destregistrydefault.WebhookHeaderConfig{Name: "webhook-id"}, webhook.EventIDHeader)
+		assert.Equal(t, destregistrydefault.WebhookHeaderConfig{}, webhook.TimestampHeader)
+		assert.Equal(t, "unix", webhook.TimestampFormat)
+		assert.Equal(t, "{{.EventID}}.{{.Timestamp.Unix}}.{{.Body}}", webhook.SignatureContentTemplate)
+		assert.Equal(t, "v1,{{index .Signatures 0}}{{range slice .Signatures 1}} v1,{{.}}{{end}}", webhook.SignatureHeaderTemplate)
+		assert.Equal(t, "base64", webhook.SignatureEncoding)
+		assert.Equal(t, "hmac-sha256", webhook.SignatureAlgorithm)
+		assert.Equal(t, "base64", webhook.SignatureSecretEncoding)
+		assert.Equal(t, "whsec_", webhook.SignatureSecretPrefix)
+		assert.Equal(t, "whsec_{{.RandomBase64}}", webhook.SigningSecretTemplate)
+	})
+
+	t.Run("format options are ignored and warned about", func(t *testing.T) {
+		mockOS := &mockOS{
+			files: map[string][]byte{},
+			envVars: map[string]string{
+				"DESTINATIONS_WEBHOOK_MODE":                         "standard",
+				"DESTINATIONS_WEBHOOK_HEADER_PREFIX":                "x-acme-",
+				"DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME":            "x-acme-kind",
+				"DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME":         "x-acme-message",
+				"DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME":        "",
+				"DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM":          "hmac-sha1",
+				"DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING":    "raw",
+				"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_NAME": "x-legacy-signature",
+			},
+		}
+
+		cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+		require.NoError(t, err)
+
+		webhook := cfg.Destinations.ToConfig(cfg).Webhook
+		// Prefix, topic header and compat still apply.
+		assert.Equal(t, "x-acme-", webhook.HeaderPrefix)
+		assert.Equal(t, destregistrydefault.WebhookHeaderConfig{Name: "x-acme-kind"}, webhook.TopicHeader)
+		require.NotNil(t, webhook.Compat)
+		assert.Equal(t, "x-legacy-signature", webhook.Compat.SignatureHeaderName)
+		// The format options are fixed.
+		assert.Equal(t, destregistrydefault.WebhookHeaderConfig{Name: "x-acme-id"}, webhook.EventIDHeader)
+		assert.Equal(t, destregistrydefault.WebhookHeaderConfig{}, webhook.SignatureHeader)
+		assert.Equal(t, "hmac-sha256", webhook.SignatureAlgorithm)
+		assert.Equal(t, "base64", webhook.SignatureSecretEncoding)
+
+		warnings := cfg.DeprecationWarnings()
+		assert.Len(t, warnings, 4)
+		for _, env := range []string{
+			"DESTINATIONS_WEBHOOK_EVENT_ID_HEADER_NAME",
+			"DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME",
+			"DESTINATIONS_WEBHOOK_SIGNATURE_ALGORITHM",
+			"DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING",
+		} {
+			assert.Contains(t, strings.Join(warnings, "\n"), env+" is ignored in standard webhook mode")
+		}
+	})
+
+	t.Run("no warnings when only mode is set", func(t *testing.T) {
+		mockOS := &mockOS{
+			files:   map[string][]byte{},
+			envVars: map[string]string{"DESTINATIONS_WEBHOOK_MODE": "standard", "DESTINATIONS_WEBHOOK_HEADER_PREFIX": "acme-"},
+		}
+
+		cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+		require.NoError(t, err)
+
+		assert.Empty(t, cfg.DeprecationWarnings())
+	})
+
+	t.Run("whitespace prefix gives bare header names", func(t *testing.T) {
+		mockOS := &mockOS{
+			files: map[string][]byte{},
+			envVars: map[string]string{
+				"DESTINATIONS_WEBHOOK_MODE":          "standard",
+				"DESTINATIONS_WEBHOOK_HEADER_PREFIX": " ",
+			},
+		}
+
+		cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+		require.NoError(t, err)
+
+		assert.Equal(t, destregistrydefault.WebhookHeaderConfig{Name: "id"}, cfg.Destinations.ToConfig(cfg).Webhook.EventIDHeader)
+	})
+}
+
+func TestDestinationWebhookCompatSignature(t *testing.T) {
+	t.Run("unset leaves compat off", func(t *testing.T) {
+		mockOS := &mockOS{files: map[string][]byte{}, envVars: map[string]string{}}
+
+		cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+		require.NoError(t, err)
+
+		opts := cfg.Destinations.ToConfig(cfg)
+		assert.Nil(t, opts.Webhook.Compat)
+		assert.Empty(t, opts.Webhook.SignatureSecretEncoding)
+	})
+
+	t.Run("header name alone enables it with the primary defaults", func(t *testing.T) {
+		mockOS := &mockOS{
+			files:   map[string][]byte{},
+			envVars: map[string]string{"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_NAME": "x-legacy-signature"},
+		}
+
+		cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+		require.NoError(t, err)
+
+		compat := cfg.Destinations.ToConfig(cfg).Webhook.Compat
+		require.NotNil(t, compat)
+		assert.Equal(t, "x-legacy-signature", compat.SignatureHeaderName)
+		assert.Equal(t, "{{.Body}}", compat.SignatureContentTemplate)
+		assert.Equal(t, "v0={{.Signatures | join \",\"}}", compat.SignatureHeaderTemplate)
+		assert.Equal(t, "hex", compat.SignatureEncoding)
+		assert.Equal(t, "hmac-sha256", compat.SignatureAlgorithm)
+	})
+
+	t.Run("env vars", func(t *testing.T) {
+		mockOS := &mockOS{
+			files: map[string][]byte{},
+			envVars: map[string]string{
+				"DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_ENCODING":         "hex",
+				"DESTINATIONS_WEBHOOK_SIGNATURE_SECRET_PREFIX":           "sk_",
+				"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_NAME":      "webhook-signature",
+				"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_CONTENT_TEMPLATE": "{{.EventID}}.{{.Timestamp.Unix}}.{{.Body}}",
+				"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_TEMPLATE":  "v1,{{index .Signatures 0}}",
+				"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_ENCODING":         "base64",
+				"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_ENCODING":  "base64",
+				"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_SECRET_PREFIX":    "whsec_",
+				"DESTINATIONS_WEBHOOK_COMPAT_HEADERS":                    `webhook-id={{.EventID}}, webhook-timestamp={{.Timestamp.Unix}}, x-sigs={{.Signatures | join "\,"}}`,
+			},
+		}
+
+		cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+		require.NoError(t, err)
+
+		opts := cfg.Destinations.ToConfig(cfg)
+		assert.Equal(t, "hex", opts.Webhook.SignatureSecretEncoding)
+		assert.Equal(t, "sk_", opts.Webhook.SignatureSecretPrefix)
+
+		compat := opts.Webhook.Compat
+		require.NotNil(t, compat)
+		assert.Equal(t, "webhook-signature", compat.SignatureHeaderName)
+		assert.Equal(t, "{{.EventID}}.{{.Timestamp.Unix}}.{{.Body}}", compat.SignatureContentTemplate)
+		assert.Equal(t, "v1,{{index .Signatures 0}}", compat.SignatureHeaderTemplate)
+		assert.Equal(t, "base64", compat.SignatureEncoding)
+		assert.Equal(t, "base64", compat.SecretEncoding)
+		assert.Equal(t, "whsec_", compat.SecretPrefix)
+		assert.Equal(t, map[string]string{
+			"webhook-id":        "{{.EventID}}",
+			"webhook-timestamp": "{{.Timestamp.Unix}}",
+			"x-sigs":            `{{.Signatures | join ","}}`,
+		}, compat.Headers)
+	})
+
+	t.Run("yaml", func(t *testing.T) {
+		mockOS := &mockOS{
+			files: map[string][]byte{
+				"/config.yaml": []byte(`
+destinations:
+  webhook:
+    compat:
+      signature_header_name: x-legacy-signature
+      signature_encoding: base64
+      headers:
+        x-legacy-id: "{{.EventID}}"
+`),
+			},
+			envVars: map[string]string{"CONFIG": "/config.yaml"},
+		}
+
+		cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+		require.NoError(t, err)
+
+		compat := cfg.Destinations.ToConfig(cfg).Webhook.Compat
+		require.NotNil(t, compat)
+		assert.Equal(t, "x-legacy-signature", compat.SignatureHeaderName)
+		assert.Equal(t, "base64", compat.SignatureEncoding)
+		assert.Equal(t, map[string]string{"x-legacy-id": "{{.EventID}}"}, compat.Headers)
+	})
+
+	t.Run("headers env must be name=template pairs", func(t *testing.T) {
+		mockOS := &mockOS{envVars: map[string]string{
+			"DESTINATIONS_WEBHOOK_COMPAT_SIGNATURE_HEADER_NAME": "x-legacy-signature",
+			"DESTINATIONS_WEBHOOK_COMPAT_HEADERS":               "webhook-id",
+		}}
+		_, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), `"webhook-id" should be in "name=template" format`)
+	})
+}
+
+func TestDestinationWebhookDeprecationWarnings(t *testing.T) {
+	t.Run("warns when the webhook proxy key is set", func(t *testing.T) {
+		mockOS := &mockOS{
+			files:   map[string][]byte{},
+			envVars: map[string]string{"DESTINATIONS_WEBHOOK_PROXY_URL": "http://proxy:10000"},
+		}
+		cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+		require.NoError(t, err)
+		warnings := cfg.DeprecationWarnings()
+		require.Len(t, warnings, 1)
+		assert.Contains(t, warnings[0], "DESTINATIONS_WEBHOOK_PROXY_URL is deprecated")
+		assert.Contains(t, warnings[0], "DESTINATIONS_PROXY_URL")
+		assert.Equal(t, "http://proxy:10000", cfg.Destinations.ToConfig(cfg).Webhook.ProxyURL, "still applies while it exists")
+	})
+
+	t.Run("silent when only the general proxy key is set", func(t *testing.T) {
+		mockOS := &mockOS{
+			files:   map[string][]byte{},
+			envVars: map[string]string{"DESTINATIONS_PROXY_URL": "http://proxy:10000"},
+		}
+		cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+		require.NoError(t, err)
+		assert.Empty(t, cfg.DeprecationWarnings())
+	})
+
+	t.Run("warns when deprecated flag is true", func(t *testing.T) {
+		mockOS := &mockOS{
+			files:   map[string][]byte{},
+			envVars: map[string]string{"DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER": "true"},
+		}
+		cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+		require.NoError(t, err)
+		warnings := cfg.DeprecationWarnings()
+		require.Len(t, warnings, 1)
+		assert.Contains(t, warnings[0], "DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER")
+		assert.Contains(t, warnings[0], "DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME")
+	})
+
+	t.Run("silent when flag is false", func(t *testing.T) {
+		mockOS := &mockOS{
+			files:   map[string][]byte{},
+			envVars: map[string]string{"DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER": "false"},
+		}
+		cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+		require.NoError(t, err)
+		assert.Empty(t, cfg.DeprecationWarnings())
+	})
+
+	t.Run("warns even when new config overrides", func(t *testing.T) {
+		mockOS := &mockOS{
+			files: map[string][]byte{},
+			envVars: map[string]string{
+				"DESTINATIONS_WEBHOOK_DISABLE_DEFAULT_SIGNATURE_HEADER": "true",
+				"DESTINATIONS_WEBHOOK_SIGNATURE_HEADER_NAME":            "x-acme-digest",
+			},
+		}
+		cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+		require.NoError(t, err)
+		assert.Len(t, cfg.DeprecationWarnings(), 1)
+	})
+}
+
 func TestConfigFilePath(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -544,4 +1103,142 @@ func TestTopicsNormalization(t *testing.T) {
 			assert.Equal(t, tt.expected, cfg.Topics, tt.description)
 		})
 	}
+}
+
+func TestTopicsAllowWildcardsConfig(t *testing.T) {
+	mockOS := &mockOS{
+		envVars: map[string]string{
+			"TOPICS_ALLOW_WILDCARDS": "TRUE",
+		},
+	}
+
+	cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+	assert.NoError(t, err)
+	assert.True(t, cfg.TopicsAllowWildcards)
+}
+
+func TestDestinationsProxyURL(t *testing.T) {
+	tests := []struct {
+		name        string
+		env         map[string]string
+		wantGeneral string
+		wantWebhook string
+	}{
+		{
+			name: "neither set",
+			env:  map[string]string{},
+		},
+		{
+			name:        "general only applies to webhooks too",
+			env:         map[string]string{"DESTINATIONS_PROXY_URL": "http://a:10000 http://b:10000"},
+			wantGeneral: "http://a:10000 http://b:10000",
+			wantWebhook: "http://a:10000 http://b:10000",
+		},
+		{
+			name:        "webhook key wins for webhooks",
+			env:         map[string]string{"DESTINATIONS_PROXY_URL": "http://a:10000", "DESTINATIONS_WEBHOOK_PROXY_URL": "http://w:10000"},
+			wantGeneral: "http://a:10000",
+			wantWebhook: "http://w:10000",
+		},
+		{
+			name:        "webhook only",
+			env:         map[string]string{"DESTINATIONS_WEBHOOK_PROXY_URL": "http://w:10000"},
+			wantWebhook: "http://w:10000",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, err := config.ParseWithoutValidation(config.Flags{}, &mockOS{files: map[string][]byte{}, envVars: tt.env})
+			require.NoError(t, err)
+			opts := cfg.Destinations.ToConfig(cfg)
+			assert.Equal(t, tt.wantGeneral, opts.ProxyURL)
+			assert.Equal(t, tt.wantWebhook, opts.Webhook.ProxyURL)
+		})
+	}
+}
+
+func TestRetryTimingWarnings(t *testing.T) {
+	tests := []struct {
+		name string
+		env  map[string]string
+		want []string
+	}{
+		{"defaults raise the first exponential steps only", map[string]string{"RETRY_INTERVAL_SECONDS": "3"}, []string{"retry delays below LOG_BATCH_THRESHOLD_SECONDS (10s) are raised to it: 3s, 6s"}},
+		{"schedule lists the steps below the floor", map[string]string{"RETRY_SCHEDULE": "1,5,10,60"}, []string{"retry delays below LOG_BATCH_THRESHOLD_SECONDS (10s) are raised to it: 1s, 5s"}},
+		{"huge retry limit stops at the floor", map[string]string{"RETRY_INTERVAL_SECONDS": "3", "MAX_RETRY_LIMIT": "1000000"}, []string{"retry delays below LOG_BATCH_THRESHOLD_SECONDS (10s) are raised to it: 3s, 6s"}},
+		{"long exponential run ignores overflow", map[string]string{"RETRY_INTERVAL_SECONDS": "1", "MAX_RETRY_LIMIT": "70"}, []string{"retry delays below LOG_BATCH_THRESHOLD_SECONDS (10s) are raised to it: 1s, 2s, 4s, 8s"}},
+		{"nothing below the floor", map[string]string{"RETRY_SCHEDULE": "10,60"}, nil},
+		{"default config", map[string]string{}, nil},
+		{"floor disabled", map[string]string{"RETRY_SCHEDULE": "1,5", "LOG_BATCH_THRESHOLD_SECONDS": "0"}, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, err := config.ParseWithoutValidation(config.Flags{}, &mockOS{files: map[string][]byte{}, envVars: tt.env})
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, cfg.RetryTimingWarnings())
+		})
+	}
+}
+
+func TestMaxEventSizeBytes(t *testing.T) {
+	tests := []struct {
+		name    string
+		files   map[string][]byte
+		envVars map[string]string
+		want    int
+	}{
+		{
+			name:    "default is 1 MiB",
+			files:   map[string][]byte{},
+			envVars: map[string]string{},
+			want:    config.DefaultMaxEventSizeBytes,
+		},
+		{
+			name:    "explicit 0 disables the cap",
+			files:   map[string][]byte{},
+			envVars: map[string]string{"MAX_EVENT_SIZE_BYTES": "0"},
+			want:    0,
+		},
+		{
+			name: "yaml config",
+			files: map[string][]byte{
+				"config.yaml": []byte("max_event_size_bytes: 2097152\n"),
+			},
+			envVars: map[string]string{"CONFIG": "config.yaml"},
+			want:    2097152,
+		},
+		{
+			name:    "env config",
+			files:   map[string][]byte{},
+			envVars: map[string]string{"MAX_EVENT_SIZE_BYTES": "524288"},
+			want:    524288,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockOS := &mockOS{files: tt.files, envVars: tt.envVars}
+
+			cfg, err := config.ParseWithoutValidation(config.Flags{}, mockOS)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.want, cfg.MaxEventSizeBytes)
+		})
+	}
+}
+
+func TestMaxEventSizeBytesValidation(t *testing.T) {
+	mockOS := &mockOS{
+		files: map[string][]byte{"config.yaml": []byte("max_event_size_bytes: -1\n")},
+		envVars: map[string]string{
+			"CONFIG":                "config.yaml",
+			"API_KEY":               "test-key",
+			"API_JWT_SECRET":        "test-jwt-secret",
+			"AES_ENCRYPTION_SECRET": "test-aes-secret-16b",
+			"POSTGRES_URL":          "postgres://localhost:5432/test",
+			"RABBITMQ_SERVER_URL":   "amqp://localhost:5672",
+		},
+	}
+
+	_, err := config.ParseWithOS(config.Flags{}, mockOS)
+	assert.ErrorContains(t, err, "max_event_size_bytes must not be negative")
 }

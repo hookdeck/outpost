@@ -2,6 +2,7 @@ package drivertest
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -217,6 +218,8 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 			assert.Nil(t, actual)
 		})
 
+		require.NoError(t, store.UpsertTenant(ctx, models.Tenant{ID: input.TenantID}))
+
 		t.Run("sets", func(t *testing.T) {
 			err := store.CreateDestination(ctx, input)
 			require.NoError(t, err)
@@ -266,6 +269,34 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 		t.Run("err when creates duplicate", func(t *testing.T) {
 			assert.ErrorIs(t, store.CreateDestination(ctx, input), driver.ErrDuplicateDestination)
 			require.NoError(t, store.DeleteDestination(ctx, input.TenantID, input.ID))
+		})
+
+		t.Run("one of concurrent creates wins", func(t *testing.T) {
+			for round := 0; round < 20; round++ {
+				destination := testutil.DestinationFactory.Any()
+				require.NoError(t, store.UpsertTenant(ctx, models.Tenant{ID: destination.TenantID}))
+				errs := make([]error, 8)
+				var wg sync.WaitGroup
+				for i := range errs {
+					wg.Add(1)
+					go func() {
+						defer wg.Done()
+						errs[i] = store.CreateDestination(ctx, destination)
+					}()
+				}
+				wg.Wait()
+
+				created := 0
+				for _, err := range errs {
+					if err == nil {
+						created++
+					} else {
+						assert.ErrorIs(t, err, driver.ErrDuplicateDestination)
+					}
+				}
+				assert.Equal(t, 1, created)
+				require.NoError(t, store.DeleteDestination(ctx, destination.TenantID, destination.ID))
+			}
 		})
 
 		t.Run("handles nil delivery_metadata and metadata", func(t *testing.T) {
@@ -371,6 +402,7 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 		require.NoError(t, err)
 
 		destination := testutil.DestinationFactory.Any()
+		require.NoError(t, store.UpsertTenant(ctx, models.Tenant{ID: destination.TenantID}))
 		require.NoError(t, store.CreateDestination(ctx, destination))
 
 		t.Run("no error when deleting existing", func(t *testing.T) {
@@ -428,6 +460,54 @@ func testCRUD(t *testing.T, newHarness HarnessMaker) {
 			actual, err := store.RetrieveDestination(ctx, input.TenantID, input.ID)
 			require.NoError(t, err)
 			assertEqualTimePtr(t, input.DisabledAt, actual.DisabledAt, "DisabledAt")
+		})
+	})
+
+	t.Run("DestinationExpiry", func(t *testing.T) {
+		ctx := context.Background()
+		h, err := newHarness(ctx, t)
+		require.NoError(t, err)
+		t.Cleanup(h.Close)
+
+		store, err := h.MakeDriver(ctx)
+		require.NoError(t, err)
+
+		tenantID := idgen.String()
+		require.NoError(t, store.UpsertTenant(ctx, models.Tenant{ID: tenantID, CreatedAt: time.Now()}))
+		expiresAt := time.Now().Add(time.Hour).Truncate(time.Millisecond)
+		destination := testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithTenantID(tenantID),
+			testutil.DestinationFactory.WithExpiresAt(expiresAt),
+		)
+
+		t.Run("persists expires_at", func(t *testing.T) {
+			require.NoError(t, store.CreateDestination(ctx, destination))
+			actual, err := store.RetrieveDestination(ctx, tenantID, destination.ID)
+			require.NoError(t, err)
+			assertEqualDestination(t, destination, *actual)
+			assert.False(t, actual.IsExpired(time.Now()))
+
+			listed, err := store.ListDestination(ctx, driver.ListDestinationRequest{TenantID: tenantID})
+			require.NoError(t, err)
+			require.Len(t, listed, 1)
+			assertEqualTimePtr(t, &expiresAt, listed[0].ExpiresAt, "ExpiresAt")
+		})
+
+		t.Run("an expired destination is still returned", func(t *testing.T) {
+			destination.ExpiresAt = ptr(time.Now().Add(-time.Minute).Truncate(time.Millisecond))
+			require.NoError(t, store.UpsertDestination(ctx, destination))
+			actual, err := store.RetrieveDestination(ctx, tenantID, destination.ID)
+			require.NoError(t, err)
+			assertEqualTimePtr(t, destination.ExpiresAt, actual.ExpiresAt, "ExpiresAt")
+			assert.True(t, actual.IsExpired(time.Now()))
+		})
+
+		t.Run("upsert without expires_at clears it", func(t *testing.T) {
+			destination.ExpiresAt = nil
+			require.NoError(t, store.UpsertDestination(ctx, destination))
+			actual, err := store.RetrieveDestination(ctx, tenantID, destination.ID)
+			require.NoError(t, err)
+			assert.Nil(t, actual.ExpiresAt)
 		})
 	})
 
@@ -545,4 +625,7 @@ func assertEqualDestination(t *testing.T, expected, actual models.Destination) {
 	assertEqualTime(t, expected.CreatedAt, actual.CreatedAt, "CreatedAt")
 	assertEqualTime(t, expected.UpdatedAt, actual.UpdatedAt, "UpdatedAt")
 	assertEqualTimePtr(t, expected.DisabledAt, actual.DisabledAt, "DisabledAt")
+	assertEqualTimePtr(t, expected.ExpiresAt, actual.ExpiresAt, "ExpiresAt")
 }
+
+func ptr[T any](v T) *T { return &v }

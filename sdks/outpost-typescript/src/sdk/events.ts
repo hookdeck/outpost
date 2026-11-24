@@ -8,7 +8,6 @@ import { ClientSDK, RequestOptions } from "../lib/sdks.js";
 import * as components from "../models/components/index.js";
 import * as operations from "../models/operations/index.js";
 import { unwrapAsync } from "../types/fp.js";
-import { PageIterator, unwrapResultIterator } from "../types/operations.js";
 
 export class Events extends ClientSDK {
   /**
@@ -23,8 +22,8 @@ export class Events extends ClientSDK {
   async list(
     request: operations.ListEventsRequest,
     options?: RequestOptions,
-  ): Promise<PageIterator<operations.ListEventsResponse, { cursor: string }>> {
-    return unwrapResultIterator(eventsList(
+  ): Promise<components.EventPaginatedResult> {
+    return unwrapAsync(eventsList(
       this,
       request,
       options,

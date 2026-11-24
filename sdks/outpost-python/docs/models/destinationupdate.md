@@ -9,40 +9,10 @@
 value: models.DestinationUpdateWebhook = /* values here */
 ```
 
-### `models.DestinationUpdateHookdeck`
-
-```python
-value: models.DestinationUpdateHookdeck = /* values here */
-```
-
 ### `models.DestinationUpdateAWSSQS`
 
 ```python
 value: models.DestinationUpdateAWSSQS = /* values here */
-```
-
-### `models.DestinationUpdateAWSKinesis`
-
-```python
-value: models.DestinationUpdateAWSKinesis = /* values here */
-```
-
-### `models.DestinationUpdateAwss3`
-
-```python
-value: models.DestinationUpdateAwss3 = /* values here */
-```
-
-### `models.DestinationUpdateAzureServiceBus`
-
-```python
-value: models.DestinationUpdateAzureServiceBus = /* values here */
-```
-
-### `models.DestinationUpdateGCPPubSub`
-
-```python
-value: models.DestinationUpdateGCPPubSub = /* values here */
 ```
 
 ### `models.DestinationUpdateRabbitMQ`
@@ -51,9 +21,51 @@ value: models.DestinationUpdateGCPPubSub = /* values here */
 value: models.DestinationUpdateRabbitMQ = /* values here */
 ```
 
+### `models.DestinationUpdateHookdeck`
+
+```python
+value: models.DestinationUpdateHookdeck = /* values here */
+```
+
+### `models.DestinationUpdateAWSKinesis`
+
+```python
+value: models.DestinationUpdateAWSKinesis = /* values here */
+```
+
+### `models.DestinationUpdateAzureServiceBus`
+
+```python
+value: models.DestinationUpdateAzureServiceBus = /* values here */
+```
+
+### `models.DestinationUpdateAwss3`
+
+```python
+value: models.DestinationUpdateAwss3 = /* values here */
+```
+
+### `models.DestinationUpdateGCPPubSub`
+
+```python
+value: models.DestinationUpdateGCPPubSub = /* values here */
+```
+
 ### `models.DestinationUpdateKafka`
 
 ```python
 value: models.DestinationUpdateKafka = /* values here */
+```
+
+### `models.DestinationUpdateCloudflareQueues`
+
+```python
+value: models.DestinationUpdateCloudflareQueues = /* values here */
+```
+
+### `models.DestinationUpdateAWSEventBridge`
+
+```python
+value: models.DestinationUpdateAWSEventBridge = /* values here */
 ```
 

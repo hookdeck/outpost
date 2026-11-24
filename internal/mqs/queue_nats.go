@@ -2,10 +2,8 @@ package mqs
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
 	"log"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -14,509 +12,257 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 )
 
-// pumpBackoff is the cooldown between iter.Next() returns and the next
-// fetch when the previous call returned a transient error. Prevents
-// busy-spinning when the upstream consumer is briefly unhealthy.
-const pumpBackoff = 250 * time.Millisecond
-
-// NATSConfig configures a NATS JetStream publish source.
+// NATSConfig configures a JetStream-backed queue. Unlike core NATS pub/sub,
+// JetStream persists messages and supports at-least-once delivery via
+// explicit ack/nak — the same durability guarantee RabbitMQ provides here.
 //
-// NATS JetStream is supported as a publish-mq only (Outpost reads events
-// from one or more pre-provisioned JetStream consumers). Outpost does not
-// create the underlying stream or consumer — the operator is expected to
-// manage that lifecycle, typically alongside per-tenant NATS Account
-// provisioning.
-//
-// One queue instance can consume from multiple NATS Accounts in parallel.
-// Each account holds its own credentials and is dialled on its own NATS
-// connection. With one Account per tenant, set Account.TenantID to make
-// Outpost stamp the correct tenant on every event regardless of payload.
+// NATS servers default max_payload to 1MiB. A larger event passes Outpost's
+// own API validation and then fails at publish time here, so a server
+// handling larger events needs max_payload raised in its own config.
 type NATSConfig struct {
-	// Servers is the NATS cluster URL list (e.g. ["nats://a:4222","nats://b:4222"]).
-	Servers []string
-
-	// Accounts is the static list of accounts the queue should consume from.
-	// Combined with AccountsDir if both are set.
-	Accounts []NATSAccountConfig
-
-	// AccountsDir, when set, makes the queue watch a directory for tenant
-	// subdirectories. Each subdirectory contains a meta.yaml describing the
-	// account plus a .creds file. Accounts are added and removed at runtime
-	// as directories appear and disappear, without restarting Outpost.
-	AccountsDir string
+	ServerURL  string
+	Stream     string
+	Subject    string
+	DLQSubject string // optional; exhausted messages are moved here instead of being lost
 }
 
-// NATSAccountConfig is a single NATS Account that Outpost consumes from.
-type NATSAccountConfig struct {
-	// Name is a short label used for logging, metrics, and account identity
-	// inside the queue. Must be unique within a NATSConfig.
-	Name string
-
-	// CredentialsFile points at a NATS .creds file (JWT + NKey seed).
-	CredentialsFile string
-
-	// Stream is the JetStream stream name the consumer reads from.
-	Stream string
-
-	// Consumer is the durable JetStream consumer name. Must be pre-created.
-	Consumer string
-
-	// TenantID, when set, overrides the tenant_id field on every event
-	// from this account. Recommended pattern: one Account per Outpost tenant.
-	// Leave empty to trust whatever tenant_id is in the payload.
-	TenantID string
-}
-
-// NATSQueue is a publish-mq driver backed by NATS JetStream.
 type NATSQueue struct {
 	config *NATSConfig
-
-	mu    sync.Mutex
-	conns map[string]*natsConn // by account name
-	sub   *natsSubscription    // active subscription, nil before Subscribe
-
-	servers string
-	watcher *natsAccountsWatcher
+	mu     sync.Mutex
+	nc     *nats.Conn
+	js     jetstream.JetStream
 }
 
-type natsConn struct {
-	account NATSAccountConfig
-	nc      *nats.Conn
-	js      jetstream.JetStream
-}
+var _ Queue = &NATSQueue{}
 
-var _ Queue = (*NATSQueue)(nil)
-
-// NewNATSQueue constructs (but does not connect) a NATS JetStream queue.
-// Call Init to open the connections.
 func NewNATSQueue(config *NATSConfig) *NATSQueue {
-	return &NATSQueue{
-		config: config,
-		conns:  make(map[string]*natsConn),
-	}
+	return &NATSQueue{config: config}
 }
 
-// Init validates the configuration, opens one NATS connection per account,
-// verifies each stream + consumer exists, and (if AccountsDir is set) starts
-// a filesystem watcher that adds and removes accounts at runtime. The
-// returned cleanup function drains every connection and stops the watcher.
-func (q *NATSQueue) Init(ctx context.Context) (func(), error) {
-	if q.config == nil {
-		return nil, errors.New("nats: nil config")
-	}
-	if len(q.config.Servers) == 0 {
-		return nil, errors.New("nats: no servers configured")
-	}
-
-	q.servers = strings.Join(q.config.Servers, ",")
-
-	accounts := append([]NATSAccountConfig(nil), q.config.Accounts...)
-	if q.config.AccountsDir != "" {
-		dirAccounts, err := loadAccountsFromDir(q.config.AccountsDir)
-		if err != nil {
-			return nil, fmt.Errorf("nats: %w", err)
-		}
-		accounts = append(accounts, dirAccounts...)
-	}
-	if len(accounts) == 0 {
-		return nil, errors.New("nats: no accounts configured")
-	}
-
-	for _, acc := range accounts {
-		if err := q.addAccount(ctx, acc); err != nil {
-			q.closeAll()
-			return nil, err
-		}
-	}
-
-	if q.config.AccountsDir != "" {
-		w, err := newNATSAccountsWatcher(q.config.AccountsDir, q.reconcileFromDir)
-		if err != nil {
-			q.closeAll()
-			return nil, fmt.Errorf("nats: watch accounts_dir: %w", err)
-		}
-		q.watcher = w
-		w.start()
-	}
-
-	return func() { q.closeAll() }, nil
-}
-
-func (q *NATSQueue) closeAll() {
-	if q.watcher != nil {
-		q.watcher.stop()
-		q.watcher = nil
-	}
-
+// ensureConnected lazily connects on first use and reconnects if the
+// connection was lost — some callers (e.g. the log service's consumer
+// worker) call Subscribe directly without ever calling Init first, exactly
+// like RabbitMQQueue.ensureConnected already handles for that driver.
+func (q *NATSQueue) ensureConnected() (jetstream.JetStream, error) {
 	q.mu.Lock()
-	if q.sub != nil {
-		q.sub.stopAll()
+	defer q.mu.Unlock()
+	if q.js != nil && q.nc != nil && !q.nc.IsClosed() {
+		return q.js, nil
 	}
-	conns := q.conns
-	q.conns = make(map[string]*natsConn)
-	q.mu.Unlock()
-
-	for _, c := range conns {
-		if c.nc != nil {
-			_ = c.nc.Drain()
-		}
-	}
-}
-
-// addAccount connects to NATS for a single account, verifies stream and
-// consumer, registers the connection, and (if a subscription is active)
-// starts a pump for it. Caller must not hold q.mu.
-func (q *NATSQueue) addAccount(ctx context.Context, acc NATSAccountConfig) error {
-	if err := acc.validate(); err != nil {
-		return fmt.Errorf("nats: account %q: %w", acc.Name, err)
-	}
-
-	q.mu.Lock()
-	if _, exists := q.conns[acc.Name]; exists {
-		q.mu.Unlock()
-		return nil
-	}
-	q.mu.Unlock()
-
-	opts := []nats.Option{
-		nats.Name(fmt.Sprintf("outpost:%s", acc.Name)),
-		nats.MaxReconnects(-1),
-	}
-	if acc.CredentialsFile != "" {
-		opts = append(opts, nats.UserCredentials(acc.CredentialsFile))
-	}
-	nc, err := nats.Connect(q.servers, opts...)
+	// ReconnectBufSize(-1) disables the client-side reconnect buffer: without
+	// it, a Publish made while disconnected is silently queued and flushed
+	// on reconnect *after* this call has already returned an error to the
+	// caller — so a caller that retries on that error ends up delivering
+	// the message twice. Disabling the buffer makes Publish fail fast while
+	// disconnected instead, matching the at-least-once (not "silently more
+	// than once") guarantee the other providers give.
+	nc, err := nats.Connect(q.config.ServerURL, nats.MaxReconnects(-1), nats.ReconnectBufSize(-1))
 	if err != nil {
-		return fmt.Errorf("nats: account %q: connect: %w", acc.Name, err)
+		return nil, err
 	}
-
 	js, err := jetstream.New(nc)
 	if err != nil {
 		nc.Close()
-		return fmt.Errorf("nats: account %q: jetstream: %w", acc.Name, err)
+		return nil, err
 	}
-
-	if _, err := js.Stream(ctx, acc.Stream); err != nil {
-		nc.Close()
-		return fmt.Errorf("nats: account %q: stream %q: %w", acc.Name, acc.Stream, err)
-	}
-	if _, err := js.Consumer(ctx, acc.Stream, acc.Consumer); err != nil {
-		nc.Close()
-		return fmt.Errorf("nats: account %q: consumer %q: %w", acc.Name, acc.Consumer, err)
-	}
-
-	conn := &natsConn{account: acc, nc: nc, js: js}
-
-	q.mu.Lock()
-	q.conns[acc.Name] = conn
-	sub := q.sub
-	q.mu.Unlock()
-
-	if sub != nil {
-		if err := sub.startPump(ctx, conn); err != nil {
-			q.removeAccount(acc.Name)
-			return err
-		}
-	}
-	return nil
+	q.nc = nc
+	q.js = js
+	return js, nil
 }
 
-// removeAccount stops the pump (if any) and drains the connection for the
-// named account. No-op if the account is not currently registered.
-func (q *NATSQueue) removeAccount(name string) {
-	q.mu.Lock()
-	conn, ok := q.conns[name]
-	if !ok {
+func (q *NATSQueue) Init(ctx context.Context) (func(), error) {
+	if _, err := q.ensureConnected(); err != nil {
+		return nil, err
+	}
+	return func() {
+		q.mu.Lock()
+		nc := q.nc
 		q.mu.Unlock()
-		return
-	}
-	delete(q.conns, name)
-	sub := q.sub
-	q.mu.Unlock()
-
-	if sub != nil {
-		sub.stopPump(name)
-	}
-	if conn.nc != nil {
-		_ = conn.nc.Drain()
-	}
+		if nc != nil {
+			nc.Close()
+		}
+	}, nil
 }
 
-// reconcileFromDir is invoked by the watcher on every directory change.
-// It diffs the current set of dir-derived accounts against q.conns and
-// adds/removes as needed. Static accounts (from q.config.Accounts) are
-// preserved.
-func (q *NATSQueue) reconcileFromDir() {
-	desired, err := loadAccountsFromDir(q.config.AccountsDir)
+func (q *NATSQueue) Publish(ctx context.Context, incomingMessage IncomingMessage) error {
+	msg, err := incomingMessage.ToMessage()
 	if err != nil {
-		return
+		return err
 	}
 
-	staticNames := make(map[string]struct{}, len(q.config.Accounts))
-	for _, a := range q.config.Accounts {
-		staticNames[a.Name] = struct{}{}
+	js, err := q.ensureConnected()
+	if err != nil {
+		return err
 	}
 
-	desiredSet := make(map[string]NATSAccountConfig, len(desired))
-	for _, a := range desired {
-		desiredSet[a.Name] = a
-	}
-
-	q.mu.Lock()
-	current := make(map[string]NATSAccountConfig, len(q.conns))
-	for name, c := range q.conns {
-		current[name] = c.account
-	}
-	q.mu.Unlock()
-
-	for name := range current {
-		if _, isStatic := staticNames[name]; isStatic {
-			continue
-		}
-		if _, stillThere := desiredSet[name]; !stillThere {
-			q.removeAccount(name)
-		}
-	}
-
-	for _, acc := range desired {
-		if _, alreadyHave := current[acc.Name]; alreadyHave {
-			continue
-		}
-		if err := q.addAccount(context.Background(), acc); err != nil {
-			// Surface the failure so operators can spot bad creds, missing
-			// streams, or unreachable servers. The next FS event re-triggers
-			// reconcile, so a transient failure self-heals.
-			log.Printf("nats: reconcile add account %q failed: %v", acc.Name, err)
-		}
-	}
+	_, err = js.Publish(ctx, q.config.Subject, msg.Body)
+	return err
 }
 
-// Publish is intentionally not implemented. JetStream is a publish-mq
-// source only; events enter Outpost from publishers outside Outpost.
-func (q *NATSQueue) Publish(ctx context.Context, msg IncomingMessage) error {
-	return errors.New("nats: publish is not supported by the JetStream publish-mq driver")
-}
-
-// Subscribe opens a pull-based JetStream consumer per registered account
-// and fans messages into a single multiplexed Subscription. Accounts added
-// later (via the directory watcher) automatically get a pump started too.
 func (q *NATSQueue) Subscribe(ctx context.Context, opts ...SubscribeOption) (Subscription, error) {
-	q.mu.Lock()
-	if len(q.conns) == 0 {
-		q.mu.Unlock()
-		return nil, errors.New("nats: queue not initialized")
-	}
-	if q.sub != nil {
-		q.mu.Unlock()
-		return nil, errors.New("nats: already subscribed")
-	}
-
-	options := ApplySubscribeOptions(opts)
-	perAccount := options.Concurrency
-	if perAccount <= 0 {
-		perAccount = 1
-	}
-
-	sub := &natsSubscription{
-		msgs:       make(chan *Message),
-		done:       make(chan struct{}),
-		iters:      make(map[string]jetstream.MessagesContext),
-		perAccount: perAccount,
-	}
-	q.sub = sub
-
-	conns := make([]*natsConn, 0, len(q.conns))
-	for _, c := range q.conns {
-		conns = append(conns, c)
-	}
-	q.mu.Unlock()
-
-	for _, c := range conns {
-		if err := sub.startPump(ctx, c); err != nil {
-			_ = sub.Shutdown(context.Background())
-			return nil, err
-		}
-	}
-
-	return sub, nil
-}
-
-// SupportsConcurrency tells the upstream consumer to skip its own semaphore
-// since pull concurrency is already bounded by PullMaxMessages per account.
-func (q *NATSQueue) SupportsConcurrency() bool { return true }
-
-// natsSubscription multiplexes messages from N per-account pull loops
-// into a single Receive channel.
-type natsSubscription struct {
-	msgs chan *Message
-	done chan struct{}
-	wg   sync.WaitGroup
-
-	perAccount int
-
-	itersMu sync.Mutex
-	iters   map[string]jetstream.MessagesContext // by account name
-}
-
-var (
-	_ Subscription           = (*natsSubscription)(nil)
-	_ ConcurrentSubscription = (*NATSQueue)(nil)
-)
-
-func (s *natsSubscription) Receive(ctx context.Context) (*Message, error) {
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case <-s.done:
-		return nil, errors.New("nats: subscription closed")
-	case msg := <-s.msgs:
-		return msg, nil
-	}
-}
-
-func (s *natsSubscription) Shutdown(_ context.Context) error {
-	s.stopAll()
-	return nil
-}
-
-func (s *natsSubscription) stopAll() {
-	select {
-	case <-s.done:
-		return
-	default:
-	}
-	close(s.done)
-
-	s.itersMu.Lock()
-	for _, iter := range s.iters {
-		iter.Stop()
-	}
-	s.iters = make(map[string]jetstream.MessagesContext)
-	s.itersMu.Unlock()
-
-	s.wg.Wait()
-}
-
-func (s *natsSubscription) startPump(ctx context.Context, conn *natsConn) error {
-	consumer, err := conn.js.Consumer(ctx, conn.account.Stream, conn.account.Consumer)
+	js, err := q.ensureConnected()
 	if err != nil {
-		return fmt.Errorf("nats: account %q: open consumer: %w", conn.account.Name, err)
+		return nil, err
 	}
-	iter, err := consumer.Messages(jetstream.PullMaxMessages(s.perAccount))
+
+	// Look up the consumer mqinfra already provisioned instead of
+	// re-declaring it here — CreateOrUpdateConsumer would silently overwrite
+	// MaxDeliver/AckWait with whatever this process happens to have
+	// configured, even when MQS_AUTO_PROVISION=false, letting the live
+	// consumer drift from what mqinfra declared on every restart.
+	consumer, err := js.Consumer(ctx, q.config.Stream, durableName(q.config.Subject))
 	if err != nil {
-		return fmt.Errorf("nats: account %q: messages: %w", conn.account.Name, err)
+		return nil, err
 	}
 
-	s.itersMu.Lock()
-	if existing, ok := s.iters[conn.account.Name]; ok {
-		existing.Stop()
+	// PullMaxMessages(1): Messages buffers up to 500 messages client-side by
+	// default. Receive only ever processes one at a time, so under backlog
+	// the rest of that buffer sits unacked long enough for AckWait to lapse
+	// — JetStream redelivers them elsewhere while this buffer still goes on
+	// to process the original copies too, delivering both.
+	msgs, err := consumer.Messages(jetstream.PullMaxMessages(1))
+	if err != nil {
+		return nil, err
 	}
-	s.iters[conn.account.Name] = iter
-	s.itersMu.Unlock()
 
-	s.wg.Add(1)
-	go s.pump(conn.account, iter)
+	return &NATSSubscription{
+		msgs:       msgs,
+		js:         js,
+		dlqSubject: q.config.DLQSubject,
+		// Read from the live consumer rather than a locally-configured
+		// value: with MQS_AUTO_PROVISION=false an operator may have created
+		// the consumer with a different MaxDeliver than this process
+		// assumes, and nothing else keeps the two in sync — a message would
+		// then reach the DLQ early, or never, depending on which way they
+		// drifted.
+		maxDeliver: consumer.CachedInfo().Config.MaxDeliver,
+	}, nil
+}
+
+// durableName derives a valid JetStream durable consumer name from a subject.
+// Durable names can't contain '.', '*', '>' or whitespace.
+func durableName(subject string) string {
+	name := strings.NewReplacer(".", "-", "*", "-", ">", "-", " ", "-").Replace(subject)
+	return name + "-consumer"
+}
+
+// ============================== NATS Subscription ==============================
+
+type NATSSubscription struct {
+	msgs       jetstream.MessagesContext
+	js         jetstream.JetStream
+	dlqSubject string
+	maxDeliver int
+}
+
+var _ Subscription = &NATSSubscription{}
+
+// Receive uses the Messages() iterator rather than repeated single-message
+// Fetch calls: Fetch doesn't take a context, so a Receive blocked waiting on
+// it can hold up shutdown for its full FetchMaxWait (30s here); Next, via
+// NextContext, returns as soon as ctx is done. Messages also lets JetStream
+// overlap pull requests instead of paying a full round-trip per message,
+// which Fetch(1, ...) caps regardless of consumer concurrency settings.
+//
+// Every delivery is handed back here, including the last one JetStream will
+// ever make for this message — unlike RabbitMQ/SQS, nothing here decides a
+// message is "exhausted" before the caller gets to see it. That decision
+// instead happens in the returned message's own Nack (see natsQueueMessage),
+// so the handler gets its full MaxDeliver attempts, the same as every other
+// provider, rather than losing the last one to this provider's own
+// client-side DLQ handling.
+func (s *NATSSubscription) Receive(ctx context.Context) (*Message, error) {
+	m, err := s.msgs.Next(jetstream.NextContext(ctx))
+	if err != nil {
+		return nil, err
+	}
+
+	loggableID := m.Subject()
+	if meta, err := m.Metadata(); err == nil {
+		loggableID = strconv.FormatUint(meta.Sequence.Stream, 10)
+	}
+
+	return &Message{
+		QueueMessage: &natsQueueMessage{
+			msg:        m,
+			js:         s.js,
+			dlqSubject: s.dlqSubject,
+			maxDeliver: s.maxDeliver,
+		},
+		LoggableID: loggableID,
+		Body:       m.Data(),
+	}, nil
+}
+
+func (s *NATSSubscription) Shutdown(ctx context.Context) error {
+	s.msgs.Stop()
 	return nil
-}
-
-func (s *natsSubscription) stopPump(name string) {
-	s.itersMu.Lock()
-	iter, ok := s.iters[name]
-	if ok {
-		delete(s.iters, name)
-	}
-	s.itersMu.Unlock()
-	if ok {
-		iter.Stop()
-	}
-}
-
-func (s *natsSubscription) pump(account NATSAccountConfig, iter jetstream.MessagesContext) {
-	defer s.wg.Done()
-
-	for {
-		select {
-		case <-s.done:
-			return
-		default:
-		}
-
-		jmsg, err := iter.Next()
-		if err != nil {
-			if errors.Is(err, jetstream.ErrMsgIteratorClosed) {
-				return
-			}
-			// Transient error (connection blip, server restart, consumer
-			// leader change). Back off briefly so we don't peg CPU and
-			// give the cluster room to recover, but stay responsive to
-			// shutdown.
-			select {
-			case <-time.After(pumpBackoff):
-			case <-s.done:
-				return
-			}
-			continue
-		}
-
-		body := jmsg.Data()
-		if account.TenantID != "" {
-			if rewritten, rerr := overrideTenantID(body, account.TenantID); rerr == nil {
-				body = rewritten
-			}
-		}
-
-		out := &Message{
-			QueueMessage: &natsQueueMessage{msg: jmsg},
-			LoggableID:   formatLoggableID(account, jmsg),
-			Body:         body,
-		}
-
-		select {
-		case s.msgs <- out:
-		case <-s.done:
-			_ = jmsg.Nak()
-			return
-		}
-	}
 }
 
 type natsQueueMessage struct {
-	msg jetstream.Msg
+	msg        jetstream.Msg
+	js         jetstream.JetStream
+	dlqSubject string
+	maxDeliver int
 }
 
-func (m *natsQueueMessage) Ack()  { _ = m.msg.Ack() }
-func (m *natsQueueMessage) Nack() { _ = m.msg.Nak() }
+var _ QueueMessage = &natsQueueMessage{}
 
-func (a NATSAccountConfig) validate() error {
-	if a.Name == "" {
-		return errors.New("name is required")
+func (m *natsQueueMessage) Ack() { m.msg.Ack() }
+
+// Nack redelivers the message normally, unless this is the last delivery
+// JetStream will ever make for it (NumDelivered >= MaxDeliver) — gating on
+// ">" never fires, since JetStream simply stops redelivering after the
+// MaxDeliver-th attempt, so a message that reaches here on its final
+// attempt would otherwise be neither acked, nacked nor termed, and (with
+// WorkQueue retention and no message limits) sit in the stream forever.
+// On that final attempt, this republishes it to the DLQ subject and
+// terminates it instead — the equivalent of RabbitMQ's automatic
+// dead-letter-exchange routing, done explicitly here since JetStream has no
+// broker-side DLQ mechanism of its own.
+func (m *natsQueueMessage) Nack() {
+	if m.exceededMaxDeliver() {
+		m.moveToDLQ()
+		return
 	}
-	if a.Stream == "" {
-		return errors.New("stream is required")
-	}
-	if a.Consumer == "" {
-		return errors.New("consumer is required")
-	}
-	// credentials_file is optional: a NATS deployment may use no-auth,
-	// nkey-via-server-config, or token-via-URL.
-	return nil
+	m.msg.Nak()
 }
 
-func formatLoggableID(account NATSAccountConfig, jmsg jetstream.Msg) string {
-	md, err := jmsg.Metadata()
-	if err != nil || md == nil {
-		return account.Name
+func (m *natsQueueMessage) exceededMaxDeliver() bool {
+	if m.dlqSubject == "" || m.maxDeliver <= 0 {
+		return false
 	}
-	return fmt.Sprintf("%s/%s:%d", account.Name, md.Stream, md.Sequence.Stream)
+	meta, err := m.msg.Metadata()
+	if err != nil {
+		return false
+	}
+	return int(meta.NumDelivered) >= m.maxDeliver
 }
 
-// overrideTenantID rewrites the tenant_id field on a JSON event payload.
-// If the body is not a JSON object, it is returned unchanged.
-func overrideTenantID(body []byte, tenantID string) ([]byte, error) {
-	var event map[string]any
-	if err := json.Unmarshal(body, &event); err != nil {
-		return body, err
+// moveToDLQ runs on a message's last allowed delivery, so unlike every
+// other Nack, there's no further redelivery for a failed DLQ publish to
+// fall back on — a plain Nak here would just be silently dropped by
+// JetStream too. A short bounded retry covers a transient failure; one
+// that's still failing after that is logged, since that's the only
+// remaining way to keep it from disappearing without a trace. Terminated
+// either way: leaving it unacked forever (the original bug this fixes) is
+// worse than a rare, logged loss.
+func (m *natsQueueMessage) moveToDLQ() {
+	defer m.msg.Term()
+
+	if m.js == nil {
+		return
 	}
-	event["tenant_id"] = tenantID
-	return json.Marshal(event)
+
+	ctx := context.Background()
+	var err error
+	for attempt := 0; attempt < 3; attempt++ {
+		if attempt > 0 {
+			time.Sleep(time.Duration(attempt) * 100 * time.Millisecond)
+		}
+		if _, err = m.js.Publish(ctx, m.dlqSubject, m.msg.Data()); err == nil {
+			return
+		}
+	}
+	log.Printf("nats: giving up moving exhausted message to DLQ subject %q after retries: %v", m.dlqSubject, err)
 }

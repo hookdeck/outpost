@@ -19,6 +19,8 @@ builds:
       - -s -w
       - -X github.com/hookdeck/outpost/internal/version.version={{.Version}}
       - -X github.com/hookdeck/outpost/internal/version.commit={{.FullCommit}}
+    flags:
+      - -tags=nomsgpack
     binary: outpost
     env:
       - CGO_ENABLED=0
@@ -32,6 +34,8 @@ builds:
       - -s -w
       - -X github.com/hookdeck/outpost/internal/version.version={{.Version}}
       - -X github.com/hookdeck/outpost/internal/version.commit={{.FullCommit}}
+    flags:
+      - -tags=nomsgpack
     binary: outpost
     env:
       - CGO_ENABLED=0
@@ -47,6 +51,8 @@ builds:
       - -s -w
       - -X github.com/hookdeck/outpost/internal/version.version={{.Version}}
       - -X github.com/hookdeck/outpost/internal/version.commit={{.FullCommit}}
+    flags:
+      - -tags=nomsgpack
     binary: outpost-server
     env:
       - CGO_ENABLED=0
@@ -60,6 +66,8 @@ builds:
       - -s -w
       - -X github.com/hookdeck/outpost/internal/version.version={{.Version}}
       - -X github.com/hookdeck/outpost/internal/version.commit={{.FullCommit}}
+    flags:
+      - -tags=nomsgpack
     binary: outpost-server
     env:
       - CGO_ENABLED=0
@@ -70,7 +78,7 @@ builds:
       - arm64
 
 archives:
-  - format: tar.gz
+  - formats: [tar.gz]
     # this name template makes the OS and Arch compatible with the results of `uname`.
     name_template: >-
       {{ .ProjectName }}_
@@ -79,10 +87,6 @@ archives:
       {{- else if eq .Arch "386" }}i386
       {{- else }}{{ .Arch }}{{ end }}
       {{- if .Arm }}v{{ .Arm }}{{ end }}
-    # use zip for windows archives
-    format_overrides:
-      - goos: windows
-        format: zip
 
 changelog:
   sort: asc
@@ -91,53 +95,50 @@ changelog:
       - "^docs:"
       - "^test:"
 
-dockers:
-  - goos: linux
-    goarch: amd64
+dockers_v2:
+  - images:
+      - "hookdeck/outpost"
+    tags:
+      - "{{ .Tag }}"
+      - "latest"
     dockerfile: ./build/Dockerfile.goreleaser
     ids:
       - outpost
-      - outpost-server
-    extra_files:
-      - build/entrypoint.sh
-    image_templates:
-      - "hookdeck/outpost:latest-amd64"
-      - "hookdeck/outpost:{{ .Tag }}-amd64"
-    build_flag_templates:
-      - "--pull"
-      - "--label=org.opencontainers.image.created={{.Date}}"
-      - "--label=org.opencontainers.image.name={{.ProjectName}}"
-      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-      - "--label=org.opencontainers.image.version={{.Version}}"
-      - "--label=repository=https://github.com/hookdeck/outpost"
-      - "--label=homepage=https://hookdeck.com"
-      - "--platform=linux/amd64"
-  - goos: linux
-    goarch: arm64
-    dockerfile: ./build/Dockerfile.goreleaser
-    ids:
       - outpost-arm64
+      - outpost-server
       - outpost-server-arm64
     extra_files:
       - build/entrypoint.sh
-    image_templates:
-      - "hookdeck/outpost:latest-arm64"
-      - "hookdeck/outpost:{{ .Tag }}-arm64"
-    build_flag_templates:
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    # Publish SBOM and provenance attestations. Both are on by default here:
+    # sbom: true adds --attest=type=sbom, and buildx attaches provenance itself
+    # whenever it pushes. They ride along as extra manifest entries reported as
+    # "unknown/unknown" platforms, which is how attestations are always carried —
+    # Docker Hub's UI filters them out of the tag listing.
+    sbom: true
+    flags:
       - "--pull"
-      - "--label=org.opencontainers.image.created={{.Date}}"
-      - "--label=org.opencontainers.image.name={{.ProjectName}}"
-      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-      - "--label=org.opencontainers.image.version={{.Version}}"
-      - "--label=repository=https://github.com/hookdeck/outpost"
-      - "--label=homepage=https://hookdeck.com"
-      - "--platform=linux/arm64/v8"
-docker_manifests:
-  - name_template: "hookdeck/outpost:latest"
-    image_templates:
-      - "hookdeck/outpost:latest-amd64"
-      - "hookdeck/outpost:latest-arm64"
-  - name_template: "hookdeck/outpost:{{ .Tag }}"
-    image_templates:
-      - "hookdeck/outpost:{{ .Tag }}-amd64"
-      - "hookdeck/outpost:{{ .Tag }}-arm64"
+    labels:
+      org.opencontainers.image.created: "{{ .Date }}"
+      org.opencontainers.image.name: "{{ .ProjectName }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.version: "{{ .Version }}"
+      repository: "https://github.com/hookdeck/outpost"
+      homepage: "https://hookdeck.com"
+
+# Signs checksums.txt, which covers every archive transitively. This one runs
+# before publish, so local snapshot builds pass --skip=sign to avoid needing
+# cosign installed.
+signs:
+  - cmd: cosign
+    signature: "${artifact}.sigstore.json"
+    artifacts: checksum
+    args: ["sign-blob", "--bundle=${signature}", "${artifact}", "--yes"]
+
+# Keyless cosign signing via the workflow's OIDC token. Omitting --key is what
+# selects keyless; publish-phase only, so --snapshot never invokes cosign.
+docker_signs:
+  - artifacts: images
+    args: ["sign", "${artifact}@${digest}", "--yes"]

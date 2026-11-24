@@ -9,7 +9,6 @@ import (
 	"github.com/hookdeck/outpost/internal/logging"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 )
@@ -17,8 +16,7 @@ import (
 func newAuditTest(t *testing.T, opts ...apiTestOption) (*apiTest, *observer.ObservedLogs) {
 	t.Helper()
 	core, logs := observer.New(zap.InfoLevel)
-	// When auditLogger is nil, Audit() falls through to the main logger.
-	logger := &logging.Logger{Logger: otelzap.New(zap.New(core))}
+	logger := logging.NewTestLogger(zap.New(core))
 	opts = append(opts, withLogger(logger))
 	return newAPITest(t, opts...), logs
 }

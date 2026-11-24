@@ -28,7 +28,7 @@ dimensional grouping, and filtering.
     const [result, apiCall] = await metricsGetEventMetrics(
       client,
       args.request,
-      { fetchOptions: { signal: ctx.signal } },
+      { fetchOptions: { signal: ctx.mcpReq.signal } },
     ).$inspect();
 
     if (!result.ok) {

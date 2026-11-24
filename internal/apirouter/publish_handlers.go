@@ -55,7 +55,10 @@ func (h *PublishHandlers) Ingest(c *gin.Context) {
 	result, err := h.eventHandler.Handle(c.Request.Context(), &event)
 	if err != nil {
 		if errors.Is(err, idempotence.ErrConflict) {
-			c.Status(http.StatusConflict)
+			AbortWithError(c, http.StatusConflict, ErrorResponse{
+				Code:    http.StatusConflict,
+				Message: "event conflict, retry later",
+			})
 		} else if errors.Is(err, publishmq.ErrRequiredTopic) {
 			AbortWithValidationError(c, ErrorResponse{
 				Code:    http.StatusUnprocessableEntity,
@@ -102,6 +105,12 @@ func (p *PublishedEvent) toEvent() models.Event {
 	if p.EligibleForRetry != nil {
 		eligibleForRetry = *p.EligibleForRetry
 	}
+	metadata := p.Metadata
+	if metadata == nil {
+		// metadata is jsonb NOT NULL in the log store; a missing metadata
+		// field must become an empty map, never a nil one.
+		metadata = map[string]string{}
+	}
 	return models.Event{
 		ID:               id,
 		TenantID:         p.TenantID,
@@ -109,7 +118,7 @@ func (p *PublishedEvent) toEvent() models.Event {
 		Topic:            p.Topic,
 		EligibleForRetry: eligibleForRetry,
 		Time:             eventTime,
-		Metadata:         p.Metadata,
+		Metadata:         metadata,
 		Data:             p.Data,
 	}
 }

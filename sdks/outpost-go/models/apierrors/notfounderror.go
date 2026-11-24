@@ -15,6 +15,12 @@ type NotFoundError struct {
 var _ error = &NotFoundError{}
 
 func (e *NotFoundError) Error() string {
+	if e != nil {
+		if e.Message != nil {
+			return *e.Message
+		}
+	}
+
 	data, _ := json.Marshal(e)
 	return string(data)
 }

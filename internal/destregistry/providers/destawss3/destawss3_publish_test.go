@@ -157,10 +157,11 @@ type S3PublishSuite struct {
 
 func (s *S3PublishSuite) SetupSuite() {
 	t := s.T()
+	testutil.SkipUnlessDest(t)
 	t.Cleanup(testinfra.Start(t))
 
 	// Get LocalStack endpoint
-	endpoint := testinfra.EnsureLocalStack()
+	endpoint := testinfra.EnsureLocalStack(t)
 
 	// Set AWS environment variables for LocalStack
 	// The AWS SDK v2 will pick these up automatically
@@ -193,7 +194,7 @@ func (s *S3PublishSuite) SetupSuite() {
 	require.NoError(t, err)
 
 	// Create provider
-	provider, err := destawss3.New(testutil.Registry.MetadataLoader(), nil)
+	provider, err := destawss3.New(testutil.Registry.MetadataLoader(), nil, destawss3.WithAllowCustomEndpoints(true))
 	require.NoError(t, err)
 
 	// Create destination configuration

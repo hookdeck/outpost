@@ -1,14 +1,19 @@
 package config
 
 import (
+	"context"
 	"fmt"
+	"net"
+	"strings"
+	"time"
 
 	"github.com/hookdeck/outpost/internal/mqs"
+	"github.com/hookdeck/outpost/internal/proxychain"
 )
 
 type PublishAWSSQSConfig struct {
-	AccessKeyID     string `yaml:"access_key_id" env:"PUBLISH_AWS_SQS_ACCESS_KEY_ID" desc:"AWS Access Key ID for the SQS publish queue. Required if AWS SQS is the chosen publish MQ provider." required:"C"`
-	SecretAccessKey string `yaml:"secret_access_key" env:"PUBLISH_AWS_SQS_SECRET_ACCESS_KEY" desc:"AWS Secret Access Key for the SQS publish queue. Required if AWS SQS is the chosen publish MQ provider." required:"C"`
+	AccessKeyID     string `yaml:"access_key_id" env:"PUBLISH_AWS_SQS_ACCESS_KEY_ID" desc:"AWS Access Key ID for the SQS publish queue. Optional: omit (with the secret access key) to use the AWS SDK default credential chain, e.g. an IAM role." required:"N"`
+	SecretAccessKey string `yaml:"secret_access_key" env:"PUBLISH_AWS_SQS_SECRET_ACCESS_KEY" desc:"AWS Secret Access Key for the SQS publish queue. Optional: omit (with the access key ID) to use the AWS SDK default credential chain, e.g. an IAM role." required:"N"`
 	Region          string `yaml:"region" env:"PUBLISH_AWS_SQS_REGION" desc:"AWS Region for the SQS publish queue. Required if AWS SQS is the chosen publish MQ provider." required:"C"`
 	Endpoint        string `yaml:"endpoint" env:"PUBLISH_AWS_SQS_ENDPOINT" desc:"Custom AWS SQS endpoint URL for the publish queue. Optional." required:"N"`
 	Queue           string `yaml:"queue" env:"PUBLISH_AWS_SQS_QUEUE" desc:"Name of the SQS queue for publishing events. Required if AWS SQS is the chosen publish MQ provider." required:"C"`
@@ -45,6 +50,8 @@ type PublishNATSConfig struct {
 	Servers     []string                   `yaml:"servers" env:"PUBLISH_NATS_SERVERS" envSeparator:"," desc:"NATS cluster URLs for the publish source (comma-separated, e.g. 'nats://a:4222,nats://b:4222'). Required if NATS is the chosen publish MQ provider." required:"C"`
 	AccountsDir string                     `yaml:"accounts_dir" env:"PUBLISH_NATS_ACCOUNTS_DIR" desc:"Directory containing per-tenant NATS account subdirectories (each with a meta.yaml plus credentials file). Watched for runtime changes. Combined with 'accounts' if both are set." required:"N"`
 	Accounts    []PublishNATSAccountConfig `yaml:"accounts" desc:"Static list of NATS accounts to consume from. Alternative or supplement to accounts_dir." required:"N"`
+
+	AccountsRescanIntervalSeconds int `yaml:"accounts_rescan_interval_seconds" env:"PUBLISH_NATS_ACCOUNTS_RESCAN_INTERVAL_SECONDS" desc:"How often to re-read accounts_dir regardless of filesystem events. The watch alone misses writes made from another host when accounts_dir is a network mount. 0 uses the built-in default (60s); negative disables the rescan." required:"N"`
 }
 
 type PublishMQConfig struct {
@@ -53,6 +60,7 @@ type PublishMQConfig struct {
 	GCPPubSub       PublishGCPPubSubConfig       `yaml:"gcp_pubsub" desc:"Configuration for using GCP Pub/Sub as the publish message queue. Only one publish MQ provider should be configured." required:"N"`
 	RabbitMQ        PublishRabbitMQConfig        `yaml:"rabbitmq" desc:"Configuration for using RabbitMQ as the publish message queue. Only one publish MQ provider should be configured." required:"N"`
 	NATS            PublishNATSConfig            `yaml:"nats" desc:"Configuration for using NATS JetStream as the publish message queue. Only one publish MQ provider should be configured." required:"N"`
+	ProxyURL        string                       `yaml:"proxy_url" env:"PUBLISH_PROXY_URL" desc:"HTTP CONNECT forward proxy for the publish queue connection, e.g. 'http://user:pass@proxy:10000'. Multiple whitespace-separated URLs are tunneled in order, nearest first. RabbitMQ only; ignored for other providers." required:"N"`
 }
 
 func (c PublishMQConfig) GetInfraType() string {
@@ -110,12 +118,13 @@ func (c *PublishMQConfig) GetQueueConfig() *mqs.QueueConfig {
 				ServerURL: c.RabbitMQ.ServerURL,
 				Exchange:  c.RabbitMQ.Exchange,
 				Queue:     c.RabbitMQ.Queue,
+				Dial:      c.proxyDial(),
 			},
 		}
 	case "nats":
-		accounts := make([]mqs.NATSAccountConfig, 0, len(c.NATS.Accounts))
+		accounts := make([]mqs.NATSPublishAccountConfig, 0, len(c.NATS.Accounts))
 		for _, a := range c.NATS.Accounts {
-			accounts = append(accounts, mqs.NATSAccountConfig{
+			accounts = append(accounts, mqs.NATSPublishAccountConfig{
 				Name:            a.Name,
 				CredentialsFile: a.CredentialsFile,
 				Stream:          a.Stream,
@@ -124,10 +133,13 @@ func (c *PublishMQConfig) GetQueueConfig() *mqs.QueueConfig {
 			})
 		}
 		return &mqs.QueueConfig{
-			NATS: &mqs.NATSConfig{
+			NATSPublish: &mqs.NATSPublishConfig{
 				Servers:     c.NATS.Servers,
 				AccountsDir: c.NATS.AccountsDir,
 				Accounts:    accounts,
+				// Seconds in, Duration out — same shape as RetryIntervalSeconds.
+				// 0 stays 0 so the queue applies its own default.
+				AccountsRescanInterval: time.Duration(c.NATS.AccountsRescanIntervalSeconds) * time.Second,
 			},
 		}
 	default:
@@ -135,9 +147,24 @@ func (c *PublishMQConfig) GetQueueConfig() *mqs.QueueConfig {
 	}
 }
 
+// Validate enforces the AWS SQS partial-credential rule for the selected
+// provider and rejects a malformed proxy chain.
+func (c *PublishMQConfig) Validate() error {
+	if _, err := proxychain.Parse(c.ProxyURL); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidPublishProxyURL, err)
+	}
+	if c.GetInfraType() == "awssqs" {
+		if (c.AWSSQS.AccessKeyID == "") != (c.AWSSQS.SecretAccessKey == "") {
+			return errPartialAWSSQSCredentials
+		}
+	}
+	return nil
+}
+
+// hasPublishAWSSQSConfig selects SQS on Region alone; keys are optional so
+// IAM-role auth can use the AWS SDK default credential chain.
 func hasPublishAWSSQSConfig(config PublishAWSSQSConfig) bool {
-	return config.AccessKeyID != "" &&
-		config.SecretAccessKey != "" && config.Region != ""
+	return config.Region != ""
 }
 
 func hasPublishAzureServiceBusConfig(config PublishAzureServiceBusConfig) bool {
@@ -157,4 +184,23 @@ func hasPublishNATSConfig(config PublishNATSConfig) bool {
 		return false
 	}
 	return config.AccountsDir != "" || len(config.Accounts) > 0
+}
+
+// ProxyIgnored reports whether a proxy is configured for a provider that
+// connects directly.
+func (c *PublishMQConfig) ProxyIgnored() bool {
+	infraType := c.GetInfraType()
+	return strings.TrimSpace(c.ProxyURL) != "" && infraType != "" && infraType != "rabbitmq"
+}
+
+func (c *PublishMQConfig) proxyDial() proxychain.DialFunc {
+	hops, err := proxychain.Parse(c.ProxyURL)
+	if err != nil {
+		// Validate rejects this at startup; never fall back to a direct dial.
+		return func(context.Context, string, string) (net.Conn, error) { return nil, err }
+	}
+	if len(hops) == 0 {
+		return nil
+	}
+	return proxychain.NewDialer(hops, nil, nil).DialContext
 }

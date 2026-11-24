@@ -1,0 +1,146 @@
+---
+title: "MCP Events"
+description: "Experimental. Let agents subscribe to your events through your MCP server, with Outpost delivering them."
+---
+
+{% callout type="warning" %}
+Experimental. The MCP Events spec ([SEP-3415](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/3415)) is still a draft, so this feature and its behavior may change without notice. It is off by default.
+{% /callout %}
+
+MCP Events lets an agent subscribe to your events through your MCP server. The agent calls `events/subscribe` on your MCP server with a callback URL. Your MCP server forwards the request to Outpost, which verifies the callback, stores the subscription and delivers matching events straight to the callback, signed with [Standard Webhooks](https://www.standardwebhooks.com/). Deliveries don't pass through your MCP server.
+
+```
+agent  ──events/subscribe──▶  your MCP server  ──POST /tenants/<TENANT_ID>/mcp/events/subscribe──▶  Outpost
+agent  ◀──────────── signed POST to the callback URL ────────────────────────────  Outpost
+```
+
+The spec defines the challenge, errors and rate limits. This page covers what you set up.
+
+## Enable MCP Events
+
+{% tabs tabGroup="deployment" %}
+{% tab label="Managed" %}
+
+Turn on MCP Events in [Hookdeck MCP Events settings](https://dashboard.hookdeck.com/settings/project/mcp-events).
+
+{% /tab %}
+{% tab label="Self-Hosted" %}
+
+Set `EXPERIMENTAL_MCP_ENABLED` to `true`. Callback verification and insecure callbacks for development have their own options. See [MCP Events configuration](/docs/outpost/self-hosting/configuration#mcp-events-experimental).
+
+{% /tab %}
+{% /tabs %}
+
+## Define your events
+
+Event definitions list the events agents can subscribe to and the arguments they can filter each one by. They use the format of an MCP `events/list` result:
+
+```json
+{
+  "events": [
+    {
+      "name": "order.created",
+      "description": "A new order was placed.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "enum": ["paid", "pending"] }
+        }
+      },
+      "payloadSchema": {
+        "type": "object",
+        "properties": {
+          "order_id": { "type": "string" },
+          "status": { "type": "string" },
+          "total": { "type": "number" }
+        }
+      }
+    }
+  ]
+}
+```
+
+An agent subscribing to `order.created` with `{"status": "paid"}` receives only the orders whose `status` is `paid`.
+
+- `name` is a topic, unique in the list. With `TOPICS` set, it must be one of them. Wildcards aren't allowed.
+- `payloadSchema` is a required JSON Schema object that describes the event's `data`.
+- `inputSchema` is an optional JSON Schema object that lists the arguments under `properties`. Without it, every top-level `payloadSchema` property that is a string, number, integer or boolean is an optional argument.
+- Each argument is a string, number, integer or boolean, and names a top-level field of the payload with a compatible type. Outpost delivers an event only if every argument equals the field of the same name.
+- `description`, `delivery` and `_meta` are optional. When `delivery` is set it must include `webhook`.
+
+{% tabs tabGroup="deployment" %}
+{% tab label="Managed" %}
+
+Import the JSON (or YAML) in [Hookdeck MCP Events settings](https://dashboard.hookdeck.com/settings/project/mcp-events), or edit the events there.
+
+{% /tab %}
+{% tab label="Self-Hosted" %}
+
+Set the JSON in [`EXPERIMENTAL_MCP_EVENTS_SCHEMA`](/docs/outpost/self-hosting/configuration#mcp-events-experimental), inline or as the path of a JSON or YAML file.
+
+{% /tab %}
+{% /tabs %}
+
+If a definition is invalid, Outpost reports the event and the field, and still starts. MCP Events answers `503` until it is fixed. With no definitions, every subscription is refused.
+
+## Connect your MCP server
+
+Your MCP server serves three MCP methods. For each one it calls Outpost with the Admin API key:
+
+| MCP method | Outpost call |
+|------------|--------------|
+| `events/list` | `GET /mcp/events/list` |
+| `events/subscribe` | `POST /tenants/<TENANT_ID>/mcp/events/subscribe` |
+| `events/unsubscribe` | `POST /tenants/<TENANT_ID>/mcp/events/unsubscribe` |
+
+For `events/subscribe` and `events/unsubscribe`, your MCP server:
+
+1. **Resolves the tenant** from its own authentication of the agent. The tenant ID in the path is the identity the subscription belongs to, and the agent never sends it. Outpost creates the tenant on first subscribe.
+2. **Checks the permission.** The spec requires the server to check that the caller may receive the event with those arguments. Outpost can't know your permissions.
+3. **Forwards the request `params` unchanged** as the body.
+4. **Returns the response.** A `200` is the MCP result, to return as is. A `422` carries an `mcp_error` with `code`, `message` and, where the spec defines it, `data`, to return as the JSON-RPC error.
+
+For example, for an agent that authenticated as the tenant `acme`:
+
+```sh
+curl -X POST '{% $OUTPOST_API_BASE_URL %}/tenants/acme/mcp/events/subscribe' \
+--header 'Authorization: Bearer <API_KEY>' \
+--header 'Content-Type: application/json' \
+--data '{
+  "name": "order.created",
+  "arguments": { "status": "paid" },
+  "delivery": {
+    "mode": "webhook",
+    "url": "https://agent.example.com/hooks/orders",
+    "secret": "whsec_C2FVsBQIhrscChlQIMV+b5sSYspob7oD"
+  },
+  "ttlMs": 3600000
+}'
+```
+
+```json
+{
+  "resultType": "complete",
+  "id": "sub_3f9a1c2e7b4d4e6a8c0b5d1f2a3e4b6c",
+  "refreshBefore": "2026-11-12T13:00:00Z",
+  "cursor": null,
+  "truncated": false
+}
+```
+
+Your MCP server returns that JSON as the result of `events/subscribe`. `refreshBefore` is the expiry Outpost granted, or `null` for none.
+
+`events/unsubscribe` takes its own `params` (`name`, `arguments` and `delivery.url`) the same way and answers `{"resultType": "complete"}`.
+
+`events/list` returns the events you defined, as an MCP `events/list` result. Pass the request's `cursor` and `limit` as query parameters; `topics=a,b` restricts the result to those events, for example to the events the tenant may see. It is a `GET` with no tenant.
+
+The subscribe and unsubscribe calls answer `404` while MCP Events is off, and `503` while your event definitions are invalid or verification is temporarily unavailable. See the [API reference](/docs/outpost/api) for every request and response.
+
+## Reference
+
+- **Refresh.** Subscribing again with the same tenant, event, arguments and callback URL refreshes the subscription: the same `id`, a new expiry, and the new `secret`, which signs alongside the old one for 24 hours.
+- **Shared within a tenant.** A subscription belongs to the tenant. Two agents on the same tenant that subscribe to the same event with the same arguments and callback URL share one subscription, and either can refresh or remove it. Give each user their own tenant if they shouldn't share.
+- **Lifetime.** Outpost grants the `ttlMs` your MCP server forwards, exactly: omitted means 24 hours, `null` means no expiry (`refreshBefore` is `null`), and `0` or less expires immediately. To enforce limits, such as a maximum lifetime, change `ttlMs` before forwarding. An expired subscription receives no events. A no-expiry subscription lasts until it is unsubscribed or its tenant is deleted. A callback that keeps failing is auto-disabled when you turn on auto-disable (`ALERT_AUTO_DISABLE_DESTINATION`), and a subscribe re-enables it.
+- **Topics and operator events.** A subscription's event counts toward the tenant's `topics`. A subscribe or unsubscribe that changes the tenant's `topics` emits [`tenant.subscription.updated`](/docs/outpost/features/operator-events).
+- **Not a regular destination.** The destinations API never returns subscriptions, and they don't count toward `MAX_DESTINATIONS_PER_TENANT` or a tenant's `destinations_count`. Only the subscribe endpoints manage them.
+- **Attempts.** Attempts and events for a subscription show `destination_type` `mcp`, with the subscription's `id` as the destination ID. See [MCP Events Delivery](/docs/outpost/destinations/mcp) for the delivery format, signing and retries.

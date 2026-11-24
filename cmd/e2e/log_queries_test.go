@@ -48,7 +48,7 @@ func (s *basicSuite) setupLogQueryData() logQuerySetup {
 		eventTime := baseTime.Add(time.Duration(i) * time.Second)
 		s.publish(tenant.ID, "user.created", map[string]any{
 			"index": i,
-		}, withEventID(eventID), withTime(eventTime))
+		}, withEventID(eventID), withTime(eventTime), withPublishMetadata(map[string]string{"source": "e2e"}))
 	}
 
 	// Wait for all attempts
@@ -81,6 +81,8 @@ func (s *basicSuite) TestLogQueries_Attempts() {
 		s.NotEmpty(first["status"])
 		s.NotEmpty(first["time"])
 		s.Equal(float64(1), first["attempt_number"])
+		s.Nil(first["event"])
+		s.Nil(first["response_data"])
 	})
 
 	s.Run("filter by destination_id", func() {
@@ -114,6 +116,7 @@ func (s *basicSuite) TestLogQueries_Attempts() {
 		s.NotEmpty(event["topic"])
 		s.NotEmpty(event["time"])
 		s.Nil(event["data"]) // include=event should NOT include data
+		s.Equal(map[string]any{"source": "e2e"}, event["metadata"])
 	})
 
 	s.Run("include=event.data returns event object with data", func() {
@@ -127,6 +130,21 @@ func (s *basicSuite) TestLogQueries_Attempts() {
 		event := resp.Models[0]["event"].(map[string]any)
 		s.NotEmpty(event["id"])
 		s.NotNil(event["data"]) // include=event.data SHOULD include data
+		s.Equal(map[string]any{"source": "e2e"}, event["metadata"])
+	})
+
+	s.Run("include=event and response_data returns metadata and response data without event data", func() {
+		var resp struct {
+			Models []map[string]any `json:"models"`
+		}
+		status := s.doJSON(http.MethodGet, s.apiURL("/attempts?tenant_id="+setup.tenantID+"&include=event&include=response_data&limit=1"), nil, &resp)
+		s.Require().Equal(http.StatusOK, status)
+		s.Require().Len(resp.Models, 1)
+
+		event := resp.Models[0]["event"].(map[string]any)
+		s.Equal(map[string]any{"source": "e2e"}, event["metadata"])
+		s.Nil(event["data"])
+		s.NotNil(resp.Models[0]["response_data"])
 	})
 
 	s.Run("include=response_data returns response data", func() {
@@ -324,4 +342,187 @@ func (s *basicSuite) TestLogQueries_Pagination() {
 			s.True(!eventTime.After(timeLTEParsed), "event time %v should be <= %v", eventTime, timeLTEParsed)
 		}
 	})
+
+	listEvents := func(query string) (ids []string, next string) {
+		var resp struct {
+			Models     []map[string]any `json:"models"`
+			Pagination map[string]any   `json:"pagination"`
+		}
+		status := s.doJSON(http.MethodGet, s.apiURL("/events?tenant_id="+setup.tenantID+"&"+query), nil, &resp)
+		s.Require().Equal(http.StatusOK, status)
+		ids = []string{}
+		for _, event := range resp.Models {
+			ids = append(ids, event["id"].(string))
+		}
+		next, _ = resp.Pagination["next"].(string)
+		return ids, next
+	}
+
+	s.Run("empty next is the same as no cursor", func() {
+		page, _ := listEvents("dir=asc&limit=3&next=")
+		s.Equal(setup.eventIDs[:3], page)
+	})
+
+	// A cursor holds a position and nothing about the query it came from. A
+	// cursor reused with another sort order or filter is not rejected: the
+	// list continues from that position with the parameters of the new request.
+	s.Run("cursor of another query lists from its position", func() {
+		page, next := listEvents("dir=asc&limit=3")
+		s.Require().Equal(setup.eventIDs[:3], page)
+		s.Require().NotEmpty(next)
+
+		s.Run("another sort order", func() {
+			page, _ := listEvents("dir=desc&limit=10&next=" + next)
+			s.Equal([]string{setup.eventIDs[1], setup.eventIDs[0]}, page)
+		})
+
+		s.Run("another filter", func() {
+			sixth := setup.baseTime.Add(5 * time.Second).UTC().Format(time.RFC3339)
+			page, _ := listEvents("dir=asc&limit=10&time[gte]=" + sixth + "&next=" + next)
+			s.Equal(setup.eventIDs[5:], page)
+		})
+	})
+}
+
+// Event and attempt times are more precise than a millisecond. Paging through
+// records that are close together returns each of them once, in the order of an
+// unpaged list.
+func (s *basicSuite) TestLogQueries_PaginationSubMillisecond() {
+	tenant := s.createTenant()
+	s.createWebhookDestination(tenant.ID, "*")
+
+	// One event alone in its millisecond, three inside one millisecond, one
+	// more alone. The attempt times are assigned by the server.
+	eventPrefix := idgen.String()[:8]
+	baseTime := time.Now().Add(-1 * time.Hour).Truncate(time.Second)
+	offsets := []time.Duration{1300, 3100, 3500, 3900, 5700}
+	eventIDs := make([]string, len(offsets))
+	for i, offset := range offsets {
+		eventIDs[i] = fmt.Sprintf("%s_event_%d", eventPrefix, i+1)
+		s.publish(tenant.ID, "user.created", map[string]any{"index": i},
+			withEventID(eventIDs[i]), withTime(baseTime.Add(offset*time.Microsecond)))
+	}
+	s.waitForNewAttempts(tenant.ID, len(offsets))
+
+	list := func(resource, query string) (ids []string, next string) {
+		var resp struct {
+			Models     []map[string]any `json:"models"`
+			Pagination map[string]any   `json:"pagination"`
+		}
+		status := s.doJSON(http.MethodGet, s.apiURL("/"+resource+"?tenant_id="+tenant.ID+"&"+query), nil, &resp)
+		s.Require().Equal(http.StatusOK, status)
+		for _, model := range resp.Models {
+			ids = append(ids, model["id"].(string))
+		}
+		next, _ = resp.Pagination["next"].(string)
+		return ids, next
+	}
+
+	for _, resource := range []string{"events", "attempts"} {
+		for _, dir := range []string{"asc", "desc"} {
+			s.Run(resource+" "+dir, func() {
+				unpaged, _ := list(resource, "dir="+dir+"&limit=100")
+				s.Require().Len(unpaged, len(offsets))
+
+				var paged []string
+				page, next := list(resource, "dir="+dir+"&limit=1")
+				paged = append(paged, page...)
+				for next != "" {
+					s.Require().LessOrEqual(len(paged), len(offsets), "paging does not end")
+					page, next = list(resource, "dir="+dir+"&limit=1&next="+next)
+					paged = append(paged, page...)
+				}
+				s.Equal(unpaged, paged)
+			})
+		}
+	}
+
+	s.Run("events are listed in time order", func() {
+		ids, _ := list("events", "dir=asc&limit=100")
+		s.Equal(eventIDs, ids)
+	})
+}
+
+// Deleting a destination closes its own routes, attempts included. Its events
+// and attempts stay readable through the top-level event and attempt routes.
+func (s *basicSuite) TestLogQueries_DeletedDestinationHistory() {
+	tenant := s.createTenant()
+	dest := s.createWebhookDestination(tenant.ID, "*")
+
+	eventID := idgen.Event()
+	s.publish(tenant.ID, "user.created", map[string]any{"test": "deleted_destination"}, withEventID(eventID))
+	attempts := s.waitForNewAttempts(tenant.ID, 1)
+	attemptID, ok := attempts[0]["id"].(string)
+	s.Require().True(ok, "attempt id should be a string")
+	s.waitForEventInLogstore(eventID)
+
+	s.deleteDestination(tenant.ID, dest.ID)
+
+	destinationPath := "/tenants/" + tenant.ID + "/destinations/" + dest.ID
+	auths := []struct {
+		name string
+		auth string
+	}{
+		{"api key", s.adminAuth()},
+		{"jwt", s.tenantAuth(tenant.ID)},
+	}
+	type list struct {
+		Models []map[string]any `json:"models"`
+	}
+
+	for _, auth := range auths {
+		s.Run("destination attempts list returns 404 with "+auth.name, func() {
+			s.requireError(errorCase{
+				method: http.MethodGet, path: destinationPath + "/attempts", auth: auth.auth,
+				status: http.StatusNotFound, message: "destination not found",
+			})
+		})
+
+		s.Run("destination attempt route returns 404 for its attempt with "+auth.name, func() {
+			s.requireError(errorCase{
+				method: http.MethodGet, path: destinationPath + "/attempts/" + attemptID, auth: auth.auth,
+				status: http.StatusNotFound, message: "destination not found",
+			})
+		})
+
+		for _, include := range []struct{ name, query string }{{"", ""}, {" and include destination", "&include=destination"}} {
+			s.Run("attempts list filtered by the destination returns its attempts with "+auth.name+include.name, func() {
+				var attempts list
+				url := s.apiURL("/attempts?tenant_id=" + tenant.ID + "&destination_id=" + dest.ID + include.query)
+				status := s.doJSONWithAuth(http.MethodGet, url, auth.auth, nil, &attempts)
+				s.Require().Equal(http.StatusOK, status)
+				s.Require().Len(attempts.Models, 1)
+				s.Equal(attemptID, attempts.Models[0]["id"])
+				s.Equal(dest.ID, attempts.Models[0]["destination_id"])
+				s.NotContains(attempts.Models[0], "destination")
+			})
+		}
+
+		for _, include := range []struct{ name, query string }{{"", ""}, {" and include destination", "?include=destination"}} {
+			s.Run("attempt route returns its attempt with "+auth.name+include.name, func() {
+				var attempt map[string]any
+				status := s.doJSONWithAuth(http.MethodGet, s.apiURL("/attempts/"+attemptID+include.query), auth.auth, nil, &attempt)
+				s.Require().Equal(http.StatusOK, status)
+				s.Equal(attemptID, attempt["id"])
+				s.Equal(dest.ID, attempt["destination_id"])
+				s.NotContains(attempt, "destination")
+			})
+		}
+
+		s.Run("events list filtered by the destination returns its events with "+auth.name, func() {
+			var events list
+			url := s.apiURL("/events?tenant_id=" + tenant.ID + "&destination_id=" + dest.ID)
+			status := s.doJSONWithAuth(http.MethodGet, url, auth.auth, nil, &events)
+			s.Require().Equal(http.StatusOK, status)
+			s.Require().Len(events.Models, 1)
+			s.Equal(eventID, events.Models[0]["id"])
+		})
+
+		s.Run("event route returns its event with "+auth.name, func() {
+			var event map[string]any
+			status := s.doJSONWithAuth(http.MethodGet, s.apiURL("/events/"+eventID), auth.auth, nil, &event)
+			s.Require().Equal(http.StatusOK, status)
+			s.Equal(eventID, event["id"])
+		})
+	}
 }

@@ -44,11 +44,12 @@ type AuthOptions struct {
 //  1. VPC mode (apiKey=""): grant admin, resolve tenant if RequireTenant, done.
 //  2. Validate auth header → 401 if missing/malformed.
 //  3. token == apiKey → admin, resolve tenant if RequireTenant, done.
-//  4. JWT.Extract(token) → 401 if invalid.
+//  4. JWT.Extract(token) → 401 if invalid, or if its deployment_id claim
+//     is set and differs from deploymentID.
 //  5. AdminOnly? → 403.
 //  6. :tenant_id param mismatch? → 403.
 //  7. Set tenantID + RoleTenant, always resolve tenant for JWT → 401 if missing/deleted.
-func AuthMiddleware(apiKey, jwtSecret string, tenantRetriever TenantRetriever, opts AuthOptions) gin.HandlerFunc {
+func AuthMiddleware(apiKey, jwtSecret, deploymentID string, tenantRetriever TenantRetriever, opts AuthOptions) gin.HandlerFunc {
 	// VPC mode — no API key configured, everything is admin.
 	if apiKey == "" {
 		return func(c *gin.Context) {
@@ -67,7 +68,7 @@ func AuthMiddleware(apiKey, jwtSecret string, tenantRetriever TenantRetriever, o
 		// 2. Validate auth header
 		token, err := validateAuthHeader(c)
 		if err != nil {
-			c.AbortWithStatus(http.StatusUnauthorized)
+			AbortWithError(c, http.StatusUnauthorized, NewErrUnauthorized())
 			return
 		}
 
@@ -87,19 +88,23 @@ func AuthMiddleware(apiKey, jwtSecret string, tenantRetriever TenantRetriever, o
 		// 4. Try JWT
 		claims, err := JWT.Extract(jwtSecret, token)
 		if err != nil {
-			c.AbortWithStatus(http.StatusUnauthorized)
+			AbortWithError(c, http.StatusUnauthorized, NewErrUnauthorized())
+			return
+		}
+		if claims.DeploymentID != "" && claims.DeploymentID != deploymentID {
+			AbortWithError(c, http.StatusUnauthorized, NewErrUnauthorized())
 			return
 		}
 
 		// 5. AdminOnly routes reject JWT tokens
 		if opts.AdminOnly {
-			c.AbortWithStatus(http.StatusForbidden)
+			AbortWithError(c, http.StatusForbidden, NewErrForbidden())
 			return
 		}
 
 		// 6. tenant_id param mismatch
 		if paramTenantID := c.Param("tenant_id"); paramTenantID != "" && paramTenantID != claims.TenantID {
-			c.AbortWithStatus(http.StatusForbidden)
+			AbortWithError(c, http.StatusForbidden, NewErrForbidden())
 			return
 		}
 
@@ -121,7 +126,7 @@ func AuthMiddleware(apiKey, jwtSecret string, tenantRetriever TenantRetriever, o
 func resolveTenantOrAbort(c *gin.Context, retriever TenantRetriever, tenantID string, isJWT bool) {
 	if tenantID == "" {
 		if isJWT {
-			c.AbortWithStatus(http.StatusUnauthorized)
+			AbortWithError(c, http.StatusUnauthorized, NewErrUnauthorized())
 		} else {
 			AbortWithError(c, http.StatusNotFound, NewErrNotFound("tenant"))
 		}
@@ -132,7 +137,7 @@ func resolveTenantOrAbort(c *gin.Context, retriever TenantRetriever, tenantID st
 	if err != nil {
 		if err == tenantstore.ErrTenantDeleted {
 			if isJWT {
-				c.AbortWithStatus(http.StatusUnauthorized)
+				AbortWithError(c, http.StatusUnauthorized, NewErrUnauthorized())
 			} else {
 				AbortWithError(c, http.StatusNotFound, NewErrNotFound("tenant"))
 			}
@@ -143,7 +148,7 @@ func resolveTenantOrAbort(c *gin.Context, retriever TenantRetriever, tenantID st
 	}
 	if tenant == nil {
 		if isJWT {
-			c.AbortWithStatus(http.StatusUnauthorized)
+			AbortWithError(c, http.StatusUnauthorized, NewErrUnauthorized())
 		} else {
 			AbortWithError(c, http.StatusNotFound, NewErrNotFound("tenant"))
 		}

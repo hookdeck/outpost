@@ -4,6 +4,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -99,7 +100,12 @@ func (h *Handlers) ReceiveWebhookEvent(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
 		return
 	} else {
-		if event.Success {
+		if status, convErr := strconv.Atoi(metadata["respond_status"]); convErr == nil {
+			if location := metadata["respond_location"]; location != "" {
+				c.Header("Location", location)
+			}
+			c.JSON(status, event)
+		} else if event.Success {
 			c.JSON(http.StatusOK, event)
 		} else {
 			c.JSON(http.StatusBadRequest, event)

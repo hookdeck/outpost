@@ -6,10 +6,28 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
+
+func requireNotNil(t *testing.T, result *UnionCandidate) {
+	t.Helper()
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+}
+
+func assertIsType(t *testing.T, want, got any) {
+	t.Helper()
+	if reflect.TypeOf(got) != reflect.TypeOf(want) {
+		t.Errorf("expected type %T, got %T", want, got)
+	}
+}
+
+func assertTrue(t *testing.T, cond bool, msg string) {
+	t.Helper()
+	if !cond {
+		t.Error(msg)
+	}
+}
 
 // makeCandidates unmarshals payload into each type and returns candidates
 func makeCandidates(t *testing.T, payload string, types ...any) []UnionCandidate {
@@ -17,7 +35,9 @@ func makeCandidates(t *testing.T, payload string, types ...any) []UnionCandidate
 	candidates := make([]UnionCandidate, len(types))
 	for i, typ := range types {
 		val := reflect.New(reflect.TypeOf(typ)).Interface()
-		require.NoError(t, UnmarshalJSON([]byte(payload), val, "", false, nil))
+		if err := UnmarshalJSON([]byte(payload), val, "", false, nil); err != nil {
+			t.Fatal(err)
+		}
 		candidates[i] = UnionCandidate{Type: typ, Value: reflect.ValueOf(val).Elem().Interface()}
 	}
 	return candidates
@@ -36,13 +56,15 @@ func TestPickBestUnionCandidate_SelectsTypeWithMoreMatchedFields(t *testing.T) {
 	candidates := makeCandidates(t, payload, A{}, B{})
 	result := PickBestUnionCandidate(candidates, []byte(payload))
 
-	require.NotNil(t, result)
-	assert.IsType(t, B{}, result.Type)
+	requireNotNil(t, result)
+	assertIsType(t, B{}, result.Type)
 }
 
 func TestPickBestUnionCandidate_EmptyCandidates(t *testing.T) {
 	result := PickBestUnionCandidate([]UnionCandidate{}, []byte(`{"foo": "test"}`))
-	assert.Nil(t, result)
+	if result != nil {
+		t.Errorf("expected nil result, got %v", result)
+	}
 }
 
 func TestPickBestUnionCandidate_PrefersFewerUnmatchedFields(t *testing.T) {
@@ -58,8 +80,8 @@ func TestPickBestUnionCandidate_PrefersFewerUnmatchedFields(t *testing.T) {
 	candidates := makeCandidates(t, payload, A{}, B{})
 	result := PickBestUnionCandidate(candidates, []byte(payload))
 
-	require.NotNil(t, result)
-	assert.IsType(t, B{}, result.Type) // fewer unmatched fields
+	requireNotNil(t, result)
+	assertIsType(t, B{}, result.Type) // fewer unmatched fields
 }
 
 func TestPickBestUnionCandidate_NestedStructs(t *testing.T) {
@@ -81,8 +103,8 @@ func TestPickBestUnionCandidate_NestedStructs(t *testing.T) {
 	candidates := makeCandidates(t, payload, A{}, B{})
 	result := PickBestUnionCandidate(candidates, []byte(payload))
 
-	require.NotNil(t, result)
-	assert.IsType(t, B{}, result.Type)
+	requireNotNil(t, result)
+	assertIsType(t, B{}, result.Type)
 }
 
 func TestPickBestUnionCandidate_ArrayFields(t *testing.T) {
@@ -100,8 +122,8 @@ func TestPickBestUnionCandidate_ArrayFields(t *testing.T) {
 	candidates := makeCandidates(t, payload, A{}, B{})
 	result := PickBestUnionCandidate(candidates, []byte(payload))
 
-	require.NotNil(t, result)
-	assert.IsType(t, B{}, result.Type)
+	requireNotNil(t, result)
+	assertIsType(t, B{}, result.Type)
 }
 
 func TestPickBestUnionCandidate_PreservesOrderOnTie(t *testing.T) {
@@ -116,8 +138,8 @@ func TestPickBestUnionCandidate_PreservesOrderOnTie(t *testing.T) {
 	candidates := makeCandidates(t, payload, A{}, B{})
 	result := PickBestUnionCandidate(candidates, []byte(payload))
 
-	require.NotNil(t, result)
-	assert.IsType(t, A{}, result.Type) // first wins on tie
+	requireNotNil(t, result)
+	assertIsType(t, A{}, result.Type) // first wins on tie
 }
 
 func TestPickBestUnionCandidate_OptionalPointerFields(t *testing.T) {
@@ -133,8 +155,8 @@ func TestPickBestUnionCandidate_OptionalPointerFields(t *testing.T) {
 	candidates := makeCandidates(t, payload, A{}, B{})
 	result := PickBestUnionCandidate(candidates, []byte(payload))
 
-	require.NotNil(t, result)
-	assert.IsType(t, B{}, result.Type)
+	requireNotNil(t, result)
+	assertIsType(t, B{}, result.Type)
 }
 
 func TestPickBestUnionCandidate_OptionalPointerStructs(t *testing.T) {
@@ -156,8 +178,8 @@ func TestPickBestUnionCandidate_OptionalPointerStructs(t *testing.T) {
 	candidates := makeCandidates(t, payload, A{}, B{})
 	result := PickBestUnionCandidate(candidates, []byte(payload))
 
-	require.NotNil(t, result)
-	assert.IsType(t, B{}, result.Type)
+	requireNotNil(t, result)
+	assertIsType(t, B{}, result.Type)
 }
 
 func TestPickBestUnionCandidate_NullPointerField(t *testing.T) {
@@ -172,8 +194,8 @@ func TestPickBestUnionCandidate_NullPointerField(t *testing.T) {
 	candidates := makeCandidates(t, payload, A{}, B{})
 	result := PickBestUnionCandidate(candidates, []byte(payload))
 
-	require.NotNil(t, result)
-	assert.IsType(t, B{}, result.Type)
+	requireNotNil(t, result)
+	assertIsType(t, B{}, result.Type)
 }
 
 func TestPickBestUnionCandidate_NullNestedPointerField(t *testing.T) {
@@ -194,8 +216,8 @@ func TestPickBestUnionCandidate_NullNestedPointerField(t *testing.T) {
 	candidates := makeCandidates(t, payload, A{}, B{})
 	result := PickBestUnionCandidate(candidates, []byte(payload))
 
-	require.NotNil(t, result)
-	assert.IsType(t, A{}, result.Type) // first wins on tie
+	requireNotNil(t, result)
+	assertIsType(t, A{}, result.Type) // first wins on tie
 }
 
 func TestPickBestUnionCandidate_NullNonPointerField(t *testing.T) {
@@ -211,8 +233,8 @@ func TestPickBestUnionCandidate_NullNonPointerField(t *testing.T) {
 	candidates := makeCandidates(t, payload, A{}, B{})
 	result := PickBestUnionCandidate(candidates, []byte(payload))
 
-	require.NotNil(t, result)
-	assert.IsType(t, B{}, result.Type)
+	requireNotNil(t, result)
+	assertIsType(t, B{}, result.Type)
 }
 
 func TestPickBestUnionCandidate_NullNestedFieldDifferentStructs(t *testing.T) {
@@ -233,8 +255,8 @@ func TestPickBestUnionCandidate_NullNestedFieldDifferentStructs(t *testing.T) {
 	candidates := makeCandidates(t, payload, A{}, B{})
 	result := PickBestUnionCandidate(candidates, []byte(payload))
 
-	require.NotNil(t, result)
-	assert.IsType(t, B{}, result.Type)
+	requireNotNil(t, result)
+	assertIsType(t, B{}, result.Type)
 }
 
 func TestPickBestUnionCandidate_NullNestedFieldBothPresent(t *testing.T) {
@@ -255,8 +277,8 @@ func TestPickBestUnionCandidate_NullNestedFieldBothPresent(t *testing.T) {
 	candidates := makeCandidates(t, payload, A{}, B{})
 	result := PickBestUnionCandidate(candidates, []byte(payload))
 
-	require.NotNil(t, result)
-	assert.IsType(t, A{}, result.Type) // first wins on tie
+	requireNotNil(t, result)
+	assertIsType(t, A{}, result.Type) // first wins on tie
 }
 
 // EnumA represents an enum with values 1 or 2
@@ -303,8 +325,8 @@ func TestPickBestUnionCandidate_EnumDiscrimination(t *testing.T) {
 	candidates := makeCandidates(t, payload, A{}, B{})
 	result := PickBestUnionCandidate(candidates, []byte(payload))
 
-	require.NotNil(t, result)
-	assert.IsType(t, B{}, result.Type)
+	requireNotNil(t, result)
+	assertIsType(t, B{}, result.Type)
 }
 
 func TestPickBestUnionCandidate_ThreeWayFieldDiscrimination(t *testing.T) {
@@ -325,8 +347,8 @@ func TestPickBestUnionCandidate_ThreeWayFieldDiscrimination(t *testing.T) {
 	candidates := makeCandidates(t, payload, A{}, B{}, C{})
 	result := PickBestUnionCandidate(candidates, []byte(payload))
 
-	require.NotNil(t, result)
-	assert.IsType(t, C{}, result.Type)
+	requireNotNil(t, result)
+	assertIsType(t, C{}, result.Type)
 }
 
 func TestPickBestUnionCandidate_ConstFieldDiscrimination(t *testing.T) {
@@ -347,8 +369,8 @@ func TestPickBestUnionCandidate_ConstFieldDiscrimination(t *testing.T) {
 	candidates := makeCandidates(t, payload, A{}, B{}, C{})
 	result := PickBestUnionCandidate(candidates, []byte(payload))
 
-	require.NotNil(t, result)
-	assert.IsType(t, C{}, result.Type)
+	requireNotNil(t, result)
+	assertIsType(t, C{}, result.Type)
 }
 
 func TestPickBestUnionCandidate_NullPayload(t *testing.T) {
@@ -362,9 +384,9 @@ func TestPickBestUnionCandidate_NullPayload(t *testing.T) {
 	candidates := makeCandidates(t, payload, A{}, B(nil))
 	result := PickBestUnionCandidate(candidates, []byte(payload))
 
-	require.NotNil(t, result)
+	requireNotNil(t, result)
 	_, isB := result.Type.(B)
-	assert.True(t, isB, "expected B (nullable type) to win for null payload")
+	assertTrue(t, isB, "expected B (nullable type) to win for null payload")
 }
 
 func TestPickBestUnionCandidate_PrimitiveStringTypes(t *testing.T) {
@@ -377,9 +399,9 @@ func TestPickBestUnionCandidate_PrimitiveStringTypes(t *testing.T) {
 	candidates := makeCandidates(t, payload, A(""), B(""))
 	result := PickBestUnionCandidate(candidates, []byte(payload))
 
-	require.NotNil(t, result)
+	requireNotNil(t, result)
 	_, isA := result.Type.(A)
-	assert.True(t, isA, "expected A (first type) to win on tie")
+	assertTrue(t, isA, "expected A (first type) to win on tie")
 }
 
 func TestPickBestUnionCandidate_NullPointerPrimitives(t *testing.T) {
@@ -394,9 +416,9 @@ func TestPickBestUnionCandidate_NullPointerPrimitives(t *testing.T) {
 	candidates := makeCandidates(t, payload, A(nil), B(nil))
 	result := PickBestUnionCandidate(candidates, []byte(payload))
 
-	require.NotNil(t, result)
+	requireNotNil(t, result)
 	_, isA := result.Type.(A)
-	assert.True(t, isA, "expected A (*string) to win for null payload (first wins on tie)")
+	assertTrue(t, isA, "expected A (*string) to win for null payload (first wins on tie)")
 }
 
 func TestPickBestUnionCandidate_NullPointersMatchOverMissingFields(t *testing.T) {
@@ -416,8 +438,8 @@ func TestPickBestUnionCandidate_NullPointersMatchOverMissingFields(t *testing.T)
 	candidates := makeCandidates(t, payload, A{}, B{})
 	result := PickBestUnionCandidate(candidates, []byte(payload))
 
-	require.NotNil(t, result)
-	assert.IsType(t, B{}, result.Type)
+	requireNotNil(t, result)
+	assertIsType(t, B{}, result.Type)
 }
 
 func TestPickBestUnionCandidate_MapOfStructs(t *testing.T) {
@@ -439,9 +461,9 @@ func TestPickBestUnionCandidate_MapOfStructs(t *testing.T) {
 	candidates := makeCandidates(t, payload, A(nil), B(nil))
 	result := PickBestUnionCandidate(candidates, []byte(payload))
 
-	require.NotNil(t, result)
+	requireNotNil(t, result)
 	_, isB := result.Type.(B)
-	assert.True(t, isB, "expected B (map with matching struct field) to win")
+	assertTrue(t, isB, "expected B (map with matching struct field) to win")
 }
 
 func TestPickBestUnionCandidate_NullPointerStructVsString(t *testing.T) {
@@ -458,9 +480,9 @@ func TestPickBestUnionCandidate_NullPointerStructVsString(t *testing.T) {
 	candidates := makeCandidates(t, payload, A(nil), B(nil))
 	result := PickBestUnionCandidate(candidates, []byte(payload))
 
-	require.NotNil(t, result)
+	requireNotNil(t, result)
 	_, isA := result.Type.(A)
-	assert.True(t, isA, "expected A (*struct) to win for null payload (first wins on tie)")
+	assertTrue(t, isA, "expected A (*struct) to win for null payload (first wins on tie)")
 }
 
 func TestPickBestUnionCandidate_MapWithNestedStructsVsSimpleField(t *testing.T) {
@@ -483,8 +505,8 @@ func TestPickBestUnionCandidate_MapWithNestedStructsVsSimpleField(t *testing.T) 
 	candidates := makeCandidates(t, payload, A{}, B{})
 	result := PickBestUnionCandidate(candidates, []byte(payload))
 
-	require.NotNil(t, result)
-	assert.IsType(t, B{}, result.Type)
+	requireNotNil(t, result)
+	assertIsType(t, B{}, result.Type)
 }
 
 func TestPickBestUnionCandidate_AdditionalPropertiesWins(t *testing.T) {
@@ -500,8 +522,8 @@ func TestPickBestUnionCandidate_AdditionalPropertiesWins(t *testing.T) {
 	candidates := makeCandidates(t, payload, A{}, B{})
 	result := PickBestUnionCandidate(candidates, []byte(payload))
 
-	require.NotNil(t, result)
-	assert.IsType(t, B{}, result.Type)
+	requireNotNil(t, result)
+	assertIsType(t, B{}, result.Type)
 }
 
 func TestPickBestUnionCandidate_StructVsMapOfStrings(t *testing.T) {
@@ -519,8 +541,8 @@ func TestPickBestUnionCandidate_StructVsMapOfStrings(t *testing.T) {
 	candidates := makeCandidates(t, payload, A(nil), B{})
 	result := PickBestUnionCandidate(candidates, []byte(payload))
 
-	require.NotNil(t, result)
-	assert.IsType(t, A{}, result.Type)
+	requireNotNil(t, result)
+	assertIsType(t, A{}, result.Type)
 }
 
 func TestPickBestUnionCandidate_AdditionalPropertiesVsExactField(t *testing.T) {
@@ -540,8 +562,8 @@ func TestPickBestUnionCandidate_AdditionalPropertiesVsExactField(t *testing.T) {
 	candidates := makeCandidates(t, payload, A{}, B{})
 	result := PickBestUnionCandidate(candidates, []byte(payload))
 
-	require.NotNil(t, result)
-	assert.IsType(t, B{}, result.Type)
+	requireNotNil(t, result)
+	assertIsType(t, B{}, result.Type)
 }
 
 func TestPickBestUnionCandidate_ArrayOfNullableStructs(t *testing.T) {
@@ -562,8 +584,8 @@ func TestPickBestUnionCandidate_ArrayOfNullableStructs(t *testing.T) {
 	candidates := makeCandidates(t, payload, A{}, B{})
 	result := PickBestUnionCandidate(candidates, []byte(payload))
 
-	require.NotNil(t, result)
-	assert.IsType(t, B{}, result.Type)
+	requireNotNil(t, result)
+	assertIsType(t, B{}, result.Type)
 }
 
 func TestPickBestUnionCandidate_AnyFieldType(t *testing.T) {
@@ -582,8 +604,8 @@ func TestPickBestUnionCandidate_AnyFieldType(t *testing.T) {
 	candidates := makeCandidates(t, payload, A{}, B{})
 	result := PickBestUnionCandidate(candidates, []byte(payload))
 
-	require.NotNil(t, result)
-	assert.IsType(t, B{}, result.Type)
+	requireNotNil(t, result)
+	assertIsType(t, B{}, result.Type)
 }
 
 func TestPickBestUnionCandidate_NonPointerUnionVariants(t *testing.T) {
@@ -650,8 +672,10 @@ func TestPickBestUnionCandidate_NonPointerUnionVariants(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			result := PickBestUnionCandidate(tc.candidates, []byte(tc.payload))
-			require.NotNil(t, result)
-			assert.Equal(t, tc.wantType, result.Type)
+			requireNotNil(t, result)
+			if result.Type != tc.wantType {
+				t.Errorf("expected type %v, got %v", tc.wantType, result.Type)
+			}
 		})
 	}
 }
