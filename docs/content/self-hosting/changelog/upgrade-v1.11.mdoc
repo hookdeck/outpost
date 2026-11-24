@@ -5,7 +5,7 @@ description: "Breaking changes, migration steps and behavior changes when upgrad
 
 This guide covers what changes when upgrading from v1.10 to v1.11. There are two breaking changes and one Redis migration to review before upgrading.
 
-Run `outpost migrate apply --yes` before starting v1.11: the server refuses to start while a migration is pending. There is no new PostgreSQL or ClickHouse migration. Retries scheduled by v1.10 run on v1.11.
+v1.11 has a Redis migration, and the server refuses to start while a migration is pending. Before running `outpost migrate apply --yes`, check whether it moves any keys: see [IDs are escaped in Redis keys](#ids-are-escaped-in-redis-keys). There is no new PostgreSQL or ClickHouse migration. Retries scheduled by v1.10 run on v1.11.
 
 | Change | Impact | Action Required |
 | --- | --- | --- |
@@ -28,7 +28,7 @@ A `PATCH` to a webhook destination's `config.custom_headers` now updates the hea
 | `{}` | all headers removed | no change |
 | The field set to `null` | all headers removed | all headers removed |
 
-If your client removes a header by sending the object without it, send that header as `null` instead. Creating a destination is unchanged. The new `credentials.custom_headers` field follows the same rules. See [Custom Headers](/docs/outpost/destinations/webhook#custom-headers).
+If your client removes headers by sending the object without them, send each removed header as `null` instead, and send `null` for the field to remove all of them. Creating a destination is unchanged. See [Custom Headers](/docs/outpost/destinations/webhook#custom-headers).
 
 ### Tenant JWTs need `API_JWT_SECRET`
 
@@ -40,7 +40,7 @@ If you use the tenant portal or tenant JWTs, set `API_JWT_SECRET` before upgradi
 
 ### IDs are escaped in Redis keys
 
-Tenant, destination and event IDs are now percent-encoded where they appear in Redis keys, so IDs that contain `%`, `:`, `{` or `}` can no longer share a key with another tenant's. The Redis migration `004_escape_ids` moves the stored tenants and destinations whose IDs contain those characters. Other keys are unchanged.
+Tenant, destination and event IDs are now percent-encoded where they appear in Redis keys, so IDs that contain `%`, `:`, `{` or `}` can no longer share a key with another tenant's. The Redis migration `004_escape_ids` moves the stored tenants and destinations whose IDs contain those characters. Tenants and destinations with other IDs keep their keys.
 
 Run `outpost migrate plan` with the v1.11 image to see how many keys move:
 
@@ -52,27 +52,29 @@ Redis Migrations (1 pending):
 
 With `keys_to_move: 0`, run `outpost migrate apply --yes` and upgrade as usual.
 
-Otherwise, v1.10 no longer finds the moved tenants and destinations once the migration has run. Until every v1.10 instance has stopped, API requests for them through a v1.10 instance return `404`, and events published for them through it are accepted but not delivered. Pick one:
+With more than 0 keys to move, v1.10 no longer finds the moved tenants and destinations once the migration has run: API requests for them through a v1.10 instance return `404`, and events published through one are accepted but not delivered. Pick one:
 
 - **Stop v1.10 first:** stop every instance, run `outpost migrate apply --yes`, then start v1.11. Nothing is lost; the API is unavailable in between.
-- **Rolling update:** run `outpost migrate apply --yes`, then replace the instances. Until the last v1.10 instance stops, don't create or update the affected tenants or their destinations, and re-publish events sent for them in that window.
+- **Rolling update:** run `outpost migrate apply --yes`, then replace the instances. Until the last v1.10 instance stops, don't create or update the affected tenants or their destinations (a `PUT /tenants/{tenant_id}` through v1.10 creates an empty tenant that v1.11 doesn't see), and re-publish events sent for them in that window.
+
+If your deployment runs `outpost migrate apply --yes` on startup, as in the [Schema Migration Guide](/docs/outpost/self-hosting/guides/migration#migration-workflow), the migration runs when the first v1.11 instance starts, while v1.10 is still serving: that is the rolling update. To stop v1.10 first, scale it to zero before deploying v1.11.
 
 The migration can be run again. If it stops on an error, it stays pending and the next run continues where it stopped. See the [Schema Migration Guide](/docs/outpost/self-hosting/guides/migration).
 
 ## Behavior Changes
 
 - Publish idempotency is per tenant. The same event `id` published for two tenants is delivered to both; v1.10 marked the second one as a duplicate for `PUBLISH_IDEMPOTENCY_KEY_TTL`. See [Event Structure](/docs/outpost/publishing/events#event-structure).
-- Around the upgrade, an event or attempt can be delivered one extra time: idempotency keys written by v1.10 aren't recognized by v1.11, and a retry scheduled by v1.10 isn't cancelled by a manual retry on v1.11. For IDs that contain `%`, `:`, `{` or `}`, the consecutive failure count and the exhausted-retries alert window also start over once.
-- `config` and `credentials` keys that a destination type doesn't define are ignored on create and update, and are no longer returned. Keys already stored are removed on the destination's next update.
+- Around the upgrade, an event or attempt can be delivered one extra time: one handled on v1.10 and again on v1.11 within its idempotency window isn't recognized as a duplicate, and a manual retry on v1.11 doesn't cancel a retry scheduled by v1.10. For IDs that contain `%`, `:`, `{` or `}`, the consecutive failure count and the exhausted-retries alert window also start over once.
+- `config` and `credentials` keys that a destination type doesn't define are ignored on create and update: they aren't stored or returned. Keys stored by v1.10 are still returned until the destination's next update, which removes them.
 - `aws_sqs` destinations mask `credentials.session` in API responses, as the other AWS destinations do.
 
 ## Rolling Back
 
-Rolling back to v1.10.0 doesn't require reverting the migration, with two limits:
+You can roll back to v1.10.0 without reverting the migration, which has no revert step. Two limits:
 
-- Tenants and destinations moved by `004_escape_ids` are not found by v1.10.
-- v1.10 doesn't send `credentials.custom_headers`, and returns their values unmasked in API responses.
+- If `004_escape_ids` moved keys, v1.10 doesn't find those tenants and destinations.
+- v1.10 doesn't send `credentials.custom_headers`, returns their values unmasked, and removes them when the destination is updated.
 
 ## New Configuration
 
-- `PUBLISH_AWS_SQS_ROLE_ARN`, `PUBLISH_AWS_SQS_EXTERNAL_ID`, `PUBLISH_AWS_SQS_ROLE_SESSION_NAME` and `PUBLISH_AWS_SQS_STS_REGION`: read the SQS publish queue through an assumed IAM role, for example a queue in another AWS account. See [Publish from SQS](/docs/outpost/publishing/publish-from-sqs).
+- `PUBLISH_AWS_SQS_ROLE_ARN`, `PUBLISH_AWS_SQS_EXTERNAL_ID`, `PUBLISH_AWS_SQS_ROLE_SESSION_NAME` and `PUBLISH_AWS_SQS_STS_REGION`: read the SQS publish queue through an assumed IAM role, for example a queue in another AWS account. See [Publish from SQS](/docs/outpost/publishing/publish-from-sqs#assuming-an-iam-role).
