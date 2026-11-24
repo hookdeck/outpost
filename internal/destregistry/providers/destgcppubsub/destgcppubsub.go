@@ -2,7 +2,7 @@ package destgcppubsub
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -10,6 +10,7 @@ import (
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/metadata"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/util/gcpcreds"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -82,7 +83,7 @@ func (d *GCPPubSubDestination) CreatePublisher(ctx context.Context, destination 
 			option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())),
 		)
 	} else if creds.ServiceAccountJSON != "" {
-		// Use service account credentials for production
+		// resolveMetadata has checked this is a service account key.
 		opts = append(opts, option.WithCredentialsJSON([]byte(creds.ServiceAccountJSON)))
 	}
 
@@ -121,30 +122,19 @@ func (d *GCPPubSubDestination) resolveMetadata(ctx context.Context, destination 
 
 	// Only validate JSON if we're not using an emulator endpoint and service_account_json is provided
 	if endpoint == "" && serviceAccountJSON != "" {
-		var jsonCheck map[string]interface{}
-		if err := json.Unmarshal([]byte(serviceAccountJSON), &jsonCheck); err != nil {
-			return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
-				{
-					Field: "credentials.service_account_json",
-					Type:  "format",
-				},
-			})
-		}
-		// Validate required GCP credential fields
-		if _, ok := jsonCheck["type"]; !ok {
-			return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
-				{
-					Field: "credentials.service_account_json",
-					Type:  "missing_type",
-				},
-			})
-		}
 		// This provider only supports service account keys; reject any other credential type.
-		if credType, _ := jsonCheck["type"].(string); credType != "service_account" {
+		if err := gcpcreds.CheckServiceAccount([]byte(serviceAccountJSON)); err != nil {
+			errType := "invalid_type"
+			switch {
+			case errors.Is(err, gcpcreds.ErrInvalidJSON):
+				errType = "format"
+			case errors.Is(err, gcpcreds.ErrMissingType):
+				errType = "missing_type"
+			}
 			return nil, nil, destregistry.NewErrDestinationValidation([]destregistry.ValidationErrorDetail{
 				{
 					Field: "credentials.service_account_json",
-					Type:  "invalid_type",
+					Type:  errType,
 				},
 			})
 		}

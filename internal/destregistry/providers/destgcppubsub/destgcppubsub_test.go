@@ -7,6 +7,7 @@ import (
 
 	"github.com/hookdeck/outpost/internal/destregistry"
 	"github.com/hookdeck/outpost/internal/destregistry/providers/destgcppubsub"
+	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -204,6 +205,41 @@ func TestValidate(t *testing.T) {
 			errContains: "credentials.service_account_json",
 		},
 		{
+			name: "type key in different case overrides service_account",
+			config: map[string]string{
+				"project_id": "my-project",
+				"topic":      "my-topic",
+			},
+			credentials: map[string]string{
+				"service_account_json": `{"type":"service_account","Type":"authorized_user"}`,
+			},
+			wantErr:     true,
+			errContains: "credentials.service_account_json",
+		},
+		{
+			name: "type key matched case-insensitively",
+			config: map[string]string{
+				"project_id": "my-project",
+				"topic":      "my-topic",
+			},
+			credentials: map[string]string{
+				"service_account_json": `{"TYPE":"service_account"}`,
+			},
+			wantErr: false,
+		},
+		{
+			name: "non-string type",
+			config: map[string]string{
+				"project_id": "my-project",
+				"topic":      "my-topic",
+			},
+			credentials: map[string]string{
+				"service_account_json": `{"type":1}`,
+			},
+			wantErr:     true,
+			errContains: "credentials.service_account_json",
+		},
+		{
 			name: "missing type field - but passes with emulator endpoint",
 			config: map[string]string{
 				"project_id": "my-project",
@@ -281,4 +317,36 @@ func TestValidate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCreatePublisher_CredentialType(t *testing.T) {
+	provider, err := destgcppubsub.New(testutil.Registry.MetadataLoader(), nil)
+	require.NoError(t, err)
+
+	newDestination := func(serviceAccountJSON string) models.Destination {
+		return testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithType("gcp_pubsub"),
+			testutil.DestinationFactory.WithConfig(map[string]string{
+				"project_id": "test-project",
+				"topic":      "my-topic",
+			}),
+			testutil.DestinationFactory.WithCredentials(map[string]string{
+				"service_account_json": serviceAccountJSON,
+			}),
+		)
+	}
+
+	t.Run("service account key", func(t *testing.T) {
+		destination := newDestination(testutil.GCPServiceAccountKeyJSON(t))
+		publisher, err := provider.CreatePublisher(context.Background(), &destination)
+		require.NoError(t, err)
+		require.NoError(t, publisher.Close())
+	})
+
+	t.Run("type key in different case overrides service_account", func(t *testing.T) {
+		destination := newDestination(`{"type":"service_account","Type":"authorized_user","client_id":"id","client_secret":"secret","refresh_token":"token"}`)
+		publisher, err := provider.CreatePublisher(context.Background(), &destination)
+		require.Error(t, err)
+		assert.Nil(t, publisher)
+	})
 }
