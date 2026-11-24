@@ -81,7 +81,7 @@ One row per delivery attempt. Event fields are copied onto every attempt.
 | Column | Type | Description |
 |--------|------|-------------|
 | `id` | `text` | Attempt ID. |
-| `event_id` | `text` | Event this attempt delivered. References `events.id`. |
+| `event_id` | `text` | Event this attempt delivered: the event with this ID in the attempt's tenant. |
 | `tenant_id` | `text` | Tenant ID, copied from the event. |
 | `destination_id` | `text` | Destination the attempt was made against. |
 | `destination_type` | `text` | Destination type, such as `webhook` or `aws_sqs`. |
@@ -210,7 +210,7 @@ Scheduled retries are stored in an [RSMQ](https://github.com/smrchy/rsmq) queue 
 | `rsmq:deliverymq-retry-dlq` | Sorted set | Retries that failed to be processed after 5 receives. |
 | `rsmq:deliverymq-retry-dlq:Q` | Hash | Bodies for dead-lettered retries. |
 
-Each retry's ID is derived from its event ID and destination ID, so there is at most one pending retry per event and destination. Scheduling a new retry, or making a manual retry, replaces or cancels the pending one.
+Each retry's ID is derived from its tenant ID, event ID, and destination ID, so there is at most one pending retry per tenant, event, and destination. Scheduling a new retry, or making a manual retry, replaces or cancels the pending one.
 
 A retry body holds only the event ID, tenant ID, and destination ID. When the retry is due, Outpost loads the event and the previous attempt number from the log store's `attempts` table, then publishes a new delivery task. Dead-lettered retries aren't redriven automatically.
 
@@ -220,8 +220,8 @@ These keys are short-lived and self-expiring, and safe to lose. Losing an idempo
 
 | Key | Type | TTL | Purpose |
 |-----|------|-----|---------|
-| `idempotency:publishmq:<event_id>` | String | `PUBLISH_IDEMPOTENCY_KEY_TTL` (default 1 hour) | Deduplicates published events. Holds `processing` during work, then `processed`. |
-| `idempotency:deliverymq:<event_id>:<destination_id>:<attempt>` | String | `DELIVERY_IDEMPOTENCY_KEY_TTL` (default 1 hour) | Deduplicates delivery tasks, so each attempt is made once. |
+| `idempotency:publishmq:<tenant_id>:<event_id>` | String | `PUBLISH_IDEMPOTENCY_KEY_TTL` (default 1 hour) | Deduplicates published events per tenant. Holds `processing` during work, then `processed`. |
+| `idempotency:deliverymq:<tenant_id>:<event_id>:<destination_id>:<attempt>` | String | `DELIVERY_IDEMPOTENCY_KEY_TTL` (default 1 hour) | Deduplicates delivery tasks, so each attempt is made once. |
 | `publishmq:failures:<message_id>` | String (counter) | 24 hours | Counts failed receives of a message from the publish queue. |
 | `alert:<tenant_id>:<destination_id>:cf` | Set | 24 hours | IDs of consecutive failed attempts for a destination, plus two markers (`~max`, `~max:<attempt_id>`) recording which attempt sent the 100% alert. Its size, minus the markers, is the consecutive failure count; a successful attempt deletes it. |
 | `logmq:processed:<attempt_id>` | String | 24 hours | Marks a failed attempt as processed for alerting, so a redelivered log message isn't counted twice. |
@@ -241,8 +241,8 @@ These keys are short-lived and self-expiring, and safe to lose. Losing an idempo
 
 Following one event through the system shows how the stores relate:
 
-1. **Publish.** The API service, or the publish queue consumer, claims `idempotency:publishmq:<event_id>`. It reads `tenant:{<tenant_id>}:destinations` to find the destinations that match the event's topic and filters, then enqueues one delivery task per destination on the delivery queue.
-2. **Deliver.** The delivery service claims `idempotency:deliverymq:<event_id>:<destination_id>:<attempt>` and reads `tenant:{<tenant_id>}:destination:<destination_id>` for the destination's config and decrypted credentials. It makes the attempt and sends the result to the log queue. On a retryable failure, it also schedules a retry in `rsmq:deliverymq-retry`.
+1. **Publish.** The API service, or the publish queue consumer, claims `idempotency:publishmq:<tenant_id>:<event_id>`. It reads `tenant:{<tenant_id>}:destinations` to find the destinations that match the event's topic and filters, then enqueues one delivery task per destination on the delivery queue.
+2. **Deliver.** The delivery service claims `idempotency:deliverymq:<tenant_id>:<event_id>:<destination_id>:<attempt>` and reads `tenant:{<tenant_id>}:destination:<destination_id>` for the destination's config and decrypted credentials. It makes the attempt and sends the result to the log queue. On a retryable failure, it also schedules a retry in `rsmq:deliverymq-retry`.
 3. **Log.** The log service writes the event to `events`, if it isn't there yet, and the attempt to `attempts`, in batches. For failed attempts, it updates `alert:<tenant_id>:<destination_id>:cf` and may emit operator events or disable the destination. A successful attempt resets the count.
 4. **Retry.** When a retry is due, the API service, which runs the retry scheduler, reads the event and the latest attempt from `attempts`, then enqueues a new delivery task with the next attempt number, which returns to step 2.
 

@@ -772,13 +772,13 @@ func (s *logStore) InsertMany(ctx context.Context, entries []*models.LogEntry) e
 	// appears twice in one statement (SQLSTATE 21000).
 	entries = driver.DedupeEntriesByAttemptID(entries)
 
-	// Extract and dedupe events by ID, skipping retry attempts.
+	// Extract and dedupe events by tenant and ID, skipping retry attempts.
 	// Retries (AttemptNumber > 1) carry identical event data — the event row
 	// already exists from the first attempt's batch.
-	eventMap := make(map[string]*models.Event)
+	eventMap := make(map[[2]string]*models.Event)
 	for _, entry := range entries {
 		if entry.Attempt.AttemptNumber <= 1 {
-			eventMap[entry.Event.ID] = entry.Event
+			eventMap[[2]string{entry.Event.TenantID, entry.Event.ID}] = entry.Event
 		}
 	}
 	events := make([]*models.Event, 0, len(eventMap))

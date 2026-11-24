@@ -98,13 +98,29 @@ func TestDeliveryTask_MessageID_NewPerDeliveryAndManualRetry(t *testing.T) {
 func TestDeliveryKeys_IDsWithColons(t *testing.T) {
 	t.Parallel()
 
-	a := models.DeliveryTask{Event: models.Event{ID: "evt:1"}, DestinationID: "dest", Attempt: 1}
-	b := models.DeliveryTask{Event: models.Event{ID: "evt"}, DestinationID: "1:dest", Attempt: 1}
+	a := models.DeliveryTask{Event: models.Event{TenantID: "tnt", ID: "evt:1"}, DestinationID: "dest", Attempt: 1}
+	b := models.DeliveryTask{Event: models.Event{TenantID: "tnt", ID: "evt"}, DestinationID: "1:dest", Attempt: 1}
 
 	assert.NotEqual(t, a.IdempotencyKey(), b.IdempotencyKey())
-	assert.NotEqual(t, models.RetryID("evt:1", "dest"), models.RetryID("evt", "1:dest"))
+	assert.NotEqual(t, models.RetryID("tnt", "evt:1", "dest"), models.RetryID("tnt", "evt", "1:dest"))
 
-	plain := models.DeliveryTask{Event: models.Event{ID: "evt_1"}, DestinationID: "des_1", Attempt: 2}
-	assert.Equal(t, "evt_1:des_1:2", plain.IdempotencyKey(), "IDs without special characters keep their key")
-	assert.Equal(t, "evt_1:des_1", models.RetryID("evt_1", "des_1"))
+	plain := models.DeliveryTask{Event: models.Event{TenantID: "tnt_1", ID: "evt_1"}, DestinationID: "des_1", Attempt: 2}
+	assert.Equal(t, "tnt_1:evt_1:des_1:2", plain.IdempotencyKey(), "IDs without special characters keep their key")
+	assert.Equal(t, "tnt_1:evt_1:des_1", models.RetryID("tnt_1", "evt_1", "des_1"))
+}
+
+func TestDeliveryKeys_ScopedByTenant(t *testing.T) {
+	t.Parallel()
+
+	task := func(tenantID string) models.DeliveryTask {
+		return models.DeliveryTask{Event: models.Event{TenantID: tenantID, ID: "evt"}, DestinationID: "des", Attempt: 1}
+	}
+	t1, t2 := task("t1"), task("t2")
+	assert.NotEqual(t, t1.IdempotencyKey(), t2.IdempotencyKey())
+	assert.NotEqual(t, models.RetryID("t1", "evt", "des"), models.RetryID("t2", "evt", "des"))
+
+	assert.NotEqual(t, models.RetryID("t:1", "evt", "d"), models.RetryID("t", "1:evt", "d"))
+	x := models.DeliveryTask{Event: models.Event{TenantID: "t:1", ID: "evt"}, DestinationID: "d", Attempt: 1}
+	y := models.DeliveryTask{Event: models.Event{TenantID: "t", ID: "1:evt"}, DestinationID: "d", Attempt: 1}
+	assert.NotEqual(t, x.IdempotencyKey(), y.IdempotencyKey())
 }

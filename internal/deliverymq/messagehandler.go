@@ -276,7 +276,7 @@ func (h *messageHandler) doHandle(ctx context.Context, task models.DeliveryTask,
 		}
 
 		if h.shouldScheduleRetry(task, maxRetries, pubErr) {
-			// scheduleRetry uses RetryID (event_id:destination_id) as the scheduler
+			// scheduleRetry uses RetryID (tenant_id:event_id:destination_id) as the scheduler
 			// task ID. The scheduler has upsert semantics: scheduling with the same ID
 			// atomically replaces the existing entry (both timing and payload). This
 			// means manual retries automatically override any pending automatic retry
@@ -293,7 +293,7 @@ func (h *messageHandler) doHandle(ctx context.Context, task models.DeliveryTask,
 			// Budget exhausted, not eligible or non-retryable — cancel any lingering scheduled retry.
 			// Unlike the case above, there's no new retry to schedule so we must
 			// explicitly cancel to prevent a stale automatic retry from firing.
-			if cancelErr := h.retryScheduler.Cancel(ctx, models.RetryID(task.Event.ID, task.DestinationID)); cancelErr == nil {
+			if cancelErr := h.retryScheduler.Cancel(ctx, models.RetryID(task.Event.TenantID, task.Event.ID, task.DestinationID)); cancelErr == nil {
 				retry.canceled = true
 			} else {
 				retry.cancelFailed = true
@@ -309,7 +309,7 @@ func (h *messageHandler) doHandle(ctx context.Context, task models.DeliveryTask,
 
 	// Handle successful delivery
 	if task.Manual {
-		if cancelErr := h.retryScheduler.Cancel(ctx, models.RetryID(task.Event.ID, task.DestinationID)); cancelErr != nil {
+		if cancelErr := h.retryScheduler.Cancel(ctx, models.RetryID(task.Event.TenantID, task.Event.ID, task.DestinationID)); cancelErr != nil {
 			retry.cancelFailed = true
 			h.logger.Ctx(ctx).Error("failed to cancel scheduled retry",
 				zap.Error(cancelErr),
@@ -318,7 +318,7 @@ func (h *messageHandler) doHandle(ctx context.Context, task models.DeliveryTask,
 				zap.String("tenant_id", task.Event.TenantID),
 				zap.String("destination_id", destination.ID),
 				zap.String("destination_type", destination.Type),
-				zap.String("retry_id", models.RetryID(task.Event.ID, task.DestinationID)))
+				zap.String("retry_id", models.RetryID(task.Event.TenantID, task.Event.ID, task.DestinationID)))
 			return h.logDeliveryResult(ctx, &task, destination, attempt, attemptStart, attemptDuration, retry, cancelErr)
 		}
 		retry.canceled = true
@@ -348,7 +348,7 @@ func (h *messageHandler) logDeliveryResult(ctx context.Context, task *models.Del
 		zap.Bool("eligible_for_retry", task.Event.EligibleForRetry),
 		zap.Time("attempt_started_at", attemptStart),
 		zap.Int64("attempt_duration_ms", attemptDuration.Milliseconds()),
-		zap.String("retry_id", models.RetryID(task.Event.ID, task.DestinationID)),
+		zap.String("retry_id", models.RetryID(task.Event.TenantID, task.Event.ID, task.DestinationID)),
 		zap.Bool("retry_scheduled", retry.scheduled),
 		zap.Bool("retry_canceled", retry.canceled),
 	}
@@ -473,7 +473,7 @@ func (h *messageHandler) scheduleRetry(ctx context.Context, task models.Delivery
 		return backoffDuration, err
 	}
 
-	if err := h.retryScheduler.Schedule(ctx, retryTaskStr, backoffDuration, scheduler.WithTaskID(models.RetryID(task.Event.ID, task.DestinationID))); err != nil {
+	if err := h.retryScheduler.Schedule(ctx, retryTaskStr, backoffDuration, scheduler.WithTaskID(models.RetryID(task.Event.TenantID, task.Event.ID, task.DestinationID))); err != nil {
 		h.logger.Ctx(ctx).Error("failed to schedule retry",
 			zap.Error(err),
 			zap.String("event_id", task.Event.ID),

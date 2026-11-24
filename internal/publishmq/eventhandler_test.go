@@ -10,6 +10,7 @@ import (
 	"github.com/hookdeck/outpost/internal/idempotence"
 	"github.com/hookdeck/outpost/internal/idgen"
 	"github.com/hookdeck/outpost/internal/models"
+	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/publishmq"
 	"github.com/hookdeck/outpost/internal/tenantstore"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
@@ -696,5 +697,96 @@ func TestEventHandler_Filter(t *testing.T) {
 		require.NoError(t, task.FromMessage(msg))
 		require.Equal(t, dest.ID, task.DestinationID)
 		msg.Ack()
+	})
+}
+
+func TestEventHandler_SameEventIDAcrossTenants(t *testing.T) {
+	ctx := t.Context()
+	store := tenantstore.NewMemTenantStore()
+	for _, tenantID := range []string{"t1", "t2", "a:b", "a"} {
+		require.NoError(t, store.UpsertTenant(ctx, testutil.TenantFactory.Any(testutil.TenantFactory.WithID(tenantID))))
+		require.NoError(t, store.UpsertDestination(ctx, testutil.DestinationFactory.Any(
+			testutil.DestinationFactory.WithID("des_shared"),
+			testutil.DestinationFactory.WithTenantID(tenantID),
+			testutil.DestinationFactory.WithTopics([]string{"*"}),
+		)))
+	}
+
+	deliveryMQ := deliverymq.New(deliverymq.WithQueue(&mqs.QueueConfig{InMemory: &mqs.InMemoryConfig{Name: testutil.RandomString(16)}}))
+	cleanup, err := deliveryMQ.Init(ctx)
+	require.NoError(t, err)
+	defer cleanup()
+	sub, err := deliveryMQ.Subscribe(ctx)
+	require.NoError(t, err)
+
+	handler := publishmq.NewEventHandler(
+		testutil.CreateTestLogger(t),
+		deliveryMQ,
+		store,
+		testutil.NewMockEventTracer(tracetest.NewInMemoryExporter()),
+		testutil.TestTopics,
+		true,
+		idempotence.New(testutil.CreateTestRedisClient(t), idempotence.WithSuccessfulTTL(24*time.Hour)),
+	)
+
+	publish := func(t *testing.T, tenantID, eventID string) *publishmq.HandleResult {
+		t.Helper()
+		result, err := handler.Handle(ctx, testutil.EventFactory.AnyPointer(
+			testutil.EventFactory.WithID(eventID),
+			testutil.EventFactory.WithTenantID(tenantID),
+			testutil.EventFactory.WithTopic("user.created"),
+		))
+		require.NoError(t, err)
+		return result
+	}
+
+	// received drains n tasks from the delivery queue and returns their tenant IDs.
+	received := func(t *testing.T, n int) []string {
+		t.Helper()
+		var tenants []string
+		for i := 0; i < n; i++ {
+			rctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+			msg, err := sub.Receive(rctx)
+			cancel()
+			require.NoError(t, err)
+			var task models.DeliveryTask
+			require.NoError(t, task.FromMessage(msg))
+			require.Equal(t, "des_shared", task.DestinationID)
+			tenants = append(tenants, task.Event.TenantID)
+			msg.Ack()
+		}
+		return tenants
+	}
+	requireNoMoreTasks := func(t *testing.T) {
+		t.Helper()
+		rctx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
+		defer cancel()
+		msg, err := sub.Receive(rctx)
+		require.Error(t, err)
+		require.Nil(t, msg)
+	}
+
+	t.Run("same ID for two tenants is published for both", func(t *testing.T) {
+		r1 := publish(t, "t1", "evt_shared")
+		r2 := publish(t, "t2", "evt_shared")
+		require.False(t, r1.Duplicate)
+		require.False(t, r2.Duplicate)
+		require.Equal(t, []string{"des_shared"}, r1.DestinationIDs)
+		require.Equal(t, []string{"des_shared"}, r2.DestinationIDs)
+		require.ElementsMatch(t, []string{"t1", "t2"}, received(t, 2))
+	})
+
+	t.Run("same ID twice for one tenant is a duplicate", func(t *testing.T) {
+		r := publish(t, "t1", "evt_shared")
+		require.True(t, r.Duplicate)
+		requireNoMoreTasks(t)
+	})
+
+	t.Run("tenant and event IDs containing colons do not collide", func(t *testing.T) {
+		r1 := publish(t, "a:b", "c")
+		r2 := publish(t, "a", "b:c")
+		require.False(t, r1.Duplicate)
+		require.False(t, r2.Duplicate)
+		require.ElementsMatch(t, []string{"a:b", "a"}, received(t, 2))
 	})
 }

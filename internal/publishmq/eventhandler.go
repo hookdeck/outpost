@@ -247,5 +247,5 @@ func (h *eventHandler) enqueueDeliveryTask(ctx context.Context, task models.Deli
 }
 
 func idempotencyKeyFromEvent(event *models.Event) string {
-	return "idempotency:publishmq:" + rediskey.Escape(event.ID)
+	return "idempotency:publishmq:" + rediskey.IDs(event.TenantID, event.ID)
 }
