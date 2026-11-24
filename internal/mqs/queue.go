@@ -19,7 +19,10 @@ type QueueConfig struct {
 	GCPPubSub       *GCPPubSubConfig
 	RabbitMQ        *RabbitMQConfig
 	NATS            *NATSConfig
-	InMemory        *InMemoryConfig // mainly for testing purposes
+	// NATSPublish is the NATS JetStream publish source (publishmq only):
+	// per-account consumers, distinct from the internal-MQ NATS above.
+	NATSPublish *NATSPublishConfig
+	InMemory    *InMemoryConfig // mainly for testing purposes
 
 	VisibilityTimeout time.Duration
 }
@@ -150,6 +153,8 @@ func NewQueue(config *QueueConfig) Queue {
 		return NewRabbitMQQueue(config.RabbitMQ)
 	} else if config.NATS != nil {
 		return NewNATSQueue(config.NATS)
+	} else if config.NATSPublish != nil {
+		return NewNATSPublishQueue(config.NATSPublish)
 	} else {
 		return NewInMemoryQueue(config.InMemory)
 	}

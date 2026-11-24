@@ -23,6 +23,8 @@ func handlePublish(w http.ResponseWriter, r *http.Request) {
 		err = publishGCP(body)
 	case "rabbitmq":
 		err = publishRabbitMQ(body)
+	case "nats":
+		err = publishNATS(body)
 	case "http":
 		fallthrough
 	default:

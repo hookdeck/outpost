@@ -30,6 +30,7 @@ This document will focus on the first two types of integrations. The third type,
 publishmq only:
 
 - [ ] Kafka
+- [x] NATS JetStream
 
 The local dev stack (`make up`) runs Outpost on NATS JetStream by default; [Getting Started](getting-started.md#choosing-the-internal-message-queue) shows how to switch to another queue. Tests of the other internal queues run with `TESTCOMPAT=1` ([Test](test.md#test-groups)).
 
@@ -146,3 +147,29 @@ JetStream's equivalent is `AckWait` — the time a delivered-but-unacked message
 **Retry Behavior**:
 
 **When a message is nacked, it's redelivered immediately** — `Nak()` carries no delay, unlike a message that simply times out waiting for `AckWait`. Unlike RabbitMQ/SQS, JetStream has no broker-native DLQ — once a message's delivery count reaches the configured retry limit, Outpost explicitly republishes it to the DLQ subject and terminates the original.
+
+### NATS JetStream as a publish source (publishmq)
+
+**Scope**: NATS JetStream is supported as a publish-mq only. Outpost reads events from one or more pre-provisioned JetStream consumers. This is separate from the internal-MQ NATS provider above: different config (`publishmq.nats`), different code path (`NATSPublishQueue`).
+
+**Configuration** (per account):
+
+- Servers (required, NATS cluster URLs)
+- Credentials file (optional, NATS `.creds` JWT + NKey seed)
+- Stream name (required)
+- Durable consumer name (required)
+- Tenant ID (optional; when set, Outpost stamps it on every event from this account)
+
+**Multi-Tenancy**: the driver supports multiple NATS Accounts on one queue instance. Each account is dialled on its own connection with its own credentials, and the recommended pattern is one Account per Outpost tenant. Accounts can be provided either as a static list or via a watched directory (see `docs/content/publishing/publish-from-nats.mdoc`).
+
+**Infrastructure**:
+
+Outpost does **not** create the JetStream stream or consumer. The operator is expected to provision them — typically alongside the NATS Account itself — and to provide them to Outpost via the credentials file plus `meta.yaml`. Outpost verifies that both stream and consumer exist on startup and fails loudly if either is missing.
+
+**Visibility Timeout**:
+
+NATS JetStream's equivalent is the consumer's `AckWait`. Configure it on the consumer; Outpost does not override it.
+
+**Retry Behavior**:
+
+When a message is nacked or AckWait elapses without ack, JetStream redelivers up to the consumer's `MaxDeliver`. DLQ semantics are operator-owned; the JetStream consumer can be configured to republish max-delivery-exceeded messages to a dedicated DLQ stream via the consumer's `republish` policy or by observing `$JS.EVENT.ADVISORY.CONSUMER.MAX_DELIVERIES.>` advisories.

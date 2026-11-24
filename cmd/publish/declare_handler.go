@@ -16,6 +16,8 @@ func handleDeclare(w http.ResponseWriter, r *http.Request) {
 		err = declareGCP()
 	case "rabbitmq":
 		err = declareRabbitMQ()
+	case "nats":
+		err = declareNATS()
 	case "http":
 		log.Println("[*] Declare HTTP - nothing to declare")
 	default:
