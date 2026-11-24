@@ -156,3 +156,34 @@ func TestAWSQueue_InitSDK_AssumeRoleDenied(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "AccessDenied")
 }
+
+func TestAWSQueue_InitSDK_STSRegion(t *testing.T) {
+	tests := []struct {
+		name       string
+		stsRegion  string
+		wantSTSSig string
+	}{
+		{name: "unset: STS in the queue's Region", stsRegion: "", wantSTSSig: "/ap-east-1/sts/"},
+		{name: "set: STS in that Region", stsRegion: "us-east-1", wantSTSSig: "/us-east-1/sts/"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fake, endpoint := newFakeAWS(t)
+
+			queue := mqs.NewAWSQueue(&mqs.AWSSQSConfig{
+				Endpoint:                  endpoint,
+				Region:                    "ap-east-1",
+				ServiceAccountCredentials: "AKIABASE:base-secret:",
+				Topic:                     "publish",
+				RoleARN:                   "arn:aws:iam::123456789012:role/queue-reader",
+				STSRegion:                 tt.stsRegion,
+			})
+			require.NoError(t, queue.InitSDK(t.Context()))
+
+			fake.mu.Lock()
+			defer fake.mu.Unlock()
+			assert.Contains(t, fake.stsAuth, tt.wantSTSSig)
+			assert.Contains(t, fake.sqsAuth, "/ap-east-1/sqs/", "the queue is always reached in its own Region")
+		})
+	}
+}

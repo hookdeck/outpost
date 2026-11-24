@@ -70,6 +70,7 @@ publishmq:
     role_arn: <ROLE_ARN>
     external_id: <EXTERNAL_ID>
     role_session_name: <SESSION_NAME>
+    sts_region: <AWS_REGION>
 ```
 
 #### Example
@@ -134,6 +135,8 @@ Outpost can read the queue through an IAM role. It assumes the role with the acc
    ```
 
 The session is named `outpost` in the role account's CloudTrail logs; set `PUBLISH_AWS_SQS_ROLE_SESSION_NAME` to change it.
+
+Outpost calls STS in the queue's Region. If that Region isn't enabled for the identity Outpost runs as, such as an [opt-in Region](https://docs.aws.amazon.com/accounts/latest/reference/manage-acct-regions.html) enabled only in the queue's account, set `PUBLISH_AWS_SQS_STS_REGION` to a Region it can use, such as `us-east-1`.
 
 ### Required Permissions
 

@@ -15,6 +15,7 @@ func TestPublishMQConfig_AWSSQSRoleFromEnv(t *testing.T) {
 		"PUBLISH_AWS_SQS_ROLE_ARN":          "arn:aws:iam::123456789012:role/queue-reader",
 		"PUBLISH_AWS_SQS_EXTERNAL_ID":       "ext-123",
 		"PUBLISH_AWS_SQS_ROLE_SESSION_NAME": "reader",
+		"PUBLISH_AWS_SQS_STS_REGION":        "eu-central-1",
 	}})
 	require.NoError(t, err)
 
@@ -24,4 +25,5 @@ func TestPublishMQConfig_AWSSQSRoleFromEnv(t *testing.T) {
 	assert.Equal(t, "arn:aws:iam::123456789012:role/queue-reader", queue.AWSSQS.RoleARN)
 	assert.Equal(t, "ext-123", queue.AWSSQS.ExternalID)
 	assert.Equal(t, "reader", queue.AWSSQS.RoleSessionName)
+	assert.Equal(t, "eu-central-1", queue.AWSSQS.STSRegion)
 }

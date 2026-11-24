@@ -89,6 +89,11 @@ func TestPublishMQConfig_Validate(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name:    "aws sqs sts region without role",
+			cfg:     config.PublishMQConfig{AWSSQS: config.PublishAWSSQSConfig{Region: "ap-east-1", STSRegion: "us-east-1"}},
+			wantErr: true,
+		},
+		{
 			name: "no publish provider configured",
 			cfg:  config.PublishMQConfig{},
 		},
