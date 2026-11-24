@@ -8,7 +8,7 @@ import (
 )
 
 type PublishRequest struct {
-	// Optional. A unique identifier for the event. If not provided, a ID will be generated.
+	// Optional. An identifier for the event, unique within its tenant. If not provided, an ID is generated. An event published again with the same `id` for the same tenant within the idempotency window (`PUBLISH_IDEMPOTENCY_KEY_TTL`, 1 hour by default) is not queued again. Different tenants can use the same `id`.
 	ID *string `json:"id,omitempty"`
 	// The ID of the tenant to publish for.
 	TenantID *string `json:"tenant_id,omitempty"`

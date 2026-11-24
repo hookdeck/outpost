@@ -75,7 +75,7 @@ type KafkaConfigUpdate struct {
 	SaslMechanism *KafkaConfigUpdateSaslMechanism `json:"sasl_mechanism,omitempty"`
 	// Whether to enable TLS for the connection.
 	TLS *KafkaConfigUpdateTLS `json:"tls,omitempty"`
-	// Optional JMESPath template to extract the partition key from the event payload.
+	// Optional JMESPath template to extract the partition key from the event payload. Templates may use field paths, string literals, `join`, `to_string`, `not_null` and `||`.
 	PartitionKeyTemplate *string `json:"partition_key_template,omitempty"`
 }
 

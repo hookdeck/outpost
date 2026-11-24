@@ -16,7 +16,7 @@ var _ error = &UnauthorizedError{}
 
 func (e *UnauthorizedError) Error() string {
 	if e != nil {
-		if e.Message != nil {
+		if e.Message != nil && *e.Message != "" {
 			return *e.Message
 		}
 	}
