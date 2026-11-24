@@ -25,6 +25,8 @@ class WebhookCredentialsUpdateTypedDict(TypedDict):
     r"""Invalidation time for previous secret (only allowed for admin)."""
     rotate_secret: NotRequired[bool]
     r"""Set to true to rotate the secret. The current secret becomes the previous_secret, and a new secret is generated. `previous_secret_invalid_at` defaults to 24h if not provided."""
+    custom_headers: NotRequired[str]
+    r"""JSON string of HTTP headers with secret values, merged header by header like `config.custom_headers`. A header not sent keeps its saved value, a header sent with a value gets that value, and a header sent as null is removed. Set the field to null to remove all."""
 
 
 class WebhookCredentialsUpdate(BaseModel):
@@ -42,13 +44,22 @@ class WebhookCredentialsUpdate(BaseModel):
     rotate_secret: Optional[bool] = None
     r"""Set to true to rotate the secret. The current secret becomes the previous_secret, and a new secret is generated. `previous_secret_invalid_at` defaults to 24h if not provided."""
 
+    custom_headers: Optional[str] = None
+    r"""JSON string of HTTP headers with secret values, merged header by header like `config.custom_headers`. A header not sent keeps its saved value, a header sent with a value gets that value, and a header sent as null is removed. Set the field to null to remove all."""
+
     @model_serializer(mode="wrap")
     def _serialize_model_with_info(self, handler, info):
         return serialize_with_info(self.serialize_model, handler, info)
 
     def serialize_model(self, handler):
         optional_fields = set(
-            ["secret", "previous_secret", "previous_secret_invalid_at", "rotate_secret"]
+            [
+                "secret",
+                "previous_secret",
+                "previous_secret_invalid_at",
+                "rotate_secret",
+                "custom_headers",
+            ]
         )
         exclude_none = current_exclude_none()
         skip_filtered = exclude_none is False or current_filtered_dump()

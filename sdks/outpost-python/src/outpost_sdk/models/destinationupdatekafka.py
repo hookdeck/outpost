@@ -39,6 +39,7 @@ class DestinationUpdateKafkaTypedDict(TypedDict):
     filter_: NotRequired[Nullable[Dict[str, Any]]]
     r"""Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
     Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
+    A filter can be nested up to 16 levels deep. The filter object is level 1, and each nested object or array adds one.
     If null or empty, all events matching the topic filter will be delivered.
     Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
 
@@ -67,6 +68,7 @@ class DestinationUpdateKafka(BaseModel):
     ] = UNSET
     r"""Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
     Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
+    A filter can be nested up to 16 levels deep. The filter object is level 1, and each nested object or array adds one.
     If null or empty, all events matching the topic filter will be delivered.
     Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
 

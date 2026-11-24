@@ -73,6 +73,8 @@ class ManagedConfigTypedDict(TypedDict):
     r"""Complete name of the timestamp header. Unset uses the default \"<prefix>timestamp\"; an explicit value pins that exact name; an empty string disables the header. Only applies to \"default\" mode."""
     destinations_webhook_topic_header_name: NotRequired[Nullable[str]]
     r"""Complete name of the topic header. Unset uses the default \"<prefix>topic\"; an explicit value pins that exact name; an empty string disables the header. Only applies to \"default\" mode."""
+    experimental_mcp_enabled: NotRequired[Nullable[str]]
+    experimental_mcp_events_schema: NotRequired[Nullable[str]]
     http_user_agent: NotRequired[Nullable[str]]
     idgen_attempt_prefix: NotRequired[Nullable[str]]
     idgen_destination_prefix: NotRequired[Nullable[str]]
@@ -104,6 +106,7 @@ class ManagedConfigTypedDict(TypedDict):
     publish_aws_sqs_endpoint: NotRequired[Nullable[str]]
     publish_aws_sqs_queue: NotRequired[Nullable[str]]
     publish_aws_sqs_region: NotRequired[Nullable[str]]
+    publish_aws_sqs_role_arn: NotRequired[Nullable[str]]
     publish_aws_sqs_secret_access_key: NotRequired[Nullable[str]]
     publish_azure_servicebus_connection_string: NotRequired[Nullable[str]]
     publish_azure_servicebus_subscription: NotRequired[Nullable[str]]
@@ -294,6 +297,14 @@ class ManagedConfig(BaseModel):
     ] = UNSET
     r"""Complete name of the topic header. Unset uses the default \"<prefix>topic\"; an explicit value pins that exact name; an empty string disables the header. Only applies to \"default\" mode."""
 
+    experimental_mcp_enabled: Annotated[
+        OptionalNullable[str], pydantic.Field(alias="EXPERIMENTAL_MCP_ENABLED")
+    ] = UNSET
+
+    experimental_mcp_events_schema: Annotated[
+        OptionalNullable[str], pydantic.Field(alias="EXPERIMENTAL_MCP_EVENTS_SCHEMA")
+    ] = UNSET
+
     http_user_agent: Annotated[
         OptionalNullable[str], pydantic.Field(alias="HTTP_USER_AGENT")
     ] = UNSET
@@ -421,6 +432,10 @@ class ManagedConfig(BaseModel):
         OptionalNullable[str], pydantic.Field(alias="PUBLISH_AWS_SQS_REGION")
     ] = UNSET
 
+    publish_aws_sqs_role_arn: Annotated[
+        OptionalNullable[str], pydantic.Field(alias="PUBLISH_AWS_SQS_ROLE_ARN")
+    ] = UNSET
+
     publish_aws_sqs_secret_access_key: Annotated[
         OptionalNullable[str], pydantic.Field(alias="PUBLISH_AWS_SQS_SECRET_ACCESS_KEY")
     ] = UNSET
@@ -511,6 +526,8 @@ class ManagedConfig(BaseModel):
                 "DESTINATIONS_WEBHOOK_TIMESTAMP_FORMAT",
                 "DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME",
                 "DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME",
+                "EXPERIMENTAL_MCP_ENABLED",
+                "EXPERIMENTAL_MCP_EVENTS_SCHEMA",
                 "HTTP_USER_AGENT",
                 "IDGEN_ATTEMPT_PREFIX",
                 "IDGEN_DESTINATION_PREFIX",
@@ -542,6 +559,7 @@ class ManagedConfig(BaseModel):
                 "PUBLISH_AWS_SQS_ENDPOINT",
                 "PUBLISH_AWS_SQS_QUEUE",
                 "PUBLISH_AWS_SQS_REGION",
+                "PUBLISH_AWS_SQS_ROLE_ARN",
                 "PUBLISH_AWS_SQS_SECRET_ACCESS_KEY",
                 "PUBLISH_AZURE_SERVICEBUS_CONNECTION_STRING",
                 "PUBLISH_AZURE_SERVICEBUS_SUBSCRIPTION",
@@ -589,6 +607,8 @@ class ManagedConfig(BaseModel):
                 "DESTINATIONS_WEBHOOK_TIMESTAMP_FORMAT",
                 "DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME",
                 "DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME",
+                "EXPERIMENTAL_MCP_ENABLED",
+                "EXPERIMENTAL_MCP_EVENTS_SCHEMA",
                 "HTTP_USER_AGENT",
                 "IDGEN_ATTEMPT_PREFIX",
                 "IDGEN_DESTINATION_PREFIX",
@@ -620,6 +640,7 @@ class ManagedConfig(BaseModel):
                 "PUBLISH_AWS_SQS_ENDPOINT",
                 "PUBLISH_AWS_SQS_QUEUE",
                 "PUBLISH_AWS_SQS_REGION",
+                "PUBLISH_AWS_SQS_ROLE_ARN",
                 "PUBLISH_AWS_SQS_SECRET_ACCESS_KEY",
                 "PUBLISH_AZURE_SERVICEBUS_CONNECTION_STRING",
                 "PUBLISH_AZURE_SERVICEBUS_SUBSCRIPTION",

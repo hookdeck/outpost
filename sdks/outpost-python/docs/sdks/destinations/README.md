@@ -68,7 +68,7 @@ with Outpost(
 
 ## create
 
-Creates a new destination for the tenant. The request body structure depends on the `type`.
+Creates a new destination for the tenant. The request body structure depends on the `type`. Keys in `config` and `credentials` that the destination type does not define are ignored and not stored.
 
 ### Example Usage: WebhookCreateExample
 
@@ -196,7 +196,7 @@ with Outpost(
 
 ## update
 
-Updates the configuration of an existing destination. The request body structure depends on the destination's `type`. Type itself cannot be updated. May return an OAuth redirect URL for certain types.
+Updates the configuration of an existing destination. The request body structure depends on the destination's `type`. Type itself cannot be updated. May return an OAuth redirect URL for certain types. Keys in `config` and `credentials` that the destination type does not define are ignored, and any such keys stored earlier are removed.
 
 ### Example Usage: DestinationUpdatedExample
 
