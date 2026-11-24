@@ -5,7 +5,7 @@ description: "Breaking changes, migration steps and behavior changes when upgrad
 
 This guide covers what changes when upgrading from v1.10 to v1.11. There are two breaking changes and one Redis migration to review before upgrading.
 
-v1.11 has a Redis migration, and the server refuses to start while a migration is pending. Before running `outpost migrate apply --yes`, check whether it moves any keys: see [IDs are escaped in Redis keys](#ids-are-escaped-in-redis-keys). There is no new PostgreSQL or ClickHouse migration. Retries scheduled by v1.10 run on v1.11.
+The server refuses to start while a migration is pending. Before running `outpost migrate apply --yes`, check whether it moves any keys: see [IDs are escaped in Redis keys](#ids-are-escaped-in-redis-keys). There is no new PostgreSQL or ClickHouse migration. Retries scheduled by v1.10 run on v1.11.
 
 | Change | Impact | Action Required |
 | --- | --- | --- |
