@@ -10,7 +10,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"gocloud.dev/pubsub"
 	"gocloud.dev/pubsub/awssnssqs"
 	"gocloud.dev/pubsub/batcher"
@@ -27,6 +29,15 @@ type AWSSQSConfig struct {
 	ServiceAccountCredentials string
 	Topic                     string
 	WaitTime                  time.Duration // optional - defaults to 20s if not set
+	// RoleARN, when set, is assumed with the base credentials (static keys or
+	// the default chain) and the queue is accessed as that role.
+	RoleARN    string
+	ExternalID string // optional - sent with the AssumeRole call
+	// RoleSessionName names the assumed-role session; defaults to "outpost".
+	RoleSessionName string
+	// STSRegion is the Region of the STS calls that get credentials, Region
+	// when empty. The queue is always reached in Region.
+	STSRegion string
 }
 
 // ToCredentials returns a static credentials provider, or (nil, nil) when no
@@ -112,8 +123,14 @@ func (q *AWSQueue) InitSDK(ctx context.Context) error {
 		return err
 	}
 
+	// The SDK config's Region applies to STS, including the default chain's
+	// web identity call; the SQS client below is pinned to the queue's Region.
+	stsRegion := q.config.Region
+	if q.config.STSRegion != "" {
+		stsRegion = q.config.STSRegion
+	}
 	opts := []func(*config.LoadOptions) error{
-		config.WithRegion(q.config.Region),
+		config.WithRegion(stsRegion),
 	}
 	if creds != nil {
 		opts = append(opts, config.WithCredentialsProvider(creds))
@@ -124,7 +141,26 @@ func (q *AWSQueue) InitSDK(ctx context.Context) error {
 		return err
 	}
 
+	if q.config.RoleARN != "" {
+		// STS uses the regional AWS endpoint: Endpoint is SQS-only. AWS_ENDPOINT_URL_STS overrides it.
+		provider := stscreds.NewAssumeRoleProvider(sts.NewFromConfig(sdkConfig), q.config.RoleARN, func(o *stscreds.AssumeRoleOptions) {
+			o.RoleSessionName = "outpost"
+			if q.config.RoleSessionName != "" {
+				o.RoleSessionName = q.config.RoleSessionName
+			}
+			if q.config.ExternalID != "" {
+				o.ExternalID = aws.String(q.config.ExternalID)
+			}
+		})
+		// Renew ahead of expiry so a request never goes out with credentials
+		// that expire in flight.
+		sdkConfig.Credentials = aws.NewCredentialsCache(provider, func(o *aws.CredentialsCacheOptions) {
+			o.ExpiryWindow = time.Minute
+		})
+	}
+
 	sqsClient := sqs.NewFromConfig(sdkConfig, func(o *sqs.Options) {
+		o.Region = q.config.Region
 		if q.config.Endpoint != "" {
 			o.BaseEndpoint = aws.String(q.config.Endpoint)
 		}

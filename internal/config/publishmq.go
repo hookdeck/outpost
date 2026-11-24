@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -16,6 +17,10 @@ type PublishAWSSQSConfig struct {
 	Region          string `yaml:"region" env:"PUBLISH_AWS_SQS_REGION" desc:"AWS Region for the SQS publish queue. Required if AWS SQS is the chosen publish MQ provider." required:"C"`
 	Endpoint        string `yaml:"endpoint" env:"PUBLISH_AWS_SQS_ENDPOINT" desc:"Custom AWS SQS endpoint URL for the publish queue. Optional." required:"N"`
 	Queue           string `yaml:"queue" env:"PUBLISH_AWS_SQS_QUEUE" desc:"Name of the SQS queue for publishing events. Required if AWS SQS is the chosen publish MQ provider." required:"C"`
+	RoleARN         string `yaml:"role_arn" env:"PUBLISH_AWS_SQS_ROLE_ARN" desc:"ARN of an IAM role to assume for the SQS publish queue. Assumed with the access key, or with the AWS SDK default credential chain when no key is set. Optional." required:"N"`
+	ExternalID      string `yaml:"external_id" env:"PUBLISH_AWS_SQS_EXTERNAL_ID" desc:"External ID sent when assuming the role in PUBLISH_AWS_SQS_ROLE_ARN. Optional." required:"N"`
+	RoleSessionName string `yaml:"role_session_name" env:"PUBLISH_AWS_SQS_ROLE_SESSION_NAME" desc:"Session name used when assuming the role in PUBLISH_AWS_SQS_ROLE_ARN. Shown in the AWS CloudTrail logs of the role's account. Optional; defaults to 'outpost'." required:"N"`
+	STSRegion       string `yaml:"sts_region" env:"PUBLISH_AWS_SQS_STS_REGION" desc:"AWS Region of the STS endpoint used to assume the role in PUBLISH_AWS_SQS_ROLE_ARN. Set it when the queue is in a Region that isn't enabled for the identity Outpost runs as, such as an opt-in Region. Optional; defaults to PUBLISH_AWS_SQS_REGION." required:"N"`
 }
 
 type PublishAzureServiceBusConfig struct {
@@ -72,6 +77,10 @@ func (c *PublishMQConfig) GetQueueConfig() *mqs.QueueConfig {
 				Region:                    c.AWSSQS.Region,
 				ServiceAccountCredentials: creds,
 				Topic:                     c.AWSSQS.Queue,
+				RoleARN:                   c.AWSSQS.RoleARN,
+				ExternalID:                c.AWSSQS.ExternalID,
+				RoleSessionName:           c.AWSSQS.RoleSessionName,
+				STSRegion:                 c.AWSSQS.STSRegion,
 			},
 		}
 	case "azureservicebus":
@@ -105,8 +114,10 @@ func (c *PublishMQConfig) GetQueueConfig() *mqs.QueueConfig {
 	}
 }
 
-// Validate enforces the AWS SQS partial-credential rule for the selected
-// provider and rejects a malformed proxy chain.
+var errPublishAWSSQSRoleOptionsWithoutRole = errors.New("publish AWS SQS: external_id, role_session_name or sts_region is set without role_arn")
+
+// Validate enforces the AWS SQS credential rules for the selected provider
+// and rejects a malformed proxy chain.
 func (c *PublishMQConfig) Validate() error {
 	if _, err := proxychain.Parse(c.ProxyURL); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidPublishProxyURL, err)
@@ -114,6 +125,9 @@ func (c *PublishMQConfig) Validate() error {
 	if c.GetInfraType() == "awssqs" {
 		if (c.AWSSQS.AccessKeyID == "") != (c.AWSSQS.SecretAccessKey == "") {
 			return errPartialAWSSQSCredentials
+		}
+		if (c.AWSSQS.ExternalID != "" || c.AWSSQS.RoleSessionName != "" || c.AWSSQS.STSRegion != "") && c.AWSSQS.RoleARN == "" {
+			return errPublishAWSSQSRoleOptionsWithoutRole
 		}
 	}
 	return nil

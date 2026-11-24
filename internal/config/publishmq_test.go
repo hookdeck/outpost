@@ -75,6 +75,25 @@ func TestPublishMQConfig_Validate(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "aws sqs role with external id",
+			cfg:  config.PublishMQConfig{AWSSQS: config.PublishAWSSQSConfig{Region: "us-east-1", RoleARN: "arn:aws:iam::123456789012:role/queue-reader", ExternalID: "ext"}},
+		},
+		{
+			name:    "aws sqs external id without role",
+			cfg:     config.PublishMQConfig{AWSSQS: config.PublishAWSSQSConfig{Region: "us-east-1", ExternalID: "ext"}},
+			wantErr: true,
+		},
+		{
+			name:    "aws sqs role session name without role",
+			cfg:     config.PublishMQConfig{AWSSQS: config.PublishAWSSQSConfig{Region: "us-east-1", RoleSessionName: "reader"}},
+			wantErr: true,
+		},
+		{
+			name:    "aws sqs sts region without role",
+			cfg:     config.PublishMQConfig{AWSSQS: config.PublishAWSSQSConfig{Region: "ap-east-1", STSRegion: "us-east-1"}},
+			wantErr: true,
+		},
+		{
 			name: "no publish provider configured",
 			cfg:  config.PublishMQConfig{},
 		},
