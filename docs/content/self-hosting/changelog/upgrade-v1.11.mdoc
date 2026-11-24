@@ -1,0 +1,78 @@
+---
+title: "Upgrade to v1.11"
+description: "Breaking changes, migration steps and behavior changes when upgrading Outpost from v1.10 to v1.11."
+---
+
+This guide covers what changes when upgrading from v1.10 to v1.11. There are two breaking changes and one Redis migration to review before upgrading.
+
+Run `outpost migrate apply --yes` before starting v1.11: the server refuses to start while a migration is pending. There is no new PostgreSQL or ClickHouse migration. Retries scheduled by v1.10 run on v1.11.
+
+| Change | Impact | Action Required |
+| --- | --- | --- |
+| [Custom header updates merge per header](#custom-header-updates-merge-per-header) | Clients that update a webhook destination's `config.custom_headers` | Remove headers with `null` instead of leaving them out |
+| [Tenant JWTs need `API_JWT_SECRET`](#tenant-jwts-need-api_jwt_secret) | Deployments that use the tenant portal or tenant JWTs without `API_JWT_SECRET` | Set `API_JWT_SECRET` |
+| [IDs are escaped in Redis keys](#ids-are-escaped-in-redis-keys) | Tenant or destination IDs that contain `%`, `:`, `{` or `}` | Check `outpost migrate plan` and pick an upgrade order |
+
+For new features and fixes, see the [v1.11.0 release notes](https://github.com/hookdeck/outpost/releases/tag/v1.11.0).
+
+## Breaking Changes
+
+### Custom header updates merge per header
+
+A `PATCH` to a webhook destination's `config.custom_headers` now updates the headers you send and keeps the others. v1.10 replaced the whole object.
+
+| `custom_headers` in the update | v1.10 | v1.11 |
+| --- | --- | --- |
+| A header left out | removed | kept |
+| A header set to `null` | rejected | removed |
+| `{}` | all headers removed | no change |
+| The field set to `null` | all headers removed | all headers removed |
+
+If your client removes a header by sending the object without it, send that header as `null` instead. Creating a destination is unchanged. The new `credentials.custom_headers` field follows the same rules. See [Custom Headers](/docs/outpost/destinations/webhook#custom-headers).
+
+### Tenant JWTs need `API_JWT_SECRET`
+
+Tenant JWTs and the tenant portal now require `API_JWT_SECRET`. Without it, a tenant JWT gets a `401`, and `GET /tenants/{tenant_id}/token` and `GET /tenants/{tenant_id}/portal` return `501`. v1.10 signed and accepted tenant JWTs with an empty key when the secret was unset. The API key works as before.
+
+If you use the tenant portal or tenant JWTs, set `API_JWT_SECRET` before upgrading. Tokens issued by v1.10 with the secret set keep working. See the [configuration reference](/docs/outpost/self-hosting/configuration#required-variables).
+
+## Migration
+
+### IDs are escaped in Redis keys
+
+Tenant, destination and event IDs are now percent-encoded where they appear in Redis keys, so IDs that contain `%`, `:`, `{` or `}` can no longer share a key with another tenant's. The Redis migration `004_escape_ids` moves the stored tenants and destinations whose IDs contain those characters. Other keys are unchanged.
+
+Run `outpost migrate plan` with the v1.11 image to see how many keys move:
+
+```
+Redis Migrations (1 pending):
+  - redis/004_escape_ids: Escape tenant and destination IDs in tenant store keys
+      keys_to_move: 0
+```
+
+With `keys_to_move: 0`, run `outpost migrate apply --yes` and upgrade as usual.
+
+Otherwise, v1.10 no longer finds the moved tenants and destinations once the migration has run. Until every v1.10 instance has stopped, API requests for them through a v1.10 instance return `404`, and events published for them through it are accepted but not delivered. Pick one:
+
+- **Stop v1.10 first:** stop every instance, run `outpost migrate apply --yes`, then start v1.11. Nothing is lost; the API is unavailable in between.
+- **Rolling update:** run `outpost migrate apply --yes`, then replace the instances. Until the last v1.10 instance stops, don't create or update the affected tenants or their destinations, and re-publish events sent for them in that window.
+
+The migration can be run again. If it stops on an error, it stays pending and the next run continues where it stopped. See the [Schema Migration Guide](/docs/outpost/self-hosting/guides/migration).
+
+## Behavior Changes
+
+- Publish idempotency is per tenant. The same event `id` published for two tenants is delivered to both; v1.10 marked the second one as a duplicate for `PUBLISH_IDEMPOTENCY_KEY_TTL`. See [Event Structure](/docs/outpost/publishing/events#event-structure).
+- Around the upgrade, an event or attempt can be delivered one extra time: idempotency keys written by v1.10 aren't recognized by v1.11, and a retry scheduled by v1.10 isn't cancelled by a manual retry on v1.11. For IDs that contain `%`, `:`, `{` or `}`, the consecutive failure count and the exhausted-retries alert window also start over once.
+- `config` and `credentials` keys that a destination type doesn't define are ignored on create and update, and are no longer returned. Keys already stored are removed on the destination's next update.
+- `aws_sqs` destinations mask `credentials.session` in API responses, as the other AWS destinations do.
+
+## Rolling Back
+
+Rolling back to v1.10.0 doesn't require reverting the migration, with two limits:
+
+- Tenants and destinations moved by `004_escape_ids` are not found by v1.10.
+- v1.10 doesn't send `credentials.custom_headers`, and returns their values unmasked in API responses.
+
+## New Configuration
+
+- `PUBLISH_AWS_SQS_ROLE_ARN`, `PUBLISH_AWS_SQS_EXTERNAL_ID`, `PUBLISH_AWS_SQS_ROLE_SESSION_NAME` and `PUBLISH_AWS_SQS_STS_REGION`: read the SQS publish queue through an assumed IAM role, for example a queue in another AWS account. See [Publish from SQS](/docs/outpost/publishing/publish-from-sqs).
