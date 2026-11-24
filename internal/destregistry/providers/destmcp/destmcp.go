@@ -61,8 +61,9 @@ type Config struct {
 	// AllowInsecureHTTP lets http callbacks reach hosts whose addresses are
 	// all allowlisted. Without it only https callbacks are accepted.
 	AllowInsecureHTTP bool
-	// EventIDAsWebhookID sends the event ID as webhook-id on event deliveries
-	// instead of the message ID SEP-3415 requires.
+	// EventIDAsWebhookID sends the event ID as webhook-id on event deliveries,
+	// when it is a valid header value, instead of the message ID the MCP Events
+	// spec requires.
 	EventIDAsWebhookID bool
 	// RetryBackoff and RetryMaxRetries are the retry schedule for mcp
 	// destinations. A nil RetryBackoff leaves the global policy in place.

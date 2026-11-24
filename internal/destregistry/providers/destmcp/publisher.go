@@ -71,8 +71,8 @@ func (p *Publisher) Publish(ctx context.Context, event *models.Event) (*destregi
 	return p.handleResponse(resp)
 }
 
-// webhookID is the event ID when the deployment sends it and it is a valid
-// header value, otherwise the delivery's message ID.
+// webhookID is the event ID when EventIDAsWebhookID is on and the ID is a
+// valid header value, otherwise the delivery's message ID.
 func (p *Publisher) webhookID(ctx context.Context, event *models.Event) string {
 	if p.eventIDAsWebhookID && mcpevents.ValidWebhookID(event.ID) {
 		return event.ID
