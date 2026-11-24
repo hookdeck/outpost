@@ -613,6 +613,21 @@ func TestAPI_Tenants(t *testing.T) {
 		})
 	})
 
+	t.Run("token and portal without JWT secret return 501", func(t *testing.T) {
+		for _, path := range []string{"/api/v1/tenants/t1/token", "/api/v1/tenants/t1/portal"} {
+			t.Run(path, func(t *testing.T) {
+				h := newAPITest(t, withJWTSecret(""))
+				h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+				req := httptest.NewRequest(http.MethodGet, path, nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusNotImplemented, resp.Code)
+				assert.NotContains(t, resp.Body.String(), "token=")
+			})
+		}
+	})
+
 	t.Run("RetrievePortal", func(t *testing.T) {
 		t.Run("api key returns redirect url with token", func(t *testing.T) {
 			h := newAPITest(t)

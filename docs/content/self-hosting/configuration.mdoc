@@ -12,7 +12,7 @@ These variables must be set for Outpost to start:
 | Variable | Description |
 |----------|-------------|
 | `AES_ENCRYPTION_SECRET` | 16, 24, or 32 byte key for AES encryption of sensitive data |
-| `API_JWT_SECRET` | Secret for signing and verifying JWTs |
+| `API_JWT_SECRET` | Optional. Secret for signing tenant JWTs; required for the tenant portal and tenant JWTs. |
 | `API_KEY` | API key for authenticating requests to the Outpost API |
 | `REDIS_HOST` | Hostname of the Redis server (default: `127.0.0.1`) |
 | `REDIS_PORT` | Port of the Redis server (default: `6379`) |

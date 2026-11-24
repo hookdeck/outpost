@@ -17,6 +17,9 @@ var JWT = jsonwebtoken{}
 
 var (
 	ErrInvalidToken = errors.New("invalid token")
+	// ErrNoJWTSecret is returned by New when no secret is set. Tenant JWT auth
+	// is opt-in: without a secret, tokens are neither issued nor accepted.
+	ErrNoJWTSecret = errors.New("JWT secret not configured")
 )
 
 // JWTClaims contains the custom claims for JWT tokens
@@ -26,6 +29,9 @@ type JWTClaims struct {
 }
 
 func (_ jsonwebtoken) New(jwtSecret string, claims JWTClaims) (string, error) {
+	if jwtSecret == "" {
+		return "", ErrNoJWTSecret
+	}
 	now := time.Now()
 	mapClaims := jwt.MapClaims{
 		"iss": issuer,
@@ -41,12 +47,19 @@ func (_ jsonwebtoken) New(jwtSecret string, claims JWTClaims) (string, error) {
 }
 
 func (_ jsonwebtoken) Extract(jwtSecret string, tokenString string) (JWTClaims, error) {
+	// No secret means tenant JWTs are off. Verifying against an empty HMAC key
+	// would accept a token anyone can sign.
+	if jwtSecret == "" {
+		return JWTClaims{}, ErrInvalidToken
+	}
 	token, err := jwt.Parse(
 		tokenString,
 		func(token *jwt.Token) (interface{}, error) {
 			return []byte(jwtSecret), nil
 		},
+		jwt.WithValidMethods([]string{signingMethod.Alg()}),
 		jwt.WithIssuer(issuer),
+		jwt.WithExpirationRequired(),
 	)
 	if err != nil || !token.Valid {
 		return JWTClaims{}, ErrInvalidToken
@@ -74,13 +87,18 @@ func (_ jsonwebtoken) Extract(jwtSecret string, tokenString string) (JWTClaims, 
 }
 
 func (_ jsonwebtoken) Verify(jwtSecret string, tokenString string, tenantID string) (bool, error) {
+	if jwtSecret == "" {
+		return false, ErrInvalidToken
+	}
 	token, err := jwt.Parse(
 		tokenString,
 		func(token *jwt.Token) (interface{}, error) {
 			return []byte(jwtSecret), nil
 		},
+		jwt.WithValidMethods([]string{signingMethod.Alg()}),
 		jwt.WithIssuer(issuer),
 		jwt.WithSubject(tenantID),
+		jwt.WithExpirationRequired(),
 	)
 	if err != nil || !token.Valid {
 		return false, ErrInvalidToken

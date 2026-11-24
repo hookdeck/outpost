@@ -209,4 +209,72 @@ func TestJWT(t *testing.T) {
 		_, err = apirouter.JWT.Extract(jwtKey, token)
 		assert.ErrorIs(t, err, apirouter.ErrInvalidToken)
 	})
+
+	t.Run("should not issue a token when the secret is empty", func(t *testing.T) {
+		t.Parallel()
+		_, err := apirouter.JWT.New("", apirouter.JWTClaims{TenantID: tenantID})
+		assert.ErrorIs(t, err, apirouter.ErrNoJWTSecret)
+	})
+
+	t.Run("should reject a token forged with an empty secret", func(t *testing.T) {
+		t.Parallel()
+		now := time.Now()
+		jwtToken := jwt.NewWithClaims(signingMethod, jwt.MapClaims{
+			"iss": issuer,
+			"sub": tenantID,
+			"iat": now.Unix(),
+			"exp": now.Add(24 * time.Hour).Unix(),
+		})
+		forged, err := jwtToken.SignedString([]byte(""))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		_, err = apirouter.JWT.Extract("", forged)
+		assert.ErrorIs(t, err, apirouter.ErrInvalidToken)
+
+		valid, err := apirouter.JWT.Verify("", forged, tenantID)
+		assert.ErrorIs(t, err, apirouter.ErrInvalidToken)
+		assert.False(t, valid)
+	})
+
+	t.Run("should reject a token signed with an unexpected algorithm", func(t *testing.T) {
+		t.Parallel()
+		now := time.Now()
+		jwtToken := jwt.NewWithClaims(jwt.SigningMethodNone, jwt.MapClaims{
+			"iss": issuer,
+			"sub": tenantID,
+			"iat": now.Unix(),
+			"exp": now.Add(24 * time.Hour).Unix(),
+		})
+		token, err := jwtToken.SignedString(jwt.UnsafeAllowNoneSignatureType)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = apirouter.JWT.Extract(jwtKey, token)
+		assert.ErrorIs(t, err, apirouter.ErrInvalidToken)
+
+		valid, err := apirouter.JWT.Verify(jwtKey, token, tenantID)
+		assert.ErrorIs(t, err, apirouter.ErrInvalidToken)
+		assert.False(t, valid)
+	})
+
+	t.Run("should reject a token without an expiry", func(t *testing.T) {
+		t.Parallel()
+		jwtToken := jwt.NewWithClaims(signingMethod, jwt.MapClaims{
+			"iss": issuer,
+			"sub": tenantID,
+			"iat": time.Now().Unix(),
+		})
+		token, err := jwtToken.SignedString([]byte(jwtKey))
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = apirouter.JWT.Extract(jwtKey, token)
+		assert.ErrorIs(t, err, apirouter.ErrInvalidToken)
+
+		valid, err := apirouter.JWT.Verify(jwtKey, token, tenantID)
+		assert.ErrorIs(t, err, apirouter.ErrInvalidToken)
+		assert.False(t, valid)
+	})
 }

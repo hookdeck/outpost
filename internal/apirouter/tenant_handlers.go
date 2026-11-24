@@ -245,7 +245,7 @@ func (h *TenantHandlers) RetrieveToken(c *gin.Context) {
 		DeploymentID: h.deploymentID,
 	})
 	if err != nil {
-		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
+		abortTokenError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"token": jwtToken, "tenant_id": tenant.ID})
@@ -258,7 +258,7 @@ func (h *TenantHandlers) RetrievePortal(c *gin.Context) {
 		DeploymentID: h.deploymentID,
 	})
 	if err != nil {
-		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
+		abortTokenError(c, err)
 		return
 	}
 
@@ -282,4 +282,18 @@ func (h *TenantHandlers) RetrievePortal(c *gin.Context) {
 		"redirect_url": portalURL,
 		"tenant_id":    tenant.ID,
 	})
+}
+
+// abortTokenError maps a JWT.New error to a response: 501 when no JWT
+// secret is configured (tenant tokens are opt-in), 500 otherwise.
+func abortTokenError(c *gin.Context, err error) {
+	if errors.Is(err, ErrNoJWTSecret) {
+		AbortWithError(c, http.StatusNotImplemented, ErrorResponse{
+			Err:     err,
+			Code:    http.StatusNotImplemented,
+			Message: "tenant JWT is not enabled",
+		})
+		return
+	}
+	AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
 }

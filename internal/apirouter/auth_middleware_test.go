@@ -6,8 +6,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/hookdeck/outpost/internal/apirouter"
 	"github.com/hookdeck/outpost/internal/models"
 	"github.com/hookdeck/outpost/internal/tenantstore"
@@ -142,6 +144,43 @@ func TestAuthMiddleware(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("no JWT secret", func(t *testing.T) {
+		newRouter := func() *gin.Engine {
+			r := gin.New()
+			r.GET("/test", apirouter.AuthMiddleware(testAPIKey, "", "", store, apirouter.AuthOptions{}), okHandler)
+			return r
+		}
+		get := func(r *gin.Engine, token string) int {
+			req := httptest.NewRequest(http.MethodGet, "/test", nil)
+			req.Header.Set("Authorization", "Bearer "+token)
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+			return w.Code
+		}
+
+		t.Run("API key returns 200", func(t *testing.T) {
+			assert.Equal(t, http.StatusOK, get(newRouter(), testAPIKey))
+		})
+
+		t.Run("token signed with an empty key returns 401", func(t *testing.T) {
+			forged, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+				"iss": "outpost",
+				"sub": "t1",
+				"exp": time.Now().Add(time.Hour).Unix(),
+			}).SignedString([]byte(""))
+			require.NoError(t, err)
+
+			assert.Equal(t, http.StatusUnauthorized, get(newRouter(), forged))
+		})
+
+		t.Run("token signed with another secret returns 401", func(t *testing.T) {
+			token, err := apirouter.JWT.New(testJWTSecret, apirouter.JWTClaims{TenantID: "t1"})
+			require.NoError(t, err)
+
+			assert.Equal(t, http.StatusUnauthorized, get(newRouter(), token))
+		})
 	})
 
 	t.Run("valid JWT on AdminOnly route returns 403", func(t *testing.T) {
