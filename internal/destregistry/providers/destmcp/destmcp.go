@@ -61,6 +61,9 @@ type Config struct {
 	// AllowInsecureHTTP lets http callbacks reach hosts whose addresses are
 	// all allowlisted. Without it only https callbacks are accepted.
 	AllowInsecureHTTP bool
+	// EventIDAsWebhookID sends the event ID as webhook-id on event deliveries
+	// instead of the message ID SEP-3415 requires.
+	EventIDAsWebhookID bool
 	// RetryBackoff and RetryMaxRetries are the retry schedule for mcp
 	// destinations. A nil RetryBackoff leaves the global policy in place.
 	RetryBackoff    backoff.Backoff
@@ -76,6 +79,7 @@ type Provider struct {
 	maxResponseBodyBytes int
 	userAgent            string
 	allowInsecureHTTP    bool
+	eventIDAsWebhookID   bool
 	retryBackoff         backoff.Backoff
 	retryMaxRetries      int
 	now                  func() time.Time
@@ -101,6 +105,7 @@ func New(loader metadata.MetadataLoader, cfg Config) (*Provider, error) {
 		maxResponseBodyBytes: cfg.MaxResponseBodyBytes,
 		userAgent:            cfg.UserAgent,
 		allowInsecureHTTP:    cfg.AllowInsecureHTTP,
+		eventIDAsWebhookID:   cfg.EventIDAsWebhookID,
 		retryBackoff:         cfg.RetryBackoff,
 		retryMaxRetries:      cfg.RetryMaxRetries,
 		now:                  time.Now,
@@ -452,6 +457,7 @@ func (p *Provider) CreatePublisher(ctx context.Context, destination *models.Dest
 		secrets:              secrets,
 		userAgent:            p.userAgent,
 		maxResponseBodyBytes: p.maxResponseBodyBytes,
+		eventIDAsWebhookID:   p.eventIDAsWebhookID,
 		now:                  p.now,
 	}, nil
 }

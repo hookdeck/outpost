@@ -17,6 +17,8 @@ const (
 	MaxEnvelopeBytes = 256 << 10
 	// MaxSubscriptionIDBytes caps destination IDs of the mcp type.
 	MaxSubscriptionIDBytes = 128
+	// MaxWebhookIDBytes caps an event ID sent as webhook-id.
+	MaxWebhookIDBytes = 255
 
 	// EnvelopeVerification is the type of the verification control envelope.
 	EnvelopeVerification = "verification"
@@ -28,6 +30,21 @@ var (
 	// ErrEnvelopeTooLarge: the envelope would exceed MaxEnvelopeBytes.
 	ErrEnvelopeTooLarge = errors.New("mcpevents: envelope exceeds the size limit")
 )
+
+// ValidWebhookID reports whether an event ID can go out as the webhook-id
+// header: 1 to MaxWebhookIDBytes visible ASCII characters, which no HTTP layer
+// trims or re-encodes before the receiver checks the signature.
+func ValidWebhookID(id string) bool {
+	if id == "" || len(id) > MaxWebhookIDBytes {
+		return false
+	}
+	for i := 0; i < len(id); i++ {
+		if id[i] < '!' || id[i] > '~' {
+			return false
+		}
+	}
+	return true
+}
 
 // ValidSubscriptionID reports whether id can be a subscription ID, which goes
 // out as the X-MCP-Subscription-Id header: 1 to MaxSubscriptionIDBytes bytes

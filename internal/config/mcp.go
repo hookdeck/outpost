@@ -19,6 +19,7 @@ type MCPConfig struct {
 	AllowInsecureCallbacks bool            `yaml:"allow_insecure_callbacks" env:"EXPERIMENTAL_MCP_ALLOW_INSECURE_CALLBACKS" desc:"The MCP Events spec requires https callback URLs. If true, http is also accepted for addresses that are all in DESTINATIONS_PRIVATE_ADDRESS_ALLOWLIST: an exception outside the spec, for development only." required:"N" default:"false"`
 	RetryDelays            []time.Duration `yaml:"-"`
 	VerificationTTLSeconds int             `yaml:"verification_ttl_seconds" env:"EXPERIMENTAL_MCP_VERIFICATION_TTL_SECONDS" desc:"How long, in seconds, a passed callback verification challenge is cached per tenant and callback URL." required:"N" default:"86400"`
+	EventIDAsWebhookID     bool            `yaml:"event_id_as_webhook_id" env:"EXPERIMENTAL_MCP_EVENT_ID_AS_WEBHOOK_ID" desc:"If true, an event delivery's webhook-id header is the event ID instead of a message ID, for receivers that require webhook-id to equal the body's eventId. SEP-3415 requires a message ID. An event ID that isn't 1 to 255 visible ASCII characters still gets a message ID." required:"N" default:"false"`
 	EventsSchema           MCPEventsSchema `yaml:"events_schema" env:"EXPERIMENTAL_MCP_EVENTS_SCHEMA" desc:"Event definitions for MCP subscriptions in the MCP events/list format: {\"events\": [...]}, each with a name, a payloadSchema and an optional inputSchema (JSON Schema 2020-12 objects; without it, every scalar top-level payload property is an optional argument). In YAML a mapping (inline definitions) or a path to a JSON or YAML file (a string is always a path); in the environment inline JSON (a value starting with {) or a file path. Every name must be in TOPICS when TOPICS is set. Invalid definitions don't stop Outpost: it logs the error and MCP Events answers 503." required:"N"`
 }
 
@@ -73,6 +74,9 @@ func (c *Config) MCPWarnings() []string {
 		} else {
 			warnings = append(warnings, "EXPERIMENTAL_MCP_ALLOW_INSECURE_CALLBACKS is true: plain http callback URLs are accepted for allowlisted addresses, sending event payloads unencrypted. Use it for development only.")
 		}
+	}
+	if c.Experimental.MCP.EventIDAsWebhookID {
+		warnings = append(warnings, "EXPERIMENTAL_MCP_EVENT_ID_AS_WEBHOOK_ID is true: event deliveries carry the event ID as webhook-id, which SEP-3415 forbids. A receiver that deduplicates on webhook-id alone drops an event matched by several subscriptions on the same callback URL after the first.")
 	}
 	if c.mcpCatalog == nil && c.mcpEventsErr == nil {
 		warnings = append(warnings, "EXPERIMENTAL_MCP_ENABLED is true but EXPERIMENTAL_MCP_EVENTS_SCHEMA (experimental.mcp.events_schema) defines no events: every mcp subscription is refused.")

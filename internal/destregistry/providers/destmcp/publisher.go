@@ -31,6 +31,7 @@ type Publisher struct {
 	secrets              []mcpevents.Secret
 	userAgent            string
 	maxResponseBodyBytes int
+	eventIDAsWebhookID   bool
 	now                  func() time.Time
 }
 
@@ -50,7 +51,7 @@ func (p *Publisher) Publish(ctx context.Context, event *models.Event) (*destregi
 	if err != nil {
 		return failure("ERR", "could not build the request", err, true, false)
 	}
-	if err := p.setHeaders(ctx, req.Header, body); err != nil {
+	if err := p.setHeaders(req.Header, p.webhookID(ctx, event), body); err != nil {
 		return failure("ERR", "no valid signing secret", err, true, false)
 	}
 
@@ -70,12 +71,20 @@ func (p *Publisher) Publish(ctx context.Context, event *models.Event) (*destregi
 	return p.handleResponse(resp)
 }
 
-func (p *Publisher) setHeaders(ctx context.Context, h http.Header, body []byte) error {
-	now := p.now()
-	msgID := destregistry.MessageIDFrom(ctx)
-	if msgID == "" {
-		msgID = idgen.Message()
+// webhookID is the event ID when the deployment sends it and it is a valid
+// header value, otherwise the delivery's message ID.
+func (p *Publisher) webhookID(ctx context.Context, event *models.Event) string {
+	if p.eventIDAsWebhookID && mcpevents.ValidWebhookID(event.ID) {
+		return event.ID
 	}
+	if id := destregistry.MessageIDFrom(ctx); id != "" {
+		return id
+	}
+	return idgen.Message()
+}
+
+func (p *Publisher) setHeaders(h http.Header, msgID string, body []byte) error {
+	now := p.now()
 	if err := mcpevents.SetHeaders(h, msgID, p.destinationID, now, body, mcpevents.ActiveKeys(p.secrets, now)); err != nil {
 		return err
 	}

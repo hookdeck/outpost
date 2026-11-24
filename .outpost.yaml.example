@@ -119,6 +119,7 @@ destinations:
 #     enabled: true
 #     allow_insecure_callbacks: false
 #     verification_ttl_seconds: 86400
+#     event_id_as_webhook_id: false
 #     events_schema: # or a path to a JSON or YAML file
 #       events:
 #         - name: user.created
