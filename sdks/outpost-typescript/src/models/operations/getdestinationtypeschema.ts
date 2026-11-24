@@ -3,7 +3,7 @@
  */
 
 import * as z from "zod/v3";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { ClosedEnum } from "../../types/enums.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
@@ -41,7 +41,9 @@ export type GetDestinationTypeSchemaRequest = {
 /** @internal */
 export const GetDestinationTypeSchemaType$inboundSchema: z.ZodNativeEnum<
   typeof GetDestinationTypeSchemaType
-> = z.nativeEnum(GetDestinationTypeSchemaType);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.nativeEnum(GetDestinationTypeSchemaType)
+);
 /** @internal */
 export const GetDestinationTypeSchemaType$outboundSchema: z.ZodNativeEnum<
   typeof GetDestinationTypeSchemaType
@@ -52,9 +54,11 @@ export const GetDestinationTypeSchemaRequest$inboundSchema: z.ZodType<
   GetDestinationTypeSchemaRequest,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  type: GetDestinationTypeSchemaType$inboundSchema,
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    type: GetDestinationTypeSchemaType$inboundSchema,
+  })
+);
 /** @internal */
 export type GetDestinationTypeSchemaRequest$Outbound = {
   type: string;
@@ -65,9 +69,11 @@ export const GetDestinationTypeSchemaRequest$outboundSchema: z.ZodType<
   GetDestinationTypeSchemaRequest$Outbound,
   z.ZodTypeDef,
   GetDestinationTypeSchemaRequest
-> = z.object({
-  type: GetDestinationTypeSchemaType$outboundSchema,
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    type: GetDestinationTypeSchemaType$outboundSchema,
+  })
+);
 
 export function getDestinationTypeSchemaRequestToJSON(
   getDestinationTypeSchemaRequest: GetDestinationTypeSchemaRequest,

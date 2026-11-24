@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
@@ -28,16 +28,19 @@ export const MetricsDataPoint$inboundSchema: z.ZodType<
   MetricsDataPoint,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  time_bucket: z.string().datetime({ offset: true }).transform(v => new Date(v))
-    .optional(),
-  dimensions: z.record(z.string()).optional(),
-  metrics: z.record(z.any()).optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "time_bucket": "timeBucket",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    time_bucket: z.string().datetime({ offset: true }).transform(v =>
+      new Date(v)
+    ).optional(),
+    dimensions: z.record(z.string()).optional(),
+    metrics: z.record(z.any()).optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      "time_bucket": "timeBucket",
+    });
+  })
+);
 /** @internal */
 export type MetricsDataPoint$Outbound = {
   time_bucket?: string | undefined;
@@ -50,15 +53,17 @@ export const MetricsDataPoint$outboundSchema: z.ZodType<
   MetricsDataPoint$Outbound,
   z.ZodTypeDef,
   MetricsDataPoint
-> = z.object({
-  timeBucket: z.date().transform(v => v.toISOString()).optional(),
-  dimensions: z.record(z.string()).optional(),
-  metrics: z.record(z.any()).optional(),
-}).transform((v) => {
-  return remap$(v, {
-    timeBucket: "time_bucket",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    timeBucket: z.date().transform(v => v.toISOString()).optional(),
+    dimensions: z.record(z.string()).optional(),
+    metrics: z.record(z.any()).optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      timeBucket: "time_bucket",
+    });
+  })
+);
 
 export function metricsDataPointToJSON(
   metricsDataPoint: MetricsDataPoint,

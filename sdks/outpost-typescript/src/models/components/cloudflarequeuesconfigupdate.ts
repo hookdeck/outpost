@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
@@ -27,15 +27,17 @@ export const CloudflareQueuesConfigUpdate$inboundSchema: z.ZodType<
   CloudflareQueuesConfigUpdate,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  account_id: z.string().optional(),
-  queue_id: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "account_id": "accountId",
-    "queue_id": "queueId",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    account_id: z.string().optional(),
+    queue_id: z.string().optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      "account_id": "accountId",
+      "queue_id": "queueId",
+    });
+  })
+);
 /** @internal */
 export type CloudflareQueuesConfigUpdate$Outbound = {
   account_id?: string | undefined;
@@ -47,15 +49,17 @@ export const CloudflareQueuesConfigUpdate$outboundSchema: z.ZodType<
   CloudflareQueuesConfigUpdate$Outbound,
   z.ZodTypeDef,
   CloudflareQueuesConfigUpdate
-> = z.object({
-  accountId: z.string().optional(),
-  queueId: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    accountId: "account_id",
-    queueId: "queue_id",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    accountId: z.string().optional(),
+    queueId: z.string().optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      accountId: "account_id",
+      queueId: "queue_id",
+    });
+  })
+);
 
 export function cloudflareQueuesConfigUpdateToJSON(
   cloudflareQueuesConfigUpdate: CloudflareQueuesConfigUpdate,

@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
@@ -21,7 +21,7 @@ export type AWSEventBridgeConfigUpdate = {
    */
   region?: string | undefined;
   /**
-   * Optional. Custom AWS endpoint URL (e.g., for LocalStack or VPC endpoints).
+   * Optional. Custom AWS endpoint URL for emulators such as LocalStack. Only accepted when the Outpost deployment sets DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true.
    */
   endpoint?: string | undefined;
 };
@@ -31,15 +31,17 @@ export const AWSEventBridgeConfigUpdate$inboundSchema: z.ZodType<
   AWSEventBridgeConfigUpdate,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  event_bus_name: z.string().optional(),
-  region: z.string().optional(),
-  endpoint: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "event_bus_name": "eventBusName",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    event_bus_name: z.string().optional(),
+    region: z.string().optional(),
+    endpoint: z.string().optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      "event_bus_name": "eventBusName",
+    });
+  })
+);
 /** @internal */
 export type AWSEventBridgeConfigUpdate$Outbound = {
   event_bus_name?: string | undefined;
@@ -52,15 +54,17 @@ export const AWSEventBridgeConfigUpdate$outboundSchema: z.ZodType<
   AWSEventBridgeConfigUpdate$Outbound,
   z.ZodTypeDef,
   AWSEventBridgeConfigUpdate
-> = z.object({
-  eventBusName: z.string().optional(),
-  region: z.string().optional(),
-  endpoint: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    eventBusName: "event_bus_name",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    eventBusName: z.string().optional(),
+    region: z.string().optional(),
+    endpoint: z.string().optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      eventBusName: "event_bus_name",
+    });
+  })
+);
 
 export function awsEventBridgeConfigUpdateToJSON(
   awsEventBridgeConfigUpdate: AWSEventBridgeConfigUpdate,

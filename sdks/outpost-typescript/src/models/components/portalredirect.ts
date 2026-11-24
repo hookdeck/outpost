@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
@@ -24,15 +24,17 @@ export const PortalRedirect$inboundSchema: z.ZodType<
   PortalRedirect,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  redirect_url: z.string().optional(),
-  tenant_id: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "redirect_url": "redirectUrl",
-    "tenant_id": "tenantId",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    redirect_url: z.string().optional(),
+    tenant_id: z.string().optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      "redirect_url": "redirectUrl",
+      "tenant_id": "tenantId",
+    });
+  })
+);
 /** @internal */
 export type PortalRedirect$Outbound = {
   redirect_url?: string | undefined;
@@ -44,15 +46,17 @@ export const PortalRedirect$outboundSchema: z.ZodType<
   PortalRedirect$Outbound,
   z.ZodTypeDef,
   PortalRedirect
-> = z.object({
-  redirectUrl: z.string().optional(),
-  tenantId: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    redirectUrl: "redirect_url",
-    tenantId: "tenant_id",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    redirectUrl: z.string().optional(),
+    tenantId: z.string().optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      redirectUrl: "redirect_url",
+      tenantId: "tenant_id",
+    });
+  })
+);
 
 export function portalRedirectToJSON(portalRedirect: PortalRedirect): string {
   return JSON.stringify(PortalRedirect$outboundSchema.parse(portalRedirect));

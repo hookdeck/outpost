@@ -3,7 +3,7 @@
  */
 
 import * as z from "zod/v3";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
@@ -22,9 +22,11 @@ export const AzureServiceBusConfigUpdate$inboundSchema: z.ZodType<
   AzureServiceBusConfigUpdate,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  name: z.string().optional(),
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    name: z.string().optional(),
+  })
+);
 /** @internal */
 export type AzureServiceBusConfigUpdate$Outbound = {
   name?: string | undefined;
@@ -35,9 +37,11 @@ export const AzureServiceBusConfigUpdate$outboundSchema: z.ZodType<
   AzureServiceBusConfigUpdate$Outbound,
   z.ZodTypeDef,
   AzureServiceBusConfigUpdate
-> = z.object({
-  name: z.string().optional(),
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    name: z.string().optional(),
+  })
+);
 
 export function azureServiceBusConfigUpdateToJSON(
   azureServiceBusConfigUpdate: AzureServiceBusConfigUpdate,

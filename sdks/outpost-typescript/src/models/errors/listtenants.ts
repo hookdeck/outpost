@@ -3,6 +3,7 @@
  */
 
 import * as z from "zod/v3";
+import { lazySchema as lazySchema$ } from "../../lib/schemas.js";
 import { OutpostError } from "./outposterror.js";
 
 /**
@@ -41,19 +42,21 @@ export const NotImplementedError$inboundSchema: z.ZodType<
   NotImplementedError,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  error: z.string().optional(),
-  request$: z.instanceof(Request),
-  response$: z.instanceof(Response),
-  body$: z.string(),
-})
-  .transform((v) => {
-    return new NotImplementedError(v, {
-      request: v.request$,
-      response: v.response$,
-      body: v.body$,
-    });
-  });
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    error: z.string().optional(),
+    request$: z.instanceof(Request),
+    response$: z.instanceof(Response),
+    body$: z.string(),
+  })
+    .transform((v) => {
+      return new NotImplementedError(v, {
+        request: v.request$,
+        response: v.response$,
+        body: v.body$,
+      });
+    })
+);
 
 /** @internal */
 export type NotImplementedError$Outbound = {
@@ -65,8 +68,10 @@ export const NotImplementedError$outboundSchema: z.ZodType<
   NotImplementedError$Outbound,
   z.ZodTypeDef,
   NotImplementedError
-> = z.instanceof(NotImplementedError)
-  .transform(v => v.data$)
-  .pipe(z.object({
-    error: z.string().optional(),
-  }));
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.instanceof(NotImplementedError)
+    .transform(v => v.data$)
+    .pipe(z.object({
+      error: z.string().optional(),
+    }))
+);

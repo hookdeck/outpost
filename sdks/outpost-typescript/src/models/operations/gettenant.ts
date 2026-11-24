@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
@@ -20,13 +20,15 @@ export const GetTenantRequest$inboundSchema: z.ZodType<
   GetTenantRequest,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  tenant_id: z.string(),
-}).transform((v) => {
-  return remap$(v, {
-    "tenant_id": "tenantId",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    tenant_id: z.string(),
+  }).transform((v) => {
+    return remap$(v, {
+      "tenant_id": "tenantId",
+    });
+  })
+);
 /** @internal */
 export type GetTenantRequest$Outbound = {
   tenant_id: string;
@@ -37,13 +39,15 @@ export const GetTenantRequest$outboundSchema: z.ZodType<
   GetTenantRequest$Outbound,
   z.ZodTypeDef,
   GetTenantRequest
-> = z.object({
-  tenantId: z.string(),
-}).transform((v) => {
-  return remap$(v, {
-    tenantId: "tenant_id",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    tenantId: z.string(),
+  }).transform((v) => {
+    return remap$(v, {
+      tenantId: "tenant_id",
+    });
+  })
+);
 
 export function getTenantRequestToJSON(
   getTenantRequest: GetTenantRequest,

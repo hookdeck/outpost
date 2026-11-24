@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
@@ -17,7 +17,7 @@ export type WebhookConfigUpdate = {
    */
   url?: string | undefined;
   /**
-   * JSON string of custom HTTP headers to include with every webhook request.
+   * JSON string of custom HTTP headers to include with every webhook request, merged header by header. A header not sent keeps its saved value, a header sent with a value gets that value, and a header sent as null is removed. Set the field to null to remove all.
    */
   customHeaders?: string | undefined;
 };
@@ -27,14 +27,16 @@ export const WebhookConfigUpdate$inboundSchema: z.ZodType<
   WebhookConfigUpdate,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  url: z.string().optional(),
-  custom_headers: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "custom_headers": "customHeaders",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    url: z.string().optional(),
+    custom_headers: z.string().optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      "custom_headers": "customHeaders",
+    });
+  })
+);
 /** @internal */
 export type WebhookConfigUpdate$Outbound = {
   url?: string | undefined;
@@ -46,14 +48,16 @@ export const WebhookConfigUpdate$outboundSchema: z.ZodType<
   WebhookConfigUpdate$Outbound,
   z.ZodTypeDef,
   WebhookConfigUpdate
-> = z.object({
-  url: z.string().optional(),
-  customHeaders: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    customHeaders: "custom_headers",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    url: z.string().optional(),
+    customHeaders: z.string().optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      customHeaders: "custom_headers",
+    });
+  })
+);
 
 export function webhookConfigUpdateToJSON(
   webhookConfigUpdate: WebhookConfigUpdate,

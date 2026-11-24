@@ -3,7 +3,7 @@
  */
 
 import * as z from "zod/v3";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
@@ -19,9 +19,11 @@ export const HookdeckCredentials$inboundSchema: z.ZodType<
   HookdeckCredentials,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  token: z.string(),
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    token: z.string(),
+  })
+);
 /** @internal */
 export type HookdeckCredentials$Outbound = {
   token: string;
@@ -32,9 +34,11 @@ export const HookdeckCredentials$outboundSchema: z.ZodType<
   HookdeckCredentials$Outbound,
   z.ZodTypeDef,
   HookdeckCredentials
-> = z.object({
-  token: z.string(),
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    token: z.string(),
+  })
+);
 
 export function hookdeckCredentialsToJSON(
   hookdeckCredentials: HookdeckCredentials,

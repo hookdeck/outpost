@@ -29,6 +29,7 @@ const value: components.DestinationCreateWebhook = {
     secret: "whsec_abc123",
     previousSecret: "whsec_xyz789",
     previousSecretInvalidAt: new Date("2024-01-02T00:00:00Z"),
+    customHeaders: "{\"Authorization\":\"Bear**************\"}",
   },
   deliveryMetadata: {
     "app-id": "my-app",
@@ -62,7 +63,7 @@ const value: components.DestinationCreateAWSSQS = {
     },
   },
   config: {
-    endpoint: "https://sqs.us-east-1.amazonaws.com",
+    endpoint: "http://localhost:4566",
     queueUrl: "https://sqs.us-east-1.amazonaws.com/123456789012/my-queue",
   },
   credentials: {

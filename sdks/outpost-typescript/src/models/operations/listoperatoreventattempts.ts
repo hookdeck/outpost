@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { ClosedEnum } from "../../types/enums.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import * as components from "../components/index.js";
@@ -54,7 +54,9 @@ export type ListOperatorEventAttemptsRequest = {
 /** @internal */
 export const ListOperatorEventAttemptsStatus$inboundSchema: z.ZodNativeEnum<
   typeof ListOperatorEventAttemptsStatus
-> = z.nativeEnum(ListOperatorEventAttemptsStatus);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.nativeEnum(ListOperatorEventAttemptsStatus)
+);
 /** @internal */
 export const ListOperatorEventAttemptsStatus$outboundSchema: z.ZodNativeEnum<
   typeof ListOperatorEventAttemptsStatus
@@ -65,19 +67,21 @@ export const ListOperatorEventAttemptsRequest$inboundSchema: z.ZodType<
   ListOperatorEventAttemptsRequest,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  event_id: z.string().optional(),
-  destination_id: z.string().optional(),
-  status: ListOperatorEventAttemptsStatus$inboundSchema.optional(),
-  topic: z.string().optional(),
-  time: components.Operator$inboundSchema.optional(),
-  limit: z.number().int().default(100),
-}).transform((v) => {
-  return remap$(v, {
-    "event_id": "eventId",
-    "destination_id": "destinationId",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    event_id: z.string().optional(),
+    destination_id: z.string().optional(),
+    status: ListOperatorEventAttemptsStatus$inboundSchema.optional(),
+    topic: z.string().optional(),
+    time: components.Operator$inboundSchema.optional(),
+    limit: z.number().int().default(100),
+  }).transform((v) => {
+    return remap$(v, {
+      "event_id": "eventId",
+      "destination_id": "destinationId",
+    });
+  })
+);
 /** @internal */
 export type ListOperatorEventAttemptsRequest$Outbound = {
   event_id?: string | undefined;
@@ -93,19 +97,21 @@ export const ListOperatorEventAttemptsRequest$outboundSchema: z.ZodType<
   ListOperatorEventAttemptsRequest$Outbound,
   z.ZodTypeDef,
   ListOperatorEventAttemptsRequest
-> = z.object({
-  eventId: z.string().optional(),
-  destinationId: z.string().optional(),
-  status: ListOperatorEventAttemptsStatus$outboundSchema.optional(),
-  topic: z.string().optional(),
-  time: components.Operator$outboundSchema.optional(),
-  limit: z.number().int().default(100),
-}).transform((v) => {
-  return remap$(v, {
-    eventId: "event_id",
-    destinationId: "destination_id",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    eventId: z.string().optional(),
+    destinationId: z.string().optional(),
+    status: ListOperatorEventAttemptsStatus$outboundSchema.optional(),
+    topic: z.string().optional(),
+    time: components.Operator$outboundSchema.optional(),
+    limit: z.number().int().default(100),
+  }).transform((v) => {
+    return remap$(v, {
+      eventId: "event_id",
+      destinationId: "destination_id",
+    });
+  })
+);
 
 export function listOperatorEventAttemptsRequestToJSON(
   listOperatorEventAttemptsRequest: ListOperatorEventAttemptsRequest,

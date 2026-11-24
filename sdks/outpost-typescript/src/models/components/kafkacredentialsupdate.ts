@@ -3,7 +3,7 @@
  */
 
 import * as z from "zod/v3";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
@@ -26,10 +26,12 @@ export const KafkaCredentialsUpdate$inboundSchema: z.ZodType<
   KafkaCredentialsUpdate,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  username: z.string().optional(),
-  password: z.string().optional(),
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    username: z.string().optional(),
+    password: z.string().optional(),
+  })
+);
 /** @internal */
 export type KafkaCredentialsUpdate$Outbound = {
   username?: string | undefined;
@@ -41,10 +43,12 @@ export const KafkaCredentialsUpdate$outboundSchema: z.ZodType<
   KafkaCredentialsUpdate$Outbound,
   z.ZodTypeDef,
   KafkaCredentialsUpdate
-> = z.object({
-  username: z.string().optional(),
-  password: z.string().optional(),
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    username: z.string().optional(),
+    password: z.string().optional(),
+  })
+);
 
 export function kafkaCredentialsUpdateToJSON(
   kafkaCredentialsUpdate: KafkaCredentialsUpdate,

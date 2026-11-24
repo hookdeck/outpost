@@ -3,7 +3,7 @@
  */
 
 import * as z from "zod/v3";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
@@ -19,9 +19,11 @@ export const TenantUpsert$inboundSchema: z.ZodType<
   TenantUpsert,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  metadata: z.nullable(z.record(z.string())).optional(),
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    metadata: z.nullable(z.record(z.string())).optional(),
+  })
+);
 /** @internal */
 export type TenantUpsert$Outbound = {
   metadata?: { [k: string]: string } | null | undefined;
@@ -32,9 +34,11 @@ export const TenantUpsert$outboundSchema: z.ZodType<
   TenantUpsert$Outbound,
   z.ZodTypeDef,
   TenantUpsert
-> = z.object({
-  metadata: z.nullable(z.record(z.string())).optional(),
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    metadata: z.nullable(z.record(z.string())).optional(),
+  })
+);
 
 export function tenantUpsertToJSON(tenantUpsert: TenantUpsert): string {
   return JSON.stringify(TenantUpsert$outboundSchema.parse(tenantUpsert));

@@ -3,7 +3,7 @@
  */
 
 import * as z from "zod/v3";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
@@ -34,16 +34,18 @@ export const Operator$inboundSchema: z.ZodType<
   Operator,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  gte: z.string().datetime({ offset: true }).transform(v => new Date(v))
-    .optional(),
-  lte: z.string().datetime({ offset: true }).transform(v => new Date(v))
-    .optional(),
-  gt: z.string().datetime({ offset: true }).transform(v => new Date(v))
-    .optional(),
-  lt: z.string().datetime({ offset: true }).transform(v => new Date(v))
-    .optional(),
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    gte: z.string().datetime({ offset: true }).transform(v => new Date(v))
+      .optional(),
+    lte: z.string().datetime({ offset: true }).transform(v => new Date(v))
+      .optional(),
+    gt: z.string().datetime({ offset: true }).transform(v => new Date(v))
+      .optional(),
+    lt: z.string().datetime({ offset: true }).transform(v => new Date(v))
+      .optional(),
+  })
+);
 /** @internal */
 export type Operator$Outbound = {
   gte?: string | undefined;
@@ -57,12 +59,14 @@ export const Operator$outboundSchema: z.ZodType<
   Operator$Outbound,
   z.ZodTypeDef,
   Operator
-> = z.object({
-  gte: z.date().transform(v => v.toISOString()).optional(),
-  lte: z.date().transform(v => v.toISOString()).optional(),
-  gt: z.date().transform(v => v.toISOString()).optional(),
-  lt: z.date().transform(v => v.toISOString()).optional(),
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    gte: z.date().transform(v => v.toISOString()).optional(),
+    lte: z.date().transform(v => v.toISOString()).optional(),
+    gt: z.date().transform(v => v.toISOString()).optional(),
+    lt: z.date().transform(v => v.toISOString()).optional(),
+  })
+);
 
 export function operatorToJSON(operator: Operator): string {
   return JSON.stringify(Operator$outboundSchema.parse(operator));

@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
@@ -24,14 +24,16 @@ export const WebhookConfig$inboundSchema: z.ZodType<
   WebhookConfig,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  url: z.string(),
-  custom_headers: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "custom_headers": "customHeaders",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    url: z.string(),
+    custom_headers: z.string().optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      "custom_headers": "customHeaders",
+    });
+  })
+);
 /** @internal */
 export type WebhookConfig$Outbound = {
   url: string;
@@ -43,14 +45,16 @@ export const WebhookConfig$outboundSchema: z.ZodType<
   WebhookConfig$Outbound,
   z.ZodTypeDef,
   WebhookConfig
-> = z.object({
-  url: z.string(),
-  customHeaders: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    customHeaders: "custom_headers",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    url: z.string(),
+    customHeaders: z.string().optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      customHeaders: "custom_headers",
+    });
+  })
+);
 
 export function webhookConfigToJSON(webhookConfig: WebhookConfig): string {
   return JSON.stringify(WebhookConfig$outboundSchema.parse(webhookConfig));

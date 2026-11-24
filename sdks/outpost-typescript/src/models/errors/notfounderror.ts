@@ -4,7 +4,10 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { collectExtraKeys as collectExtraKeys$ } from "../../lib/schemas.js";
+import {
+  collectExtraKeys as collectExtraKeys$,
+  lazySchema as lazySchema$,
+} from "../../lib/schemas.js";
 import { OutpostError } from "./outposterror.js";
 
 /**
@@ -45,24 +48,26 @@ export const NotFoundError$inboundSchema: z.ZodType<
   NotFoundError,
   z.ZodTypeDef,
   unknown
-> = collectExtraKeys$(
-  z.object({
-    message: z.string().optional(),
-    request$: z.instanceof(Request),
-    response$: z.instanceof(Response),
-    body$: z.string(),
-  })
-    .catchall(z.any()),
-  "additionalProperties",
-  false,
-)
-  .transform((v) => {
-    return new NotFoundError(v, {
-      request: v.request$,
-      response: v.response$,
-      body: v.body$,
-    });
-  });
+> = /* @__PURE__ */ lazySchema$(() =>
+  collectExtraKeys$(
+    z.object({
+      message: z.string().optional(),
+      request$: z.instanceof(Request),
+      response$: z.instanceof(Response),
+      body$: z.string(),
+    })
+      .catchall(z.any()),
+    "additionalProperties",
+    false,
+  )
+    .transform((v) => {
+      return new NotFoundError(v, {
+        request: v.request$,
+        response: v.response$,
+        body: v.body$,
+      });
+    })
+);
 
 /** @internal */
 export type NotFoundError$Outbound = {
@@ -75,18 +80,20 @@ export const NotFoundError$outboundSchema: z.ZodType<
   NotFoundError$Outbound,
   z.ZodTypeDef,
   NotFoundError
-> = z.instanceof(NotFoundError)
-  .transform(v => v.data$)
-  .pipe(
-    z.object({
-      message: z.string().optional(),
-      additionalProperties: z.record(z.any()),
-    }).transform((v) => {
-      return {
-        ...v.additionalProperties,
-        ...remap$(v, {
-          additionalProperties: null,
-        }),
-      };
-    }),
-  );
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.instanceof(NotFoundError)
+    .transform(v => v.data$)
+    .pipe(
+      z.object({
+        message: z.string().optional(),
+        additionalProperties: z.record(z.any()),
+      }).transform((v) => {
+        return {
+          ...v.additionalProperties,
+          ...remap$(v, {
+            additionalProperties: null,
+          }),
+        };
+      }),
+    )
+);

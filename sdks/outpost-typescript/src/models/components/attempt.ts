@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { ClosedEnum } from "../../types/enums.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
@@ -145,8 +145,8 @@ export type Attempt = {
 };
 
 /** @internal */
-export const Status$inboundSchema: z.ZodNativeEnum<typeof Status> = z
-  .nativeEnum(Status);
+export const Status$inboundSchema: z.ZodNativeEnum<typeof Status> =
+  /* @__PURE__ */ lazySchema$(() => z.nativeEnum(Status));
 /** @internal */
 export const Status$outboundSchema: z.ZodNativeEnum<typeof Status> =
   Status$inboundSchema;
@@ -156,22 +156,24 @@ export const EventSummary$inboundSchema: z.ZodType<
   EventSummary,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  id: z.string().optional(),
-  tenant_id: z.string().optional(),
-  destination_id: z.string().optional(),
-  topic: z.string().optional(),
-  time: z.string().datetime({ offset: true }).transform(v => new Date(v))
-    .optional(),
-  eligible_for_retry: z.boolean().optional(),
-  metadata: z.nullable(z.record(z.string())).optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "tenant_id": "tenantId",
-    "destination_id": "destinationId",
-    "eligible_for_retry": "eligibleForRetry",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    id: z.string().optional(),
+    tenant_id: z.string().optional(),
+    destination_id: z.string().optional(),
+    topic: z.string().optional(),
+    time: z.string().datetime({ offset: true }).transform(v => new Date(v))
+      .optional(),
+    eligible_for_retry: z.boolean().optional(),
+    metadata: z.nullable(z.record(z.string())).optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      "tenant_id": "tenantId",
+      "destination_id": "destinationId",
+      "eligible_for_retry": "eligibleForRetry",
+    });
+  })
+);
 /** @internal */
 export type EventSummary$Outbound = {
   id?: string | undefined;
@@ -188,21 +190,23 @@ export const EventSummary$outboundSchema: z.ZodType<
   EventSummary$Outbound,
   z.ZodTypeDef,
   EventSummary
-> = z.object({
-  id: z.string().optional(),
-  tenantId: z.string().optional(),
-  destinationId: z.string().optional(),
-  topic: z.string().optional(),
-  time: z.date().transform(v => v.toISOString()).optional(),
-  eligibleForRetry: z.boolean().optional(),
-  metadata: z.nullable(z.record(z.string())).optional(),
-}).transform((v) => {
-  return remap$(v, {
-    tenantId: "tenant_id",
-    destinationId: "destination_id",
-    eligibleForRetry: "eligible_for_retry",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    id: z.string().optional(),
+    tenantId: z.string().optional(),
+    destinationId: z.string().optional(),
+    topic: z.string().optional(),
+    time: z.date().transform(v => v.toISOString()).optional(),
+    eligibleForRetry: z.boolean().optional(),
+    metadata: z.nullable(z.record(z.string())).optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      tenantId: "tenant_id",
+      destinationId: "destination_id",
+      eligibleForRetry: "eligible_for_retry",
+    });
+  })
+);
 
 export function eventSummaryToJSON(eventSummary: EventSummary): string {
   return JSON.stringify(EventSummary$outboundSchema.parse(eventSummary));
@@ -222,23 +226,25 @@ export const EventFull$inboundSchema: z.ZodType<
   EventFull,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  id: z.string().optional(),
-  tenant_id: z.string().optional(),
-  destination_id: z.string().optional(),
-  topic: z.string().optional(),
-  time: z.string().datetime({ offset: true }).transform(v => new Date(v))
-    .optional(),
-  eligible_for_retry: z.boolean().optional(),
-  metadata: z.nullable(z.record(z.string())).optional(),
-  data: z.record(z.any()).optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "tenant_id": "tenantId",
-    "destination_id": "destinationId",
-    "eligible_for_retry": "eligibleForRetry",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    id: z.string().optional(),
+    tenant_id: z.string().optional(),
+    destination_id: z.string().optional(),
+    topic: z.string().optional(),
+    time: z.string().datetime({ offset: true }).transform(v => new Date(v))
+      .optional(),
+    eligible_for_retry: z.boolean().optional(),
+    metadata: z.nullable(z.record(z.string())).optional(),
+    data: z.record(z.any()).optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      "tenant_id": "tenantId",
+      "destination_id": "destinationId",
+      "eligible_for_retry": "eligibleForRetry",
+    });
+  })
+);
 /** @internal */
 export type EventFull$Outbound = {
   id?: string | undefined;
@@ -256,22 +262,24 @@ export const EventFull$outboundSchema: z.ZodType<
   EventFull$Outbound,
   z.ZodTypeDef,
   EventFull
-> = z.object({
-  id: z.string().optional(),
-  tenantId: z.string().optional(),
-  destinationId: z.string().optional(),
-  topic: z.string().optional(),
-  time: z.date().transform(v => v.toISOString()).optional(),
-  eligibleForRetry: z.boolean().optional(),
-  metadata: z.nullable(z.record(z.string())).optional(),
-  data: z.record(z.any()).optional(),
-}).transform((v) => {
-  return remap$(v, {
-    tenantId: "tenant_id",
-    destinationId: "destination_id",
-    eligibleForRetry: "eligible_for_retry",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    id: z.string().optional(),
+    tenantId: z.string().optional(),
+    destinationId: z.string().optional(),
+    topic: z.string().optional(),
+    time: z.date().transform(v => v.toISOString()).optional(),
+    eligibleForRetry: z.boolean().optional(),
+    metadata: z.nullable(z.record(z.string())).optional(),
+    data: z.record(z.any()).optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      tenantId: "tenant_id",
+      destinationId: "destination_id",
+      eligibleForRetry: "eligible_for_retry",
+    });
+  })
+);
 
 export function eventFullToJSON(eventFull: EventFull): string {
   return JSON.stringify(EventFull$outboundSchema.parse(eventFull));
@@ -291,10 +299,12 @@ export const EventUnion$inboundSchema: z.ZodType<
   EventUnion,
   z.ZodTypeDef,
   unknown
-> = z.union([
-  z.lazy(() => EventFull$inboundSchema),
-  z.lazy(() => EventSummary$inboundSchema),
-]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([
+    z.lazy(() => EventFull$inboundSchema),
+    z.lazy(() => EventSummary$inboundSchema),
+  ])
+);
 /** @internal */
 export type EventUnion$Outbound = EventFull$Outbound | EventSummary$Outbound;
 
@@ -303,10 +313,12 @@ export const EventUnion$outboundSchema: z.ZodType<
   EventUnion$Outbound,
   z.ZodTypeDef,
   EventUnion
-> = z.union([
-  z.lazy(() => EventFull$outboundSchema),
-  z.lazy(() => EventSummary$outboundSchema),
-]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([
+    z.lazy(() => EventFull$outboundSchema),
+    z.lazy(() => EventSummary$outboundSchema),
+  ])
+);
 
 export function eventUnionToJSON(eventUnion: EventUnion): string {
   return JSON.stringify(EventUnion$outboundSchema.parse(eventUnion));
@@ -323,36 +335,36 @@ export function eventUnionFromJSON(
 
 /** @internal */
 export const Attempt$inboundSchema: z.ZodType<Attempt, z.ZodTypeDef, unknown> =
-  z.object({
-    id: z.string().optional(),
-    tenant_id: z.string().optional(),
-    status: Status$inboundSchema.optional(),
-    time: z.string().datetime({ offset: true }).transform(v => new Date(v))
-      .optional(),
-    code: z.string().optional(),
-    response_data: z.nullable(z.record(z.any())).optional(),
-    attempt_number: z.number().int().optional(),
-    manual: z.boolean().optional(),
-    latency_ms: z.nullable(z.number().int()).optional(),
-    event_id: z.string().optional(),
-    destination_id: z.string().optional(),
-    event: z.nullable(
-      z.union([
+  /* @__PURE__ */ lazySchema$(() =>
+    z.object({
+      id: z.string().optional(),
+      tenant_id: z.string().optional(),
+      status: Status$inboundSchema.optional(),
+      time: z.string().datetime({ offset: true }).transform(v => new Date(v))
+        .optional(),
+      code: z.string().optional(),
+      response_data: z.nullable(z.record(z.any())).optional(),
+      attempt_number: z.number().int().optional(),
+      manual: z.boolean().optional(),
+      latency_ms: z.nullable(z.number().int()).optional(),
+      event_id: z.string().optional(),
+      destination_id: z.string().optional(),
+      event: z.nullable(z.union([
         z.lazy(() => EventFull$inboundSchema),
         z.lazy(() => EventSummary$inboundSchema),
-      ]),
-    ).optional(),
-    destination: AttemptDestination$inboundSchema.optional(),
-  }).transform((v) => {
-    return remap$(v, {
-      "tenant_id": "tenantId",
-      "response_data": "responseData",
-      "attempt_number": "attemptNumber",
-      "latency_ms": "latencyMs",
-      "event_id": "eventId",
-      "destination_id": "destinationId",
-    });
-  });
+      ])).optional(),
+      destination: AttemptDestination$inboundSchema.optional(),
+    }).transform((v) => {
+      return remap$(v, {
+        "tenant_id": "tenantId",
+        "response_data": "responseData",
+        "attempt_number": "attemptNumber",
+        "latency_ms": "latencyMs",
+        "event_id": "eventId",
+        "destination_id": "destinationId",
+      });
+    })
+  );
 /** @internal */
 export type Attempt$Outbound = {
   id?: string | undefined;
@@ -375,35 +387,35 @@ export const Attempt$outboundSchema: z.ZodType<
   Attempt$Outbound,
   z.ZodTypeDef,
   Attempt
-> = z.object({
-  id: z.string().optional(),
-  tenantId: z.string().optional(),
-  status: Status$outboundSchema.optional(),
-  time: z.date().transform(v => v.toISOString()).optional(),
-  code: z.string().optional(),
-  responseData: z.nullable(z.record(z.any())).optional(),
-  attemptNumber: z.number().int().optional(),
-  manual: z.boolean().optional(),
-  latencyMs: z.nullable(z.number().int()).optional(),
-  eventId: z.string().optional(),
-  destinationId: z.string().optional(),
-  event: z.nullable(
-    z.union([
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    id: z.string().optional(),
+    tenantId: z.string().optional(),
+    status: Status$outboundSchema.optional(),
+    time: z.date().transform(v => v.toISOString()).optional(),
+    code: z.string().optional(),
+    responseData: z.nullable(z.record(z.any())).optional(),
+    attemptNumber: z.number().int().optional(),
+    manual: z.boolean().optional(),
+    latencyMs: z.nullable(z.number().int()).optional(),
+    eventId: z.string().optional(),
+    destinationId: z.string().optional(),
+    event: z.nullable(z.union([
       z.lazy(() => EventFull$outboundSchema),
       z.lazy(() => EventSummary$outboundSchema),
-    ]),
-  ).optional(),
-  destination: AttemptDestination$outboundSchema.optional(),
-}).transform((v) => {
-  return remap$(v, {
-    tenantId: "tenant_id",
-    responseData: "response_data",
-    attemptNumber: "attempt_number",
-    latencyMs: "latency_ms",
-    eventId: "event_id",
-    destinationId: "destination_id",
-  });
-});
+    ])).optional(),
+    destination: AttemptDestination$outboundSchema.optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      tenantId: "tenant_id",
+      responseData: "response_data",
+      attemptNumber: "attempt_number",
+      latencyMs: "latency_ms",
+      eventId: "event_id",
+      destinationId: "destination_id",
+    });
+  })
+);
 
 export function attemptToJSON(attempt: Attempt): string {
   return JSON.stringify(Attempt$outboundSchema.parse(attempt));

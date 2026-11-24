@@ -4,13 +4,13 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
 export type PublishRequest = {
   /**
-   * Optional. A unique identifier for the event. If not provided, a ID will be generated.
+   * Optional. An identifier for the event, unique within its tenant. If not provided, an ID is generated. An event published again with the same `id` for the same tenant within the idempotency window (`PUBLISH_IDEMPOTENCY_KEY_TTL`, 1 hour by default) is not queued again. Different tenants can use the same `id`.
    */
   id?: string | undefined;
   /**
@@ -48,23 +48,25 @@ export const PublishRequest$inboundSchema: z.ZodType<
   PublishRequest,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  id: z.string().optional(),
-  tenant_id: z.string().optional(),
-  destination_id: z.string().optional(),
-  topic: z.string().optional(),
-  eligible_for_retry: z.boolean().optional(),
-  time: z.string().datetime({ offset: true }).transform(v => new Date(v))
-    .optional(),
-  metadata: z.record(z.string()).optional(),
-  data: z.record(z.any()),
-}).transform((v) => {
-  return remap$(v, {
-    "tenant_id": "tenantId",
-    "destination_id": "destinationId",
-    "eligible_for_retry": "eligibleForRetry",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    id: z.string().optional(),
+    tenant_id: z.string().optional(),
+    destination_id: z.string().optional(),
+    topic: z.string().optional(),
+    eligible_for_retry: z.boolean().optional(),
+    time: z.string().datetime({ offset: true }).transform(v => new Date(v))
+      .optional(),
+    metadata: z.record(z.string()).optional(),
+    data: z.record(z.any()),
+  }).transform((v) => {
+    return remap$(v, {
+      "tenant_id": "tenantId",
+      "destination_id": "destinationId",
+      "eligible_for_retry": "eligibleForRetry",
+    });
+  })
+);
 /** @internal */
 export type PublishRequest$Outbound = {
   id?: string | undefined;
@@ -82,22 +84,24 @@ export const PublishRequest$outboundSchema: z.ZodType<
   PublishRequest$Outbound,
   z.ZodTypeDef,
   PublishRequest
-> = z.object({
-  id: z.string().optional(),
-  tenantId: z.string().optional(),
-  destinationId: z.string().optional(),
-  topic: z.string().optional(),
-  eligibleForRetry: z.boolean().optional(),
-  time: z.date().transform(v => v.toISOString()).optional(),
-  metadata: z.record(z.string()).optional(),
-  data: z.record(z.any()),
-}).transform((v) => {
-  return remap$(v, {
-    tenantId: "tenant_id",
-    destinationId: "destination_id",
-    eligibleForRetry: "eligible_for_retry",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    id: z.string().optional(),
+    tenantId: z.string().optional(),
+    destinationId: z.string().optional(),
+    topic: z.string().optional(),
+    eligibleForRetry: z.boolean().optional(),
+    time: z.date().transform(v => v.toISOString()).optional(),
+    metadata: z.record(z.string()).optional(),
+    data: z.record(z.any()),
+  }).transform((v) => {
+    return remap$(v, {
+      tenantId: "tenant_id",
+      destinationId: "destination_id",
+      eligibleForRetry: "eligible_for_retry",
+    });
+  })
+);
 
 export function publishRequestToJSON(publishRequest: PublishRequest): string {
   return JSON.stringify(PublishRequest$outboundSchema.parse(publishRequest));

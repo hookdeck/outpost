@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { ClosedEnum } from "../../types/enums.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
@@ -33,9 +33,8 @@ export type GetTenantPortalUrlRequest = {
 };
 
 /** @internal */
-export const Theme$inboundSchema: z.ZodNativeEnum<typeof Theme> = z.nativeEnum(
-  Theme,
-);
+export const Theme$inboundSchema: z.ZodNativeEnum<typeof Theme> =
+  /* @__PURE__ */ lazySchema$(() => z.nativeEnum(Theme));
 /** @internal */
 export const Theme$outboundSchema: z.ZodNativeEnum<typeof Theme> =
   Theme$inboundSchema;
@@ -45,14 +44,16 @@ export const GetTenantPortalUrlRequest$inboundSchema: z.ZodType<
   GetTenantPortalUrlRequest,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  tenant_id: z.string(),
-  theme: Theme$inboundSchema.optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "tenant_id": "tenantId",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    tenant_id: z.string(),
+    theme: Theme$inboundSchema.optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      "tenant_id": "tenantId",
+    });
+  })
+);
 /** @internal */
 export type GetTenantPortalUrlRequest$Outbound = {
   tenant_id: string;
@@ -64,14 +65,16 @@ export const GetTenantPortalUrlRequest$outboundSchema: z.ZodType<
   GetTenantPortalUrlRequest$Outbound,
   z.ZodTypeDef,
   GetTenantPortalUrlRequest
-> = z.object({
-  tenantId: z.string(),
-  theme: Theme$outboundSchema.optional(),
-}).transform((v) => {
-  return remap$(v, {
-    tenantId: "tenant_id",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    tenantId: z.string(),
+    theme: Theme$outboundSchema.optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      tenantId: "tenant_id",
+    });
+  })
+);
 
 export function getTenantPortalUrlRequestToJSON(
   getTenantPortalUrlRequest: GetTenantPortalUrlRequest,

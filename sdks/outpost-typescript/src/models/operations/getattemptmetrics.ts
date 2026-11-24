@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { ClosedEnum } from "../../types/enums.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import * as components from "../components/index.js";
@@ -237,10 +237,12 @@ export const GetAttemptMetricsTime$inboundSchema: z.ZodType<
   GetAttemptMetricsTime,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  start: z.string().datetime({ offset: true }).transform(v => new Date(v)),
-  end: z.string().datetime({ offset: true }).transform(v => new Date(v)),
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    start: z.string().datetime({ offset: true }).transform(v => new Date(v)),
+    end: z.string().datetime({ offset: true }).transform(v => new Date(v)),
+  })
+);
 /** @internal */
 export type GetAttemptMetricsTime$Outbound = {
   start: string;
@@ -252,10 +254,12 @@ export const GetAttemptMetricsTime$outboundSchema: z.ZodType<
   GetAttemptMetricsTime$Outbound,
   z.ZodTypeDef,
   GetAttemptMetricsTime
-> = z.object({
-  start: z.date().transform(v => v.toISOString()),
-  end: z.date().transform(v => v.toISOString()),
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    start: z.date().transform(v => v.toISOString()),
+    end: z.date().transform(v => v.toISOString()),
+  })
+);
 
 export function getAttemptMetricsTimeToJSON(
   getAttemptMetricsTime: GetAttemptMetricsTime,
@@ -277,7 +281,9 @@ export function getAttemptMetricsTimeFromJSON(
 /** @internal */
 export const GetAttemptMetricsMeasuresEnum2$inboundSchema: z.ZodNativeEnum<
   typeof GetAttemptMetricsMeasuresEnum2
-> = z.nativeEnum(GetAttemptMetricsMeasuresEnum2);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.nativeEnum(GetAttemptMetricsMeasuresEnum2)
+);
 /** @internal */
 export const GetAttemptMetricsMeasuresEnum2$outboundSchema: z.ZodNativeEnum<
   typeof GetAttemptMetricsMeasuresEnum2
@@ -286,7 +292,9 @@ export const GetAttemptMetricsMeasuresEnum2$outboundSchema: z.ZodNativeEnum<
 /** @internal */
 export const GetAttemptMetricsMeasuresEnum1$inboundSchema: z.ZodNativeEnum<
   typeof GetAttemptMetricsMeasuresEnum1
-> = z.nativeEnum(GetAttemptMetricsMeasuresEnum1);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.nativeEnum(GetAttemptMetricsMeasuresEnum1)
+);
 /** @internal */
 export const GetAttemptMetricsMeasuresEnum1$outboundSchema: z.ZodNativeEnum<
   typeof GetAttemptMetricsMeasuresEnum1
@@ -297,10 +305,12 @@ export const GetAttemptMetricsMeasuresUnion$inboundSchema: z.ZodType<
   GetAttemptMetricsMeasuresUnion,
   z.ZodTypeDef,
   unknown
-> = z.union([
-  GetAttemptMetricsMeasuresEnum1$inboundSchema,
-  z.array(GetAttemptMetricsMeasuresEnum2$inboundSchema),
-]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([
+    GetAttemptMetricsMeasuresEnum1$inboundSchema,
+    z.array(GetAttemptMetricsMeasuresEnum2$inboundSchema),
+  ])
+);
 /** @internal */
 export type GetAttemptMetricsMeasuresUnion$Outbound = string | Array<string>;
 
@@ -309,10 +319,12 @@ export const GetAttemptMetricsMeasuresUnion$outboundSchema: z.ZodType<
   GetAttemptMetricsMeasuresUnion$Outbound,
   z.ZodTypeDef,
   GetAttemptMetricsMeasuresUnion
-> = z.union([
-  GetAttemptMetricsMeasuresEnum1$outboundSchema,
-  z.array(GetAttemptMetricsMeasuresEnum2$outboundSchema),
-]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([
+    GetAttemptMetricsMeasuresEnum1$outboundSchema,
+    z.array(GetAttemptMetricsMeasuresEnum2$outboundSchema),
+  ])
+);
 
 export function getAttemptMetricsMeasuresUnionToJSON(
   getAttemptMetricsMeasuresUnion: GetAttemptMetricsMeasuresUnion,
@@ -336,7 +348,9 @@ export function getAttemptMetricsMeasuresUnionFromJSON(
 /** @internal */
 export const GetAttemptMetricsDimensionsEnum2$inboundSchema: z.ZodNativeEnum<
   typeof GetAttemptMetricsDimensionsEnum2
-> = z.nativeEnum(GetAttemptMetricsDimensionsEnum2);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.nativeEnum(GetAttemptMetricsDimensionsEnum2)
+);
 /** @internal */
 export const GetAttemptMetricsDimensionsEnum2$outboundSchema: z.ZodNativeEnum<
   typeof GetAttemptMetricsDimensionsEnum2
@@ -345,7 +359,9 @@ export const GetAttemptMetricsDimensionsEnum2$outboundSchema: z.ZodNativeEnum<
 /** @internal */
 export const GetAttemptMetricsDimensionsEnum1$inboundSchema: z.ZodNativeEnum<
   typeof GetAttemptMetricsDimensionsEnum1
-> = z.nativeEnum(GetAttemptMetricsDimensionsEnum1);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.nativeEnum(GetAttemptMetricsDimensionsEnum1)
+);
 /** @internal */
 export const GetAttemptMetricsDimensionsEnum1$outboundSchema: z.ZodNativeEnum<
   typeof GetAttemptMetricsDimensionsEnum1
@@ -356,10 +372,12 @@ export const GetAttemptMetricsDimensionsUnion$inboundSchema: z.ZodType<
   GetAttemptMetricsDimensionsUnion,
   z.ZodTypeDef,
   unknown
-> = z.union([
-  GetAttemptMetricsDimensionsEnum1$inboundSchema,
-  z.array(GetAttemptMetricsDimensionsEnum2$inboundSchema),
-]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([
+    GetAttemptMetricsDimensionsEnum1$inboundSchema,
+    z.array(GetAttemptMetricsDimensionsEnum2$inboundSchema),
+  ])
+);
 /** @internal */
 export type GetAttemptMetricsDimensionsUnion$Outbound = string | Array<string>;
 
@@ -368,10 +386,12 @@ export const GetAttemptMetricsDimensionsUnion$outboundSchema: z.ZodType<
   GetAttemptMetricsDimensionsUnion$Outbound,
   z.ZodTypeDef,
   GetAttemptMetricsDimensionsUnion
-> = z.union([
-  GetAttemptMetricsDimensionsEnum1$outboundSchema,
-  z.array(GetAttemptMetricsDimensionsEnum2$outboundSchema),
-]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([
+    GetAttemptMetricsDimensionsEnum1$outboundSchema,
+    z.array(GetAttemptMetricsDimensionsEnum2$outboundSchema),
+  ])
+);
 
 export function getAttemptMetricsDimensionsUnionToJSON(
   getAttemptMetricsDimensionsUnion: GetAttemptMetricsDimensionsUnion,
@@ -397,7 +417,9 @@ export const GetAttemptMetricsFiltersDestinationId$inboundSchema: z.ZodType<
   GetAttemptMetricsFiltersDestinationId,
   z.ZodTypeDef,
   unknown
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 /** @internal */
 export type GetAttemptMetricsFiltersDestinationId$Outbound =
   | string
@@ -408,7 +430,9 @@ export const GetAttemptMetricsFiltersDestinationId$outboundSchema: z.ZodType<
   GetAttemptMetricsFiltersDestinationId$Outbound,
   z.ZodTypeDef,
   GetAttemptMetricsFiltersDestinationId
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 
 export function getAttemptMetricsFiltersDestinationIdToJSON(
   getAttemptMetricsFiltersDestinationId: GetAttemptMetricsFiltersDestinationId,
@@ -435,10 +459,12 @@ export const FiltersDestinationType$inboundSchema: z.ZodType<
   FiltersDestinationType,
   z.ZodTypeDef,
   unknown
-> = z.union([
-  components.DestinationType$inboundSchema,
-  z.array(components.DestinationType$inboundSchema),
-]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([
+    components.DestinationType$inboundSchema,
+    z.array(components.DestinationType$inboundSchema),
+  ])
+);
 /** @internal */
 export type FiltersDestinationType$Outbound = string | Array<string>;
 
@@ -447,10 +473,12 @@ export const FiltersDestinationType$outboundSchema: z.ZodType<
   FiltersDestinationType$Outbound,
   z.ZodTypeDef,
   FiltersDestinationType
-> = z.union([
-  components.DestinationType$outboundSchema,
-  z.array(components.DestinationType$outboundSchema),
-]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([
+    components.DestinationType$outboundSchema,
+    z.array(components.DestinationType$outboundSchema),
+  ])
+);
 
 export function filtersDestinationTypeToJSON(
   filtersDestinationType: FiltersDestinationType,
@@ -474,7 +502,9 @@ export const GetAttemptMetricsFiltersTopic$inboundSchema: z.ZodType<
   GetAttemptMetricsFiltersTopic,
   z.ZodTypeDef,
   unknown
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 /** @internal */
 export type GetAttemptMetricsFiltersTopic$Outbound = string | Array<string>;
 
@@ -483,7 +513,9 @@ export const GetAttemptMetricsFiltersTopic$outboundSchema: z.ZodType<
   GetAttemptMetricsFiltersTopic$Outbound,
   z.ZodTypeDef,
   GetAttemptMetricsFiltersTopic
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 
 export function getAttemptMetricsFiltersTopicToJSON(
   getAttemptMetricsFiltersTopic: GetAttemptMetricsFiltersTopic,
@@ -507,7 +539,7 @@ export function getAttemptMetricsFiltersTopicFromJSON(
 /** @internal */
 export const FiltersStatusEnum2$inboundSchema: z.ZodNativeEnum<
   typeof FiltersStatusEnum2
-> = z.nativeEnum(FiltersStatusEnum2);
+> = /* @__PURE__ */ lazySchema$(() => z.nativeEnum(FiltersStatusEnum2));
 /** @internal */
 export const FiltersStatusEnum2$outboundSchema: z.ZodNativeEnum<
   typeof FiltersStatusEnum2
@@ -516,7 +548,7 @@ export const FiltersStatusEnum2$outboundSchema: z.ZodNativeEnum<
 /** @internal */
 export const FiltersStatusEnum1$inboundSchema: z.ZodNativeEnum<
   typeof FiltersStatusEnum1
-> = z.nativeEnum(FiltersStatusEnum1);
+> = /* @__PURE__ */ lazySchema$(() => z.nativeEnum(FiltersStatusEnum1));
 /** @internal */
 export const FiltersStatusEnum1$outboundSchema: z.ZodNativeEnum<
   typeof FiltersStatusEnum1
@@ -527,10 +559,12 @@ export const FiltersStatus$inboundSchema: z.ZodType<
   FiltersStatus,
   z.ZodTypeDef,
   unknown
-> = z.union([
-  FiltersStatusEnum1$inboundSchema,
-  z.array(FiltersStatusEnum2$inboundSchema),
-]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([
+    FiltersStatusEnum1$inboundSchema,
+    z.array(FiltersStatusEnum2$inboundSchema),
+  ])
+);
 /** @internal */
 export type FiltersStatus$Outbound = string | Array<string>;
 
@@ -539,10 +573,12 @@ export const FiltersStatus$outboundSchema: z.ZodType<
   FiltersStatus$Outbound,
   z.ZodTypeDef,
   FiltersStatus
-> = z.union([
-  FiltersStatusEnum1$outboundSchema,
-  z.array(FiltersStatusEnum2$outboundSchema),
-]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([
+    FiltersStatusEnum1$outboundSchema,
+    z.array(FiltersStatusEnum2$outboundSchema),
+  ])
+);
 
 export function filtersStatusToJSON(filtersStatus: FiltersStatus): string {
   return JSON.stringify(FiltersStatus$outboundSchema.parse(filtersStatus));
@@ -562,7 +598,9 @@ export const FiltersCode$inboundSchema: z.ZodType<
   FiltersCode,
   z.ZodTypeDef,
   unknown
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 /** @internal */
 export type FiltersCode$Outbound = string | Array<string>;
 
@@ -571,7 +609,9 @@ export const FiltersCode$outboundSchema: z.ZodType<
   FiltersCode$Outbound,
   z.ZodTypeDef,
   FiltersCode
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 
 export function filtersCodeToJSON(filtersCode: FiltersCode): string {
   return JSON.stringify(FiltersCode$outboundSchema.parse(filtersCode));
@@ -589,7 +629,7 @@ export function filtersCodeFromJSON(
 /** @internal */
 export const FiltersManual$inboundSchema: z.ZodNativeEnum<
   typeof FiltersManual
-> = z.nativeEnum(FiltersManual);
+> = /* @__PURE__ */ lazySchema$(() => z.nativeEnum(FiltersManual));
 /** @internal */
 export const FiltersManual$outboundSchema: z.ZodNativeEnum<
   typeof FiltersManual
@@ -600,7 +640,9 @@ export const FiltersAttemptNumber$inboundSchema: z.ZodType<
   FiltersAttemptNumber,
   z.ZodTypeDef,
   unknown
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 /** @internal */
 export type FiltersAttemptNumber$Outbound = string | Array<string>;
 
@@ -609,7 +651,9 @@ export const FiltersAttemptNumber$outboundSchema: z.ZodType<
   FiltersAttemptNumber$Outbound,
   z.ZodTypeDef,
   FiltersAttemptNumber
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 
 export function filtersAttemptNumberToJSON(
   filtersAttemptNumber: FiltersAttemptNumber,
@@ -633,7 +677,9 @@ export const GetAttemptMetricsFiltersTenantId$inboundSchema: z.ZodType<
   GetAttemptMetricsFiltersTenantId,
   z.ZodTypeDef,
   unknown
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 /** @internal */
 export type GetAttemptMetricsFiltersTenantId$Outbound = string | Array<string>;
 
@@ -642,7 +688,9 @@ export const GetAttemptMetricsFiltersTenantId$outboundSchema: z.ZodType<
   GetAttemptMetricsFiltersTenantId$Outbound,
   z.ZodTypeDef,
   GetAttemptMetricsFiltersTenantId
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 
 export function getAttemptMetricsFiltersTenantIdToJSON(
   getAttemptMetricsFiltersTenantId: GetAttemptMetricsFiltersTenantId,
@@ -668,45 +716,47 @@ export const GetAttemptMetricsRequest$inboundSchema: z.ZodType<
   GetAttemptMetricsRequest,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  time: z.lazy(() => GetAttemptMetricsTime$inboundSchema),
-  granularity: z.string().optional(),
-  measures: z.union([
-    GetAttemptMetricsMeasuresEnum1$inboundSchema,
-    z.array(GetAttemptMetricsMeasuresEnum2$inboundSchema),
-  ]),
-  dimensions: z.union([
-    GetAttemptMetricsDimensionsEnum1$inboundSchema,
-    z.array(GetAttemptMetricsDimensionsEnum2$inboundSchema),
-  ]).optional(),
-  "filters[destination_id]": z.union([z.string(), z.array(z.string())])
-    .optional(),
-  "filters[destination_type]": z.union([
-    components.DestinationType$inboundSchema,
-    z.array(components.DestinationType$inboundSchema),
-  ]).optional(),
-  "filters[topic]": z.union([z.string(), z.array(z.string())]).optional(),
-  "filters[status]": z.union([
-    FiltersStatusEnum1$inboundSchema,
-    z.array(FiltersStatusEnum2$inboundSchema),
-  ]).optional(),
-  "filters[code]": z.union([z.string(), z.array(z.string())]).optional(),
-  "filters[manual]": FiltersManual$inboundSchema.optional(),
-  "filters[attempt_number]": z.union([z.string(), z.array(z.string())])
-    .optional(),
-  "filters[tenant_id]": z.union([z.string(), z.array(z.string())]).optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "filters[destination_id]": "filtersDestinationId",
-    "filters[destination_type]": "filtersDestinationType",
-    "filters[topic]": "filtersTopic",
-    "filters[status]": "filtersStatus",
-    "filters[code]": "filtersCode",
-    "filters[manual]": "filtersManual",
-    "filters[attempt_number]": "filtersAttemptNumber",
-    "filters[tenant_id]": "filtersTenantId",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    time: z.lazy(() => GetAttemptMetricsTime$inboundSchema),
+    granularity: z.string().optional(),
+    measures: z.union([
+      GetAttemptMetricsMeasuresEnum1$inboundSchema,
+      z.array(GetAttemptMetricsMeasuresEnum2$inboundSchema),
+    ]),
+    dimensions: z.union([
+      GetAttemptMetricsDimensionsEnum1$inboundSchema,
+      z.array(GetAttemptMetricsDimensionsEnum2$inboundSchema),
+    ]).optional(),
+    "filters[destination_id]": z.union([z.string(), z.array(z.string())])
+      .optional(),
+    "filters[destination_type]": z.union([
+      components.DestinationType$inboundSchema,
+      z.array(components.DestinationType$inboundSchema),
+    ]).optional(),
+    "filters[topic]": z.union([z.string(), z.array(z.string())]).optional(),
+    "filters[status]": z.union([
+      FiltersStatusEnum1$inboundSchema,
+      z.array(FiltersStatusEnum2$inboundSchema),
+    ]).optional(),
+    "filters[code]": z.union([z.string(), z.array(z.string())]).optional(),
+    "filters[manual]": FiltersManual$inboundSchema.optional(),
+    "filters[attempt_number]": z.union([z.string(), z.array(z.string())])
+      .optional(),
+    "filters[tenant_id]": z.union([z.string(), z.array(z.string())]).optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      "filters[destination_id]": "filtersDestinationId",
+      "filters[destination_type]": "filtersDestinationType",
+      "filters[topic]": "filtersTopic",
+      "filters[status]": "filtersStatus",
+      "filters[code]": "filtersCode",
+      "filters[manual]": "filtersManual",
+      "filters[attempt_number]": "filtersAttemptNumber",
+      "filters[tenant_id]": "filtersTenantId",
+    });
+  })
+);
 /** @internal */
 export type GetAttemptMetricsRequest$Outbound = {
   time: GetAttemptMetricsTime$Outbound;
@@ -728,43 +778,45 @@ export const GetAttemptMetricsRequest$outboundSchema: z.ZodType<
   GetAttemptMetricsRequest$Outbound,
   z.ZodTypeDef,
   GetAttemptMetricsRequest
-> = z.object({
-  time: z.lazy(() => GetAttemptMetricsTime$outboundSchema),
-  granularity: z.string().optional(),
-  measures: z.union([
-    GetAttemptMetricsMeasuresEnum1$outboundSchema,
-    z.array(GetAttemptMetricsMeasuresEnum2$outboundSchema),
-  ]),
-  dimensions: z.union([
-    GetAttemptMetricsDimensionsEnum1$outboundSchema,
-    z.array(GetAttemptMetricsDimensionsEnum2$outboundSchema),
-  ]).optional(),
-  filtersDestinationId: z.union([z.string(), z.array(z.string())]).optional(),
-  filtersDestinationType: z.union([
-    components.DestinationType$outboundSchema,
-    z.array(components.DestinationType$outboundSchema),
-  ]).optional(),
-  filtersTopic: z.union([z.string(), z.array(z.string())]).optional(),
-  filtersStatus: z.union([
-    FiltersStatusEnum1$outboundSchema,
-    z.array(FiltersStatusEnum2$outboundSchema),
-  ]).optional(),
-  filtersCode: z.union([z.string(), z.array(z.string())]).optional(),
-  filtersManual: FiltersManual$outboundSchema.optional(),
-  filtersAttemptNumber: z.union([z.string(), z.array(z.string())]).optional(),
-  filtersTenantId: z.union([z.string(), z.array(z.string())]).optional(),
-}).transform((v) => {
-  return remap$(v, {
-    filtersDestinationId: "filters[destination_id]",
-    filtersDestinationType: "filters[destination_type]",
-    filtersTopic: "filters[topic]",
-    filtersStatus: "filters[status]",
-    filtersCode: "filters[code]",
-    filtersManual: "filters[manual]",
-    filtersAttemptNumber: "filters[attempt_number]",
-    filtersTenantId: "filters[tenant_id]",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    time: z.lazy(() => GetAttemptMetricsTime$outboundSchema),
+    granularity: z.string().optional(),
+    measures: z.union([
+      GetAttemptMetricsMeasuresEnum1$outboundSchema,
+      z.array(GetAttemptMetricsMeasuresEnum2$outboundSchema),
+    ]),
+    dimensions: z.union([
+      GetAttemptMetricsDimensionsEnum1$outboundSchema,
+      z.array(GetAttemptMetricsDimensionsEnum2$outboundSchema),
+    ]).optional(),
+    filtersDestinationId: z.union([z.string(), z.array(z.string())]).optional(),
+    filtersDestinationType: z.union([
+      components.DestinationType$outboundSchema,
+      z.array(components.DestinationType$outboundSchema),
+    ]).optional(),
+    filtersTopic: z.union([z.string(), z.array(z.string())]).optional(),
+    filtersStatus: z.union([
+      FiltersStatusEnum1$outboundSchema,
+      z.array(FiltersStatusEnum2$outboundSchema),
+    ]).optional(),
+    filtersCode: z.union([z.string(), z.array(z.string())]).optional(),
+    filtersManual: FiltersManual$outboundSchema.optional(),
+    filtersAttemptNumber: z.union([z.string(), z.array(z.string())]).optional(),
+    filtersTenantId: z.union([z.string(), z.array(z.string())]).optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      filtersDestinationId: "filters[destination_id]",
+      filtersDestinationType: "filters[destination_type]",
+      filtersTopic: "filters[topic]",
+      filtersStatus: "filters[status]",
+      filtersCode: "filters[code]",
+      filtersManual: "filters[manual]",
+      filtersAttemptNumber: "filters[attempt_number]",
+      filtersTenantId: "filters[tenant_id]",
+    });
+  })
+);
 
 export function getAttemptMetricsRequestToJSON(
   getAttemptMetricsRequest: GetAttemptMetricsRequest,

@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
@@ -20,13 +20,15 @@ export const ListOperatorEventAttemptsByEventRequest$inboundSchema: z.ZodType<
   ListOperatorEventAttemptsByEventRequest,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  event_id: z.string(),
-}).transform((v) => {
-  return remap$(v, {
-    "event_id": "eventId",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    event_id: z.string(),
+  }).transform((v) => {
+    return remap$(v, {
+      "event_id": "eventId",
+    });
+  })
+);
 /** @internal */
 export type ListOperatorEventAttemptsByEventRequest$Outbound = {
   event_id: string;
@@ -37,13 +39,15 @@ export const ListOperatorEventAttemptsByEventRequest$outboundSchema: z.ZodType<
   ListOperatorEventAttemptsByEventRequest$Outbound,
   z.ZodTypeDef,
   ListOperatorEventAttemptsByEventRequest
-> = z.object({
-  eventId: z.string(),
-}).transform((v) => {
-  return remap$(v, {
-    eventId: "event_id",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    eventId: z.string(),
+  }).transform((v) => {
+    return remap$(v, {
+      eventId: "event_id",
+    });
+  })
+);
 
 export function listOperatorEventAttemptsByEventRequestToJSON(
   listOperatorEventAttemptsByEventRequest:

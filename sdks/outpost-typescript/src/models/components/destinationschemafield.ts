@@ -3,7 +3,7 @@
  */
 
 import * as z from "zod/v3";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { ClosedEnum } from "../../types/enums.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
@@ -57,18 +57,20 @@ export type DestinationSchemaField = {
 };
 
 /** @internal */
-export const TypeEnum$inboundSchema: z.ZodNativeEnum<typeof TypeEnum> = z
-  .nativeEnum(TypeEnum);
+export const TypeEnum$inboundSchema: z.ZodNativeEnum<typeof TypeEnum> =
+  /* @__PURE__ */ lazySchema$(() => z.nativeEnum(TypeEnum));
 /** @internal */
 export const TypeEnum$outboundSchema: z.ZodNativeEnum<typeof TypeEnum> =
   TypeEnum$inboundSchema;
 
 /** @internal */
-export const Option$inboundSchema: z.ZodType<Option, z.ZodTypeDef, unknown> = z
-  .object({
-    label: z.string(),
-    value: z.string(),
-  });
+export const Option$inboundSchema: z.ZodType<Option, z.ZodTypeDef, unknown> =
+  /* @__PURE__ */ lazySchema$(() =>
+    z.object({
+      label: z.string(),
+      value: z.string(),
+    })
+  );
 /** @internal */
 export type Option$Outbound = {
   label: string;
@@ -80,10 +82,12 @@ export const Option$outboundSchema: z.ZodType<
   Option$Outbound,
   z.ZodTypeDef,
   Option
-> = z.object({
-  label: z.string(),
-  value: z.string(),
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    label: z.string(),
+    value: z.string(),
+  })
+);
 
 export function optionToJSON(option: Option): string {
   return JSON.stringify(Option$outboundSchema.parse(option));
@@ -103,19 +107,21 @@ export const DestinationSchemaField$inboundSchema: z.ZodType<
   DestinationSchemaField,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  key: z.string(),
-  type: TypeEnum$inboundSchema,
-  label: z.string().optional(),
-  description: z.string().optional(),
-  required: z.boolean(),
-  sensitive: z.boolean().optional(),
-  default: z.string().optional(),
-  minlength: z.number().int().optional(),
-  maxlength: z.number().int().optional(),
-  pattern: z.string().optional(),
-  options: z.array(z.lazy(() => Option$inboundSchema)).optional(),
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    key: z.string(),
+    type: TypeEnum$inboundSchema,
+    label: z.string().optional(),
+    description: z.string().optional(),
+    required: z.boolean(),
+    sensitive: z.boolean().optional(),
+    default: z.string().optional(),
+    minlength: z.number().int().optional(),
+    maxlength: z.number().int().optional(),
+    pattern: z.string().optional(),
+    options: z.array(z.lazy(() => Option$inboundSchema)).optional(),
+  })
+);
 /** @internal */
 export type DestinationSchemaField$Outbound = {
   key: string;
@@ -136,19 +142,21 @@ export const DestinationSchemaField$outboundSchema: z.ZodType<
   DestinationSchemaField$Outbound,
   z.ZodTypeDef,
   DestinationSchemaField
-> = z.object({
-  key: z.string(),
-  type: TypeEnum$outboundSchema,
-  label: z.string().optional(),
-  description: z.string().optional(),
-  required: z.boolean(),
-  sensitive: z.boolean().optional(),
-  default: z.string().optional(),
-  minlength: z.number().int().optional(),
-  maxlength: z.number().int().optional(),
-  pattern: z.string().optional(),
-  options: z.array(z.lazy(() => Option$outboundSchema)).optional(),
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    key: z.string(),
+    type: TypeEnum$outboundSchema,
+    label: z.string().optional(),
+    description: z.string().optional(),
+    required: z.boolean(),
+    sensitive: z.boolean().optional(),
+    default: z.string().optional(),
+    minlength: z.number().int().optional(),
+    maxlength: z.number().int().optional(),
+    pattern: z.string().optional(),
+    options: z.array(z.lazy(() => Option$outboundSchema)).optional(),
+  })
+);
 
 export function destinationSchemaFieldToJSON(
   destinationSchemaField: DestinationSchemaField,

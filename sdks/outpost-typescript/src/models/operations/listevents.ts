@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { ClosedEnum } from "../../types/enums.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import * as components from "../components/index.js";
@@ -109,7 +109,9 @@ export const ListEventsId$inboundSchema: z.ZodType<
   ListEventsId,
   z.ZodTypeDef,
   unknown
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 /** @internal */
 export type ListEventsId$Outbound = string | Array<string>;
 
@@ -118,7 +120,9 @@ export const ListEventsId$outboundSchema: z.ZodType<
   ListEventsId$Outbound,
   z.ZodTypeDef,
   ListEventsId
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 
 export function listEventsIdToJSON(listEventsId: ListEventsId): string {
   return JSON.stringify(ListEventsId$outboundSchema.parse(listEventsId));
@@ -138,7 +142,9 @@ export const ListEventsTenantId$inboundSchema: z.ZodType<
   ListEventsTenantId,
   z.ZodTypeDef,
   unknown
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 /** @internal */
 export type ListEventsTenantId$Outbound = string | Array<string>;
 
@@ -147,7 +153,9 @@ export const ListEventsTenantId$outboundSchema: z.ZodType<
   ListEventsTenantId$Outbound,
   z.ZodTypeDef,
   ListEventsTenantId
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 
 export function listEventsTenantIdToJSON(
   listEventsTenantId: ListEventsTenantId,
@@ -171,7 +179,9 @@ export const ListEventsDestinationId$inboundSchema: z.ZodType<
   ListEventsDestinationId,
   z.ZodTypeDef,
   unknown
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 /** @internal */
 export type ListEventsDestinationId$Outbound = string | Array<string>;
 
@@ -180,7 +190,9 @@ export const ListEventsDestinationId$outboundSchema: z.ZodType<
   ListEventsDestinationId$Outbound,
   z.ZodTypeDef,
   ListEventsDestinationId
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 
 export function listEventsDestinationIdToJSON(
   listEventsDestinationId: ListEventsDestinationId,
@@ -204,7 +216,9 @@ export const ListEventsTopic$inboundSchema: z.ZodType<
   ListEventsTopic,
   z.ZodTypeDef,
   unknown
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 /** @internal */
 export type ListEventsTopic$Outbound = string | Array<string>;
 
@@ -213,7 +227,9 @@ export const ListEventsTopic$outboundSchema: z.ZodType<
   ListEventsTopic$Outbound,
   z.ZodTypeDef,
   ListEventsTopic
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 
 export function listEventsTopicToJSON(
   listEventsTopic: ListEventsTopic,
@@ -233,7 +249,7 @@ export function listEventsTopicFromJSON(
 /** @internal */
 export const ListEventsOrderBy$inboundSchema: z.ZodNativeEnum<
   typeof ListEventsOrderBy
-> = z.nativeEnum(ListEventsOrderBy);
+> = /* @__PURE__ */ lazySchema$(() => z.nativeEnum(ListEventsOrderBy));
 /** @internal */
 export const ListEventsOrderBy$outboundSchema: z.ZodNativeEnum<
   typeof ListEventsOrderBy
@@ -242,7 +258,7 @@ export const ListEventsOrderBy$outboundSchema: z.ZodNativeEnum<
 /** @internal */
 export const ListEventsDir$inboundSchema: z.ZodNativeEnum<
   typeof ListEventsDir
-> = z.nativeEnum(ListEventsDir);
+> = /* @__PURE__ */ lazySchema$(() => z.nativeEnum(ListEventsDir));
 /** @internal */
 export const ListEventsDir$outboundSchema: z.ZodNativeEnum<
   typeof ListEventsDir
@@ -253,24 +269,26 @@ export const ListEventsRequest$inboundSchema: z.ZodType<
   ListEventsRequest,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  id: z.union([z.string(), z.array(z.string())]).optional(),
-  tenant_id: z.union([z.string(), z.array(z.string())]).optional(),
-  destination_id: z.union([z.string(), z.array(z.string())]).optional(),
-  topic: z.union([z.string(), z.array(z.string())]).optional(),
-  time: components.Operator$inboundSchema.optional(),
-  limit: z.number().int().default(100),
-  next: z.string().optional(),
-  prev: z.string().optional(),
-  order_by: ListEventsOrderBy$inboundSchema.default("time"),
-  dir: ListEventsDir$inboundSchema.default("desc"),
-}).transform((v) => {
-  return remap$(v, {
-    "tenant_id": "tenantId",
-    "destination_id": "destinationId",
-    "order_by": "orderBy",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    id: z.union([z.string(), z.array(z.string())]).optional(),
+    tenant_id: z.union([z.string(), z.array(z.string())]).optional(),
+    destination_id: z.union([z.string(), z.array(z.string())]).optional(),
+    topic: z.union([z.string(), z.array(z.string())]).optional(),
+    time: components.Operator$inboundSchema.optional(),
+    limit: z.number().int().default(100),
+    next: z.string().optional(),
+    prev: z.string().optional(),
+    order_by: ListEventsOrderBy$inboundSchema.default("time"),
+    dir: ListEventsDir$inboundSchema.default("desc"),
+  }).transform((v) => {
+    return remap$(v, {
+      "tenant_id": "tenantId",
+      "destination_id": "destinationId",
+      "order_by": "orderBy",
+    });
+  })
+);
 /** @internal */
 export type ListEventsRequest$Outbound = {
   id?: string | Array<string> | undefined;
@@ -290,24 +308,26 @@ export const ListEventsRequest$outboundSchema: z.ZodType<
   ListEventsRequest$Outbound,
   z.ZodTypeDef,
   ListEventsRequest
-> = z.object({
-  id: z.union([z.string(), z.array(z.string())]).optional(),
-  tenantId: z.union([z.string(), z.array(z.string())]).optional(),
-  destinationId: z.union([z.string(), z.array(z.string())]).optional(),
-  topic: z.union([z.string(), z.array(z.string())]).optional(),
-  time: components.Operator$outboundSchema.optional(),
-  limit: z.number().int().default(100),
-  next: z.string().optional(),
-  prev: z.string().optional(),
-  orderBy: ListEventsOrderBy$outboundSchema.default("time"),
-  dir: ListEventsDir$outboundSchema.default("desc"),
-}).transform((v) => {
-  return remap$(v, {
-    tenantId: "tenant_id",
-    destinationId: "destination_id",
-    orderBy: "order_by",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    id: z.union([z.string(), z.array(z.string())]).optional(),
+    tenantId: z.union([z.string(), z.array(z.string())]).optional(),
+    destinationId: z.union([z.string(), z.array(z.string())]).optional(),
+    topic: z.union([z.string(), z.array(z.string())]).optional(),
+    time: components.Operator$outboundSchema.optional(),
+    limit: z.number().int().default(100),
+    next: z.string().optional(),
+    prev: z.string().optional(),
+    orderBy: ListEventsOrderBy$outboundSchema.default("time"),
+    dir: ListEventsDir$outboundSchema.default("desc"),
+  }).transform((v) => {
+    return remap$(v, {
+      tenantId: "tenant_id",
+      destinationId: "destination_id",
+      orderBy: "order_by",
+    });
+  })
+);
 
 export function listEventsRequestToJSON(
   listEventsRequest: ListEventsRequest,

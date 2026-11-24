@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
@@ -36,19 +36,21 @@ export const MetricsMetadata$inboundSchema: z.ZodType<
   MetricsMetadata,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  granularity: z.string().optional(),
-  query_time_ms: z.number().int().optional(),
-  row_count: z.number().int().optional(),
-  row_limit: z.number().int().optional(),
-  truncated: z.boolean().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "query_time_ms": "queryTimeMs",
-    "row_count": "rowCount",
-    "row_limit": "rowLimit",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    granularity: z.string().optional(),
+    query_time_ms: z.number().int().optional(),
+    row_count: z.number().int().optional(),
+    row_limit: z.number().int().optional(),
+    truncated: z.boolean().optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      "query_time_ms": "queryTimeMs",
+      "row_count": "rowCount",
+      "row_limit": "rowLimit",
+    });
+  })
+);
 /** @internal */
 export type MetricsMetadata$Outbound = {
   granularity?: string | undefined;
@@ -63,19 +65,21 @@ export const MetricsMetadata$outboundSchema: z.ZodType<
   MetricsMetadata$Outbound,
   z.ZodTypeDef,
   MetricsMetadata
-> = z.object({
-  granularity: z.string().optional(),
-  queryTimeMs: z.number().int().optional(),
-  rowCount: z.number().int().optional(),
-  rowLimit: z.number().int().optional(),
-  truncated: z.boolean().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    queryTimeMs: "query_time_ms",
-    rowCount: "row_count",
-    rowLimit: "row_limit",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    granularity: z.string().optional(),
+    queryTimeMs: z.number().int().optional(),
+    rowCount: z.number().int().optional(),
+    rowLimit: z.number().int().optional(),
+    truncated: z.boolean().optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      queryTimeMs: "query_time_ms",
+      rowCount: "row_count",
+      rowLimit: "row_limit",
+    });
+  })
+);
 
 export function metricsMetadataToJSON(
   metricsMetadata: MetricsMetadata,

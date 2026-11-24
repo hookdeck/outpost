@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
@@ -13,11 +13,11 @@ import { SDKValidationError } from "../errors/sdkvalidationerror.js";
  */
 export type AWSSQSConfigUpdate = {
   /**
-   * Optional. Custom AWS endpoint URL (e.g., for LocalStack or specific regions).
+   * Optional. Custom AWS endpoint URL for emulators such as LocalStack. Only accepted when the Outpost deployment sets DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true.
    */
   endpoint?: string | undefined;
   /**
-   * The URL of the SQS queue.
+   * The URL of the SQS queue. A URL that is not an AWS SQS endpoint is only accepted when the Outpost deployment sets DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true.
    */
   queueUrl?: string | undefined;
 };
@@ -27,14 +27,16 @@ export const AWSSQSConfigUpdate$inboundSchema: z.ZodType<
   AWSSQSConfigUpdate,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  endpoint: z.string().optional(),
-  queue_url: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "queue_url": "queueUrl",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    endpoint: z.string().optional(),
+    queue_url: z.string().optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      "queue_url": "queueUrl",
+    });
+  })
+);
 /** @internal */
 export type AWSSQSConfigUpdate$Outbound = {
   endpoint?: string | undefined;
@@ -46,14 +48,16 @@ export const AWSSQSConfigUpdate$outboundSchema: z.ZodType<
   AWSSQSConfigUpdate$Outbound,
   z.ZodTypeDef,
   AWSSQSConfigUpdate
-> = z.object({
-  endpoint: z.string().optional(),
-  queueUrl: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    queueUrl: "queue_url",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    endpoint: z.string().optional(),
+    queueUrl: z.string().optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      queueUrl: "queue_url",
+    });
+  })
+);
 
 export function awssqsConfigUpdateToJSON(
   awssqsConfigUpdate: AWSSQSConfigUpdate,
