@@ -15,7 +15,7 @@ import (
 var keyFixtures = map[string]struct{ config, credentials map[string]string }{
 	"webhook": {
 		config:      map[string]string{"url": "https://example.com/hook", "custom_headers": `{"x-key":"value"}`},
-		credentials: map[string]string{"secret": "whsec_abcdef0123456789", "previous_secret": "whsec_0123456789abcdef", "previous_secret_invalid_at": "2099-01-01T00:00:00Z"},
+		credentials: map[string]string{"secret": "whsec_abcdef0123456789", "previous_secret": "whsec_0123456789abcdef", "previous_secret_invalid_at": "2099-01-01T00:00:00Z", "custom_headers": `{"x-token":"value"}`},
 	},
 	"hookdeck": {
 		config:      map[string]string{"source_id": "src_abc", "source_name": "source"},
