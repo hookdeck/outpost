@@ -3975,6 +3975,8 @@ components:
           type: [string, "null"]
         PUBLISH_AWS_SQS_REGION:
           type: [string, "null"]
+        PUBLISH_AWS_SQS_ROLE_ARN:
+          type: [string, "null"]
         PUBLISH_AWS_SQS_SECRET_ACCESS_KEY:
           type: [string, "null"]
         PUBLISH_AZURE_SERVICEBUS_CONNECTION_STRING:

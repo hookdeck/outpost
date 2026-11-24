@@ -86,6 +86,54 @@ publishmq:
 
 ### Assuming an IAM role
 
+{% tabs tabGroup="deployment" %}
+{% tab label="Managed" %}
+Outpost can read your queue through an IAM role that you create in your AWS account. No access key is shared with Hookdeck.
+
+1. In [Hookdeck Publishing settings](https://dashboard.hookdeck.com/settings/project/publishing), turn on **Publish events via a message queue**, choose **AWS SQS** under **Message queue provider** and **IAM role** under **Authentication**. Enter the queue's **Region** and **Queue** name. The page then shows the two policies used in the next steps, filled in for your project.
+2. In the AWS console, go to **IAM**, **Roles**, **Create role**. Choose **Custom trust policy** and paste the trust policy from the page. It lets Hookdeck's role assume yours, and requires your project ID as the external ID. Choose **Next** twice, name the role, and choose **Create role**.
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Principal": { "AWS": "<HOOKDECK_ROLE_ARN>" },
+         "Action": "sts:AssumeRole",
+         "Condition": { "StringEquals": { "sts:ExternalId": "<PROJECT_ID>" } }
+       }
+     ]
+   }
+   ```
+
+3. Open the role, go to **Permissions**, **Add permissions**, **Create inline policy**. Choose **JSON** and paste the permissions policy from the page, replacing the account ID placeholder with your AWS account ID.
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Action": [
+           "sqs:ChangeMessageVisibility",
+           "sqs:DeleteMessage",
+           "sqs:GetQueueUrl",
+           "sqs:ReceiveMessage"
+         ],
+         "Resource": "arn:aws:sqs:<REGION>:<ACCOUNT_ID>:<QUEUE_NAME>"
+       }
+     ]
+   }
+   ```
+
+4. Copy the role's ARN from its summary page into **Role ARN** and save.
+
+Outpost's access appears in your CloudTrail logs under the session name `outpost-<PROJECT_ID>`. To remove access, delete the role or change its trust policy.
+
+To set the role with the [Config API](/docs/outpost/api#configuration) instead of step 4, send `PUBLISH_AWS_SQS_ROLE_ARN` with `PUBLISH_AWS_SQS_REGION` and `PUBLISH_AWS_SQS_QUEUE`. A role can't be combined with an access key or a custom endpoint.
+{% /tab %}
+{% tab label="Self-Hosted" %}
 Outpost can read the queue through an IAM role. It assumes the role with the access key, or with the AWS SDK default credential chain (environment variables, shared config, or the role of the instance, task or pod it runs on) when no key is set.
 
 1. Create an IAM role with a trust policy that names the identity Outpost runs as. The `Condition` is optional; include it to require an external ID.
@@ -137,6 +185,8 @@ Outpost can read the queue through an IAM role. It assumes the role with the acc
 The session is named `outpost` in the role account's CloudTrail logs; set `PUBLISH_AWS_SQS_ROLE_SESSION_NAME` to change it.
 
 Outpost calls STS in the queue's Region. If that Region isn't enabled for the identity Outpost runs as, such as an [opt-in Region](https://docs.aws.amazon.com/accounts/latest/reference/manage-acct-regions.html) enabled only in the queue's account, set `PUBLISH_AWS_SQS_STS_REGION` to a Region it can use, such as `us-east-1`.
+{% /tab %}
+{% /tabs %}
 
 ### Required Permissions
 
