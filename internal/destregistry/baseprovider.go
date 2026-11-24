@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -25,6 +26,8 @@ func ObfuscateValue(value string) string {
 type BaseProvider struct {
 	metadata          *metadata.ProviderMetadata
 	basePublisherOpts []BasePublisherOption
+	configKeys        map[string]struct{}
+	credentialKeys    map[string]struct{}
 }
 
 // NewBaseProvider creates a new base provider with loaded metadata
@@ -34,10 +37,86 @@ func NewBaseProvider(loader metadata.MetadataLoader, providerType string, opts .
 		return nil, fmt.Errorf("loading provider metadata: %w", err)
 	}
 
+	configKeys := make(map[string]struct{}, len(meta.ConfigFields))
+	for _, f := range meta.ConfigFields {
+		configKeys[f.Key] = struct{}{}
+	}
+	credentialKeys := make(map[string]struct{}, len(meta.CredentialFields))
+	for _, f := range meta.CredentialFields {
+		credentialKeys[f.Key] = struct{}{}
+	}
+
 	return &BaseProvider{
 		metadata:          meta,
 		basePublisherOpts: opts,
+		configKeys:        configKeys,
+		credentialKeys:    credentialKeys,
 	}, nil
+}
+
+// AllowConfigKeys marks config keys the provider reads or writes that are not
+// declared as form fields in its metadata. Keys neither declared nor allowed
+// are dropped before a destination is stored.
+func (p *BaseProvider) AllowConfigKeys(keys ...string) {
+	for _, k := range keys {
+		p.configKeys[k] = struct{}{}
+	}
+}
+
+// AllowCredentialKeys marks credential keys the provider reads or writes that
+// are not declared as form fields in its metadata. Keys neither declared nor
+// allowed are dropped before a destination is stored.
+func (p *BaseProvider) AllowCredentialKeys(keys ...string) {
+	for _, k := range keys {
+		p.credentialKeys[k] = struct{}{}
+	}
+}
+
+// ConfigKeys returns the sorted config keys the provider keeps on a destination.
+func (p *BaseProvider) ConfigKeys() []string {
+	return sortedKeys(p.configKeys)
+}
+
+// CredentialKeys returns the sorted credential keys the provider keeps on a destination.
+func (p *BaseProvider) CredentialKeys() []string {
+	return sortedKeys(p.credentialKeys)
+}
+
+func sortedKeys(set map[string]struct{}) []string {
+	keys := make([]string, 0, len(set))
+	for k := range set {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// DropUndeclaredKeys removes config and credential keys the provider does not
+// keep. It replaces a map instead of editing it, because the map may be
+// shared with the stored destination.
+func (p *BaseProvider) DropUndeclaredKeys(destination *models.Destination) {
+	destination.Config = filterKeys(destination.Config, p.configKeys)
+	destination.Credentials = filterKeys(destination.Credentials, p.credentialKeys)
+}
+
+func filterKeys(m models.MapStringString, keep map[string]struct{}) models.MapStringString {
+	drop := false
+	for k := range m {
+		if _, ok := keep[k]; !ok {
+			drop = true
+			break
+		}
+	}
+	if !drop {
+		return m
+	}
+	out := make(models.MapStringString, len(m))
+	for k, v := range m {
+		if _, ok := keep[k]; ok {
+			out[k] = v
+		}
+	}
+	return out
 }
 
 // NewPublisher creates a BasePublisher with provider-configured options plus any additional options
@@ -52,7 +131,9 @@ func (p *BaseProvider) Metadata() *metadata.ProviderMetadata {
 	return p.metadata
 }
 
-// OmitConfigField removes the config field with the given key from the provider metadata.
+// OmitConfigField removes the config field with the given key from the provider
+// metadata. The key is still kept on destinations, so the provider's own
+// validation still sees a stored value.
 func (p *BaseProvider) OmitConfigField(key string) {
 	fields := make([]metadata.FieldSchema, 0, len(p.metadata.ConfigFields))
 	for _, f := range p.metadata.ConfigFields {

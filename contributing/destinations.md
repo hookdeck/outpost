@@ -137,5 +137,6 @@ Custom metadata overrides can be applied through environment configuration.
 
 - [ ] Add provider metadata to `destregistry/metadata/providers/<provider>/` (`$ go run cmd/genprovider <provider>` for the provider metadata boilerplate)
 - [ ] Implement provider interface in `destregistry/providers/<provider>`
+- [ ] Declare every `config` and `credentials` key the provider uses in `metadata.json` or pass it to `AllowConfigKeys` / `AllowCredentialKeys` in `New` (other keys are dropped before a destination is stored), and add the provider to `providerDirs` (`destregistry/providers/config_keys_scan_test.go`) and `keyFixtures` (`destregistry/providers/config_keys_test.go`)
 - [ ] Run provider test suite (common test suite not implemented - TODO)
 - [ ] Add provider to the default provider registration in `destregistry/providers/default.go`
