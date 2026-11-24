@@ -119,7 +119,7 @@ func TestLookupBatcher_FlushesAtSize(t *testing.T) {
 	for i := range 3 {
 		store.record(fmt.Sprintf("e%d", i), now)
 	}
-	b := newAttemptLookupBatcher(store, store, 3, time.Minute)
+	b := mustLookupBatcher(t, store, 3, time.Minute)
 	defer b.Close()
 
 	out := lookupAll(context.Background(), b, lookupTask("e0", now), lookupTask("e1", now), lookupTask("e2", now))
@@ -141,7 +141,7 @@ func TestLookupBatcher_FlushesAfterWait(t *testing.T) {
 		now := time.Now()
 		store.record("e0", now)
 		store.record("e1", now)
-		b := newAttemptLookupBatcher(store, store, 50, 30*time.Millisecond)
+		b := mustLookupBatcher(t, store, 50, 30*time.Millisecond)
 		defer b.Close()
 
 		var out []lookupOutcome
@@ -170,7 +170,7 @@ func TestLookupBatcher_BoundIsCarriedTimeMinusSkew(t *testing.T) {
 	t.Parallel()
 	store := &fakeLookupStore{}
 	now := time.Now()
-	b := newAttemptLookupBatcher(store, store, 2, time.Minute)
+	b := mustLookupBatcher(t, store, 2, time.Minute)
 	defer b.Close()
 
 	lookupAll(context.Background(), b, lookupTask("e0", now), lookupTask("e1", now.Add(time.Minute)))
@@ -189,7 +189,7 @@ func TestLookupBatcher_SplitsBySpan(t *testing.T) {
 	t.Parallel()
 	store := &fakeLookupStore{}
 	now := time.Now()
-	b := newAttemptLookupBatcher(store, store, 5, time.Minute)
+	b := mustLookupBatcher(t, store, 5, time.Minute)
 	defer b.Close()
 
 	lookupAll(context.Background(), b,
@@ -212,7 +212,7 @@ func TestLookupBatcher_BatchOfOneUsesSingleLookup(t *testing.T) {
 	store := &fakeLookupStore{}
 	now := time.Now()
 	store.record("e0", now)
-	b := newAttemptLookupBatcher(store, store, 50, 10*time.Millisecond)
+	b := mustLookupBatcher(t, store, 50, 10*time.Millisecond)
 	defer b.Close()
 
 	rec, err := b.Lookup(context.Background(), lookupTask("e0", now))
@@ -229,7 +229,7 @@ func TestLookupBatcher_TaskWithoutAttemptTimeIsNotBatched(t *testing.T) {
 	t.Parallel()
 	store := &fakeLookupStore{}
 	store.record("e0", time.Now())
-	b := newAttemptLookupBatcher(store, store, 50, time.Minute)
+	b := mustLookupBatcher(t, store, 50, time.Minute)
 	defer b.Close()
 
 	rec, err := b.Lookup(context.Background(), lookupTask("e0", time.Time{}))
@@ -246,7 +246,7 @@ func TestLookupBatcher_MissingKeyIsNoRecord(t *testing.T) {
 	store := &fakeLookupStore{}
 	now := time.Now()
 	store.record("e0", now)
-	b := newAttemptLookupBatcher(store, store, 2, time.Minute)
+	b := mustLookupBatcher(t, store, 2, time.Minute)
 	defer b.Close()
 
 	out := lookupAll(context.Background(), b, lookupTask("e0", now), lookupTask("missing", now))
@@ -263,7 +263,7 @@ func TestLookupBatcher_RecordOlderThanOwnBoundIsNoRecord(t *testing.T) {
 	now := time.Now()
 	store.record("e0", now.Add(-time.Hour))
 	store.record("e1", now)
-	b := newAttemptLookupBatcher(store, store, 3, time.Minute)
+	b := mustLookupBatcher(t, store, 3, time.Minute)
 	defer b.Close()
 
 	// the same key carried at two times: the older bound finds the record, the
@@ -284,7 +284,7 @@ func TestLookupBatcher_ErrorFailsEveryCaller(t *testing.T) {
 	boom := errors.New("boom")
 	store := &fakeLookupStore{err: boom}
 	now := time.Now()
-	b := newAttemptLookupBatcher(store, store, 3, time.Minute)
+	b := mustLookupBatcher(t, store, 3, time.Minute)
 	defer b.Close()
 
 	out := lookupAll(context.Background(), b, lookupTask("e0", now), lookupTask("e1", now), lookupTask("e2", now))
@@ -302,7 +302,7 @@ func TestLookupBatcher_KeyErrorFailsOnlyThatKey(t *testing.T) {
 	now := time.Now()
 	store.record("e0", now)
 	store.record("e2", now)
-	b := newAttemptLookupBatcher(store, store, 3, time.Minute)
+	b := mustLookupBatcher(t, store, 3, time.Minute)
 	defer b.Close()
 
 	out := lookupAll(context.Background(), b, lookupTask("e0", now), lookupTask("e1", now), lookupTask("e2", now))
@@ -322,7 +322,7 @@ func TestLookupBatcher_CallerCancelDoesNotAffectOthers(t *testing.T) {
 		now := time.Now()
 		store.record("e0", now)
 		store.record("e1", now)
-		b := newAttemptLookupBatcher(store, store, 50, 100*time.Millisecond)
+		b := mustLookupBatcher(t, store, 50, 100*time.Millisecond)
 		defer b.Close()
 
 		cancelCtx, cancel := context.WithCancel(context.Background())
@@ -352,7 +352,7 @@ func TestLookupBatcher_CloseFailsPendingAndStopsQueries(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		store := &fakeLookupStore{block: make(chan struct{})}
 		now := time.Now()
-		b := newAttemptLookupBatcher(store, store, 2, time.Minute)
+		b := mustLookupBatcher(t, store, 2, time.Minute)
 
 		// one batch in flight (blocked in the store), one lookup pending
 		inflight := make(chan []lookupOutcome, 1)
@@ -381,7 +381,7 @@ func TestLookupBatcher_QueryKeepsFirstCallerValuesAndDeadline(t *testing.T) {
 	type ctxKey struct{}
 	store := &ctxCapturingStore{fakeLookupStore: &fakeLookupStore{}}
 	now := time.Now()
-	b := newAttemptLookupBatcher(store, store, 2, time.Minute)
+	b := mustLookupBatcher(t, store, 2, time.Minute)
 	defer b.Close()
 
 	ctx, cancel := context.WithTimeout(context.WithValue(context.Background(), ctxKey{}, "v"), time.Hour)
@@ -408,15 +408,31 @@ func TestNewRetryLookup_BatchingEnabledOnlyWhenConfiguredAndSupported(t *testing
 	t.Parallel()
 	store := &fakeLookupStore{}
 	for _, size := range []int{0, 1} {
-		_, batcher := newRetryLookup(store, size, time.Millisecond)
+		_, batcher, err := newRetryLookup(store, size, time.Millisecond)
+		require.NoError(t, err)
 		assert.Nil(t, batcher, "size %d", size)
 	}
-	_, batcher := newRetryLookup(store, 2, time.Millisecond)
+	_, batcher, err := newRetryLookup(store, 2, time.Millisecond)
+	require.NoError(t, err)
 	require.NotNil(t, batcher)
 	batcher.Close()
 
-	_, batcher = newRetryLookup(singleOnlyGetter{store}, 50, time.Millisecond)
+	_, batcher, err = newRetryLookup(singleOnlyGetter{store}, 50, time.Millisecond)
+	require.NoError(t, err)
 	assert.Nil(t, batcher)
+
+	_, _, err = newRetryLookup(store, 2, 0)
+	assert.Error(t, err, "batching needs a positive wait")
+}
+
+func mustLookupBatcher(t *testing.T, store interface {
+	RetryEventGetter
+	retryAttemptBatchGetter
+}, size int, wait time.Duration) *attemptLookupBatcher {
+	t.Helper()
+	b, err := newAttemptLookupBatcher(store, store, size, wait)
+	require.NoError(t, err)
+	return b
 }
 
 func TestEffectiveLookupBatchSize(t *testing.T) {
