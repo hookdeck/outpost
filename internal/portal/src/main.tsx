@@ -1,7 +1,8 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./app";
-import CONFIGS from "./config";
+import CONFIGS, { configLoaded } from "./config";
+import ErrorMessage from "./common/ErrorBoundary/ErrorMessage";
 import hexToHSL from "./utils/hexToHsl";
 
 // Set theme preference
@@ -79,8 +80,19 @@ const container = document.getElementById("root") as HTMLElement;
 
 const root = createRoot(container);
 
-root.render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+if (configLoaded) {
+  root.render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  );
+} else {
+  console.error(
+    "Portal config missing: /inject-portal-config.js did not set window.PORTAL_CONFIGS.",
+  );
+  root.render(
+    <div className="layout">
+      <ErrorMessage code="config_unavailable" />
+    </div>,
+  );
+}

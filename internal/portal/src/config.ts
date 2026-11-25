@@ -1,20 +1,28 @@
-const CONFIGS =
-  ((window as any).PORTAL_CONFIGS as {
-    ORGANIZATION_NAME: string;
-    LOGO: string;
-    LOGO_DARK: string;
-    FAVICON_URL: string;
-    REFERER_URL: string;
-    REFRESH_URL: string;
-    FORCE_THEME: string;
-    TOPICS: string;
-    TOPICS_ALLOW_WILDCARDS: string;
-    DISABLE_OUTPOST_BRANDING: string;
-    DISABLE_TELEMETRY: string;
-    SENTRY_DSN: string;
-    BRAND_COLOR: string;
-    ENABLE_DESTINATION_FILTER: string;
-    ENABLE_WEBHOOK_CUSTOM_HEADERS: string;
-  }) || {};
+const DEFAULTS = {
+  ORGANIZATION_NAME: "",
+  LOGO: "",
+  LOGO_DARK: "",
+  FAVICON_URL: "",
+  REFERER_URL: "",
+  REFRESH_URL: "",
+  FORCE_THEME: "",
+  TOPICS: "",
+  TOPICS_ALLOW_WILDCARDS: "",
+  DISABLE_OUTPOST_BRANDING: "",
+  DISABLE_TELEMETRY: "",
+  SENTRY_DSN: "",
+  BRAND_COLOR: "",
+  ENABLE_DESTINATION_FILTER: "",
+  ENABLE_WEBHOOK_CUSTOM_HEADERS: "",
+};
+
+type PortalConfig = typeof DEFAULTS;
+
+export const configLoaded = (window as any).PORTAL_CONFIGS != null;
+
+const CONFIGS: PortalConfig = {
+  ...DEFAULTS,
+  ...((window as any).PORTAL_CONFIGS as Partial<PortalConfig> | undefined),
+};
 
 export default CONFIGS;
