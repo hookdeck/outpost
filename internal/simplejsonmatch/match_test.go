@@ -350,3 +350,28 @@ func TestMatchNot(t *testing.T) {
 		})
 	}
 }
+
+// TestMatchInclusiveBounds checks that $gte and $lte match a value equal to the bound.
+func TestMatchInclusiveBounds(t *testing.T) {
+	tests := []struct {
+		input    any
+		schema   any
+		expected bool
+	}{
+		{map[string]any{"amount": float64(100)}, map[string]any{"amount": map[string]any{"$gte": float64(100)}}, true},
+		{map[string]any{"amount": float64(99)}, map[string]any{"amount": map[string]any{"$gte": float64(100)}}, false},
+		{map[string]any{"amount": float64(100)}, map[string]any{"amount": map[string]any{"$lte": float64(100)}}, true},
+		{map[string]any{"amount": float64(101)}, map[string]any{"amount": map[string]any{"$lte": float64(100)}}, false},
+	}
+
+	for i, tt := range tests {
+		t.Run(fmt.Sprintf("case_%d", i), func(t *testing.T) {
+			result := Match(tt.input, tt.schema)
+			if result != tt.expected {
+				inputJSON, _ := json.Marshal(tt.input)
+				schemaJSON, _ := json.Marshal(tt.schema)
+				t.Errorf("Match(%s, %s) = %v, want %v", inputJSON, schemaJSON, result, tt.expected)
+			}
+		})
+	}
+}
