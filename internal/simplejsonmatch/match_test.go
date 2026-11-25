@@ -351,8 +351,9 @@ func TestMatchNot(t *testing.T) {
 	}
 }
 
-// TestMatchInclusiveBounds checks that $gte and $lte match a value equal to the bound.
-func TestMatchInclusiveBounds(t *testing.T) {
+// TestMatchComparisonBounds checks that $gte and $lte match a value equal to the bound,
+// and that $gt and $lt do not.
+func TestMatchComparisonBounds(t *testing.T) {
 	tests := []struct {
 		input    any
 		schema   any
@@ -362,6 +363,8 @@ func TestMatchInclusiveBounds(t *testing.T) {
 		{map[string]any{"amount": float64(99)}, map[string]any{"amount": map[string]any{"$gte": float64(100)}}, false},
 		{map[string]any{"amount": float64(100)}, map[string]any{"amount": map[string]any{"$lte": float64(100)}}, true},
 		{map[string]any{"amount": float64(101)}, map[string]any{"amount": map[string]any{"$lte": float64(100)}}, false},
+		{map[string]any{"amount": float64(100)}, map[string]any{"amount": map[string]any{"$gt": float64(100)}}, false},
+		{map[string]any{"amount": float64(100)}, map[string]any{"amount": map[string]any{"$lt": float64(100)}}, false},
 	}
 
 	for i, tt := range tests {
