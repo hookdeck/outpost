@@ -1,26 +1,23 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import Sentry from "./../../Sentry";
 
-import "./ErrorBoundary.scss";
+import ErrorMessage from "./ErrorMessage";
 import { useLocation } from "react-router-dom";
 
+const Fallback = ({ resetError }: { resetError: () => void }) => {
+  const { pathname } = useLocation();
+  const errorPathname = useRef(pathname);
+
+  // Reset only after navigation: resetting on mount re-renders the page that just threw, which loops.
+  useEffect(() => {
+    if (pathname !== errorPathname.current) {
+      resetError();
+    }
+  }, [pathname]);
+
+  return <ErrorMessage />;
+};
+
 export default ({ children }: { children: React.ReactNode }) => (
-  <Sentry.ErrorBoundary
-    fallback={({ resetError }) => {
-      const location = useLocation();
-
-      useEffect(() => {
-        resetError();
-      }, [location.pathname]);
-
-      return (
-        <div className="error-boundary">
-          <h1 className="title-l">Something went wrong.</h1>
-          <p className="body-s muted">Please try refreshing the page.</p>
-        </div>
-      );
-    }}
-  >
-    {children}
-  </Sentry.ErrorBoundary>
+  <Sentry.ErrorBoundary fallback={Fallback}>{children}</Sentry.ErrorBoundary>
 );
