@@ -134,6 +134,16 @@ func TestMessageIDs(t *testing.T) {
 	assert.NotEqual(t, a, b)
 }
 
+func TestValidWebhookID(t *testing.T) {
+	t.Parallel()
+	for _, id := range []string{"evt_1", "evt.1", "order:42", "550e8400-e29b-41d4-a716-446655440000", strings.Repeat("a", MaxWebhookIDBytes)} {
+		assert.True(t, ValidWebhookID(id), id)
+	}
+	for _, id := range []string{"", "evt 1", "evt\r\n", "évt", strings.Repeat("a", MaxWebhookIDBytes+1)} {
+		assert.False(t, ValidWebhookID(id), "%q", id)
+	}
+}
+
 func TestValidSubscriptionID(t *testing.T) {
 	t.Parallel()
 	for _, id := range []string{"sub_1", "A-b_9", strings.Repeat("a", MaxSubscriptionIDBytes)} {

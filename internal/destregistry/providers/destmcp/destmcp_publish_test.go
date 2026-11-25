@@ -417,6 +417,37 @@ func TestPublish_WebhookID(t *testing.T) {
 	assert.NotEqual(t, reqs[2].Header.Get("webhook-id"), reqs[3].Header.Get("webhook-id"))
 }
 
+func TestPublish_EventIDAsWebhookID(t *testing.T) {
+	t.Parallel()
+	rec := newRecorder(t, nil)
+	p := localProvider(t, func(c *destmcp.Config) { c.EventIDAsWebhookID = true })
+	pub, err := p.CreatePublisher(context.Background(), localSubscription(t, p, rec.URL+"/hook"))
+	require.NoError(t, err)
+	defer pub.Close()
+
+	ctx := destregistry.WithMessageID(context.Background(), "msg_fixed")
+	valid := testEvent()
+	invalid := testEvent()
+	invalid.ID = "evt 01J9ZK4Q0V"
+	tooLong := testEvent()
+	tooLong.ID = strings.Repeat("e", mcpevents.MaxWebhookIDBytes+1)
+	for _, e := range []*models.Event{valid, valid, invalid, tooLong} {
+		_, err := pub.Publish(ctx, e)
+		require.NoError(t, err)
+	}
+
+	reqs := rec.Requests()
+	require.Len(t, reqs, 4)
+	assert.Equal(t, valid.ID, reqs[0].Header.Get("webhook-id"), "the event ID")
+	assert.Equal(t, valid.ID, reqs[1].Header.Get("webhook-id"), "stable across attempts")
+	assert.Equal(t, "msg_fixed", reqs[2].Header.Get("webhook-id"), "message ID when the event ID isn't a valid header value")
+	assert.Equal(t, "msg_fixed", reqs[3].Header.Get("webhook-id"), "message ID when the event ID is too long")
+
+	wh, err := standardwebhooks.NewWebhook(testSecret(1))
+	require.NoError(t, err)
+	assert.NoError(t, wh.Verify(reqs[0].Body, reqs[0].Header), "signed over the event ID")
+}
+
 func TestPublish_ThroughForwardProxy(t *testing.T) {
 	t.Parallel()
 	proxy := proxychaintest.New(t, false)

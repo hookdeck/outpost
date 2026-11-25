@@ -69,13 +69,14 @@ func (b *ServiceBuilder) mcpProvider(redisClient redis.Client) (*destmcp.Config,
 	}
 	retryBackoff, retryMaxRetries := b.cfg.MCPRetryBackoff()
 	cfg := &destmcp.Config{
-		Client:            n.client,
-		Guard:             n.guard,
-		Catalog:           b.cfg.MCPCatalog(),
-		UserAgent:         b.cfg.Destinations.ToConfig(b.cfg).UserAgent,
-		AllowInsecureHTTP: b.cfg.Experimental.MCP.AllowInsecureCallbacks,
-		RetryBackoff:      retryBackoff,
-		RetryMaxRetries:   retryMaxRetries,
+		Client:             n.client,
+		Guard:              n.guard,
+		Catalog:            b.cfg.MCPCatalog(),
+		UserAgent:          b.cfg.Destinations.ToConfig(b.cfg).UserAgent,
+		AllowInsecureHTTP:  b.cfg.Experimental.MCP.AllowInsecureCallbacks,
+		EventIDAsWebhookID: b.cfg.Experimental.MCP.EventIDAsWebhookID,
+		RetryBackoff:       retryBackoff,
+		RetryMaxRetries:    retryMaxRetries,
 	}
 	if redisClient == nil {
 		return cfg, nil, nil

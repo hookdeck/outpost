@@ -66,11 +66,13 @@ func TestMCPConfig_EnvAndYAML(t *testing.T) {
 		"EXPERIMENTAL_MCP_ENABLED":                  "true",
 		"EXPERIMENTAL_MCP_ALLOW_INSECURE_CALLBACKS": "true",
 		"EXPERIMENTAL_MCP_VERIFICATION_TTL_SECONDS": "5400",
+		"EXPERIMENTAL_MCP_EVENT_ID_AS_WEBHOOK_ID":   "true",
 	}, "")
 	assert.Equal(t, config.MCPConfig{
 		Enabled:                true,
 		AllowInsecureCallbacks: true,
 		VerificationTTLSeconds: 5400,
+		EventIDAsWebhookID:     true,
 	}, cfg.Experimental.MCP)
 
 	cfg = parseMCP(t, nil, "experimental:\n  mcp:\n    enabled: true\n    verification_ttl_seconds: 3600\n")
@@ -143,7 +145,10 @@ func TestMCPConfig_Warnings(t *testing.T) {
 	cfg = parseMCP(t, map[string]string{"EXPERIMENTAL_MCP_ENABLED": "true", "EXPERIMENTAL_MCP_ALLOW_INSECURE_CALLBACKS": "true"}, "")
 	assert.Contains(t, strings.Join(cfg.MCPWarnings(), "\n"), "has no effect")
 
-	cfg = parseMCP(t, map[string]string{"EXPERIMENTAL_MCP_ALLOW_INSECURE_CALLBACKS": "true"}, "")
+	cfg = parseMCP(t, map[string]string{"EXPERIMENTAL_MCP_ENABLED": "true", "EXPERIMENTAL_MCP_EVENT_ID_AS_WEBHOOK_ID": "true"}, "")
+	assert.Contains(t, strings.Join(cfg.MCPWarnings(), "\n"), "EXPERIMENTAL_MCP_EVENT_ID_AS_WEBHOOK_ID")
+
+	cfg = parseMCP(t, map[string]string{"EXPERIMENTAL_MCP_ALLOW_INSECURE_CALLBACKS": "true", "EXPERIMENTAL_MCP_EVENT_ID_AS_WEBHOOK_ID": "true"}, "")
 	assert.Empty(t, cfg.MCPWarnings(), "nothing to warn about while MCP is off")
 }
 
