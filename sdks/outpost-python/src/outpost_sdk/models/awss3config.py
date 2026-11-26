@@ -19,7 +19,7 @@ class Awss3ConfigTypedDict(TypedDict):
     region: str
     r"""The AWS region where your bucket is located."""
     key_template: NotRequired[str]
-    r"""JMESPath expression for generating S3 object keys. Default is join('', [time.rfc3339_nano, '_', metadata.\"event-id\", '.json'])."""
+    r"""JMESPath expression for generating S3 object keys. Default is join('', [time.rfc3339_nano, '_', metadata.\"event-id\", '.json']). Templates may use field paths, string literals, `join`, `to_string`, `not_null` and `||`."""
     storage_class: NotRequired[str]
     r"""The storage class for the S3 objects (e.g., STANDARD, INTELLIGENT_TIERING, GLACIER, etc.). Defaults to \"STANDARD\"."""
 
@@ -32,7 +32,7 @@ class Awss3Config(BaseModel):
     r"""The AWS region where your bucket is located."""
 
     key_template: Optional[str] = None
-    r"""JMESPath expression for generating S3 object keys. Default is join('', [time.rfc3339_nano, '_', metadata.\"event-id\", '.json'])."""
+    r"""JMESPath expression for generating S3 object keys. Default is join('', [time.rfc3339_nano, '_', metadata.\"event-id\", '.json']). Templates may use field paths, string literals, `join`, `to_string`, `not_null` and `||`."""
 
     storage_class: Optional[str] = None
     r"""The storage class for the S3 objects (e.g., STANDARD, INTELLIGENT_TIERING, GLACIER, etc.). Defaults to \"STANDARD\"."""

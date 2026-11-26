@@ -39,7 +39,7 @@ class KafkaConfigTypedDict(TypedDict):
     tls: NotRequired[KafkaConfigTLS]
     r"""Whether to enable TLS for the connection."""
     partition_key_template: NotRequired[str]
-    r"""Optional JMESPath template to extract the partition key from the event payload. Defaults to the event ID."""
+    r"""Optional JMESPath template to extract the partition key from the event payload. Defaults to the event ID. Templates may use field paths, string literals, `join`, `to_string`, `not_null` and `||`."""
 
 
 class KafkaConfig(BaseModel):
@@ -56,7 +56,7 @@ class KafkaConfig(BaseModel):
     r"""Whether to enable TLS for the connection."""
 
     partition_key_template: Optional[str] = None
-    r"""Optional JMESPath template to extract the partition key from the event payload. Defaults to the event ID."""
+    r"""Optional JMESPath template to extract the partition key from the event payload. Defaults to the event ID. Templates may use field paths, string literals, `join`, `to_string`, `not_null` and `||`."""
 
     @model_serializer(mode="wrap")
     def _serialize_model_with_info(self, handler, info):

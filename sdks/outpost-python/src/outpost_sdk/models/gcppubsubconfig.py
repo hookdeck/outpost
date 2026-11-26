@@ -19,7 +19,7 @@ class GCPPubSubConfigTypedDict(TypedDict):
     topic: str
     r"""The Pub/Sub topic name."""
     endpoint: NotRequired[str]
-    r"""Optional. Custom endpoint URL (e.g., localhost:8085 for emulator)."""
+    r"""Optional. Custom endpoint (e.g., localhost:8085 for the Pub/Sub emulator), connected without TLS or authentication. Only accepted when the Outpost deployment sets DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true."""
 
 
 class GCPPubSubConfig(BaseModel):
@@ -30,7 +30,7 @@ class GCPPubSubConfig(BaseModel):
     r"""The Pub/Sub topic name."""
 
     endpoint: Optional[str] = None
-    r"""Optional. Custom endpoint URL (e.g., localhost:8085 for emulator)."""
+    r"""Optional. Custom endpoint (e.g., localhost:8085 for the Pub/Sub emulator), connected without TLS or authentication. Only accepted when the Outpost deployment sets DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true."""
 
     @model_serializer(mode="wrap")
     def _serialize_model_with_info(self, handler, info):

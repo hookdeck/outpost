@@ -10,7 +10,7 @@ class PublishResponseTypedDict(TypedDict):
     id: str
     r"""The ID of the event that was accepted for publishing. This will be the ID provided in the request's `id` field if present, otherwise it's a server-generated ID."""
     duplicate: bool
-    r"""Whether this event was already processed (idempotency hit). If true, the event was not queued again."""
+    r"""Whether this tenant already published an event with this ID within the idempotency window. If true, the event was not queued again."""
     destination_ids: List[str]
     r"""The IDs of destinations that matched this event. Empty array if no destinations matched."""
 
@@ -20,7 +20,7 @@ class PublishResponse(BaseModel):
     r"""The ID of the event that was accepted for publishing. This will be the ID provided in the request's `id` field if present, otherwise it's a server-generated ID."""
 
     duplicate: bool
-    r"""Whether this event was already processed (idempotency hit). If true, the event was not queued again."""
+    r"""Whether this tenant already published an event with this ID within the idempotency window. If true, the event was not queued again."""
 
     destination_ids: List[str]
     r"""The IDs of destinations that matched this event. Empty array if no destinations matched."""

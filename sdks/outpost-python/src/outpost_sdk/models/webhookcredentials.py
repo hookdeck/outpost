@@ -21,6 +21,8 @@ class WebhookCredentialsTypedDict(TypedDict):
     r"""The previous secret used during rotation. Valid for 24 hours by default. Read-only."""
     previous_secret_invalid_at: NotRequired[datetime]
     r"""ISO timestamp when the previous secret becomes invalid. Read-only."""
+    custom_headers: NotRequired[str]
+    r"""JSON string of HTTP headers with secret values, such as Authorization, to include with every webhook request. Same name rules as `config.custom_headers`, and a name can't appear in both. Values are encrypted at rest and returned masked."""
 
 
 class WebhookCredentials(BaseModel):
@@ -33,13 +35,21 @@ class WebhookCredentials(BaseModel):
     previous_secret_invalid_at: Optional[datetime] = None
     r"""ISO timestamp when the previous secret becomes invalid. Read-only."""
 
+    custom_headers: Optional[str] = None
+    r"""JSON string of HTTP headers with secret values, such as Authorization, to include with every webhook request. Same name rules as `config.custom_headers`, and a name can't appear in both. Values are encrypted at rest and returned masked."""
+
     @model_serializer(mode="wrap")
     def _serialize_model_with_info(self, handler, info):
         return serialize_with_info(self.serialize_model, handler, info)
 
     def serialize_model(self, handler):
         optional_fields = set(
-            ["secret", "previous_secret", "previous_secret_invalid_at"]
+            [
+                "secret",
+                "previous_secret",
+                "previous_secret_invalid_at",
+                "custom_headers",
+            ]
         )
         exclude_none = current_exclude_none()
         skip_filtered = exclude_none is False or current_filtered_dump()
