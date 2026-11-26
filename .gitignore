@@ -43,3 +43,6 @@ skills-lock.json
 *.local.*
 bin/
 .envrc
+
+# Speakeasy writes a change report here on every generation run (also ignored in each SDK directory).
+.speakeasy/logs/

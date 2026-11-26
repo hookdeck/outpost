@@ -57,6 +57,7 @@ Each SDK is maintained as a sub-project within this repository and generated fro
 When Speakeasy runs SDK generation, it updates the following:
 
 - **Root (shared):** `.speakeasy/workflow.lock` — updated when generation runs (observed when running multiple targets). This is a **shared file** across all three SDKs.
+- **Root (ignored):** `.speakeasy/logs/` — the change report for the last run (the same text goes into the PR body). It's in `.gitignore`, so the three SDK PRs don't conflict on it.
 - **Per-SDK:** Each target updates only its own directory, e.g.:
   - `sdks/outpost-go/.speakeasy/gen.lock`, `sdks/outpost-go/.speakeasy/gen.yaml`, and all generated output under `sdks/outpost-go/`
   - `sdks/outpost-python/.speakeasy/gen.lock`, `sdks/outpost-python/.speakeasy/gen.yaml`, and output under `sdks/outpost-python/`
