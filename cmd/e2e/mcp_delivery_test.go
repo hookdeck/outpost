@@ -28,15 +28,16 @@ func TestMCP_Delivery(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping e2e test")
 	}
-	suite.Run(t, &mcpSuite{})
+	runMethodsInParallel(t, func() *mcpSuite { return &mcpSuite{} })
 }
 
 const (
 	mcpTopic = "user.created"
 	// mcpRetryWait covers the retries of the MCP schedule with margin.
 	mcpRetryWait = 4 * time.Second
-	// mcpVerifyTimeout is the fixed verification timeout.
-	mcpVerifyTimeout = 10 * time.Second
+	// mcpVerifyTimeout bounds a verification challenge, shorter than the
+	// default so the timeout test waits less.
+	mcpVerifyTimeout = 3 * time.Second
 )
 
 var challengeCategories = []string{"challenge_failed", "connection_refused", "timeout", "tls_error"}
@@ -366,18 +367,32 @@ func (s *mcpSuite) TestRetryResigns() {
 func (s *mcpSuite) TestVerificationFailures() {
 	tenant := s.base.createTenant().ID
 
-	cases := []struct {
-		name    string
-		cfg     mcpreceiver.PathConfig
-		wantTyp string
-	}{
+	cases := []verificationFailureCase{
 		{"wrong-echo", mcpreceiver.PathConfig{Challenge: mcpreceiver.WrongEcho()}, "challenge_failed"},
 		{"status-500", mcpreceiver.PathConfig{Challenge: mcpreceiver.Status(500)}, "challenge_failed"},
 		{"status-404", mcpreceiver.PathConfig{Challenge: mcpreceiver.Status(404)}, "challenge_failed"},
-		{"sleep", mcpreceiver.PathConfig{Challenge: mcpreceiver.Sleep(mcpVerifyTimeout + 2*time.Second)}, "timeout"},
 		{"redirect", mcpreceiver.PathConfig{Challenge: mcpreceiver.Redirect("/redirect-target/verify")}, ""},
 		{"marker", mcpreceiver.PathConfig{Challenge: mcpreceiver.Marker()}, "challenge_failed"},
 	}
+	s.verificationFailures(tenant, cases)
+	s.Empty(s.r.Requests("/redirect-target/verify"), "verification redirect followed")
+}
+
+// Its own test: it waits out the verification timeout.
+func (s *mcpSuite) TestVerificationTimeout() {
+	tenant := s.base.createTenant().ID
+	s.verificationFailures(tenant, []verificationFailureCase{
+		{"sleep", mcpreceiver.PathConfig{Challenge: mcpreceiver.Sleep(mcpVerifyTimeout + 2*time.Second)}, "timeout"},
+	})
+}
+
+type verificationFailureCase struct {
+	name    string
+	cfg     mcpreceiver.PathConfig
+	wantTyp string
+}
+
+func (s *mcpSuite) verificationFailures(tenant string, cases []verificationFailureCase) {
 	for _, c := range cases {
 		p := s.newPath(tenant, c.cfg)
 		status, raw := s.subscribe(tenant, p, mcpSubscribeOpts{})
@@ -396,7 +411,6 @@ func (s *mcpSuite) TestVerificationFailures() {
 		time.Sleep(200 * time.Millisecond)
 		s.Empty(s.r.Events(p.path), "%s: no event delivered to a destination that failed verification", c.name)
 	}
-	s.Empty(s.r.Requests("/redirect-target/verify"), "verification redirect followed")
 }
 
 func (s *mcpSuite) TestVerificationCache() {
@@ -569,8 +583,13 @@ func (s *mcpSuite) TestRetriesBounded() {
 	time.Sleep(mcpRetryWait)
 	mcpAttempts := s.attempts(tenant, p.destID)
 	mcpRequests := len(s.r.Events(p.path))
+	s.check(len(mcpAttempts) == want && mcpRequests == want,
+		"mcp attempts %d (want %d), receiver %d", len(mcpAttempts), want, mcpRequests)
+}
 
-	// A webhook destination in the same run keeps the global retry config.
+// With MCP delivery configured, a webhook destination keeps the global retry config.
+func (s *mcpSuite) TestRetriesBoundedWebhookKeepsGlobalConfig() {
+	tenant := s.base.createTenant().ID
 	wpath, wurl := s.r.Register(mcpreceiver.PathConfig{Event: mcpreceiver.Status(500), Unchecked: true})
 	wid := idgen.Destination()
 	var created destinationResponse
@@ -584,10 +603,8 @@ func (s *mcpSuite) TestRetriesBounded() {
 	time.Sleep(2 * time.Second)
 	webhookAttempts := s.attempts(tenant, wid)
 
-	s.check(
-		len(mcpAttempts) == want && mcpRequests == want && len(webhookAttempts) == wantWebhook && len(s.r.Requests(wpath)) == wantWebhook,
-		"mcp attempts %d (want %d), receiver %d; webhook attempts %d (want %d)",
-		len(mcpAttempts), want, mcpRequests, len(webhookAttempts), wantWebhook)
+	s.check(len(webhookAttempts) == wantWebhook && len(s.r.Requests(wpath)) == wantWebhook,
+		"webhook attempts %d (want %d), receiver %d", len(webhookAttempts), wantWebhook, len(s.r.Requests(wpath)))
 }
 
 func (s *mcpSuite) TestTimeout() {

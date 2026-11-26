@@ -81,11 +81,12 @@ func (b *ServiceBuilder) mcpProvider(redisClient redis.Client) (*destmcp.Config,
 		return cfg, nil, nil
 	}
 	verifier, err := mcpevents.NewVerifier(mcpevents.VerifierConfig{
-		Client: n.client,
-		Store:  mcpevents.NewRedisVerificationStore(redisClient, b.cfg.DeploymentID),
-		TTL:    time.Duration(b.cfg.Experimental.MCP.VerificationTTLSeconds) * time.Second,
-		Exempt: allowlistExempt(n.allowlist),
-		Logger: b.logger,
+		Client:  n.client,
+		Store:   mcpevents.NewRedisVerificationStore(redisClient, b.cfg.DeploymentID),
+		TTL:     time.Duration(b.cfg.Experimental.MCP.VerificationTTLSeconds) * time.Second,
+		Timeout: b.cfg.Experimental.MCP.VerificationTimeout,
+		Exempt:  allowlistExempt(n.allowlist),
+		Logger:  b.logger,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create mcp verifier: %w", err)

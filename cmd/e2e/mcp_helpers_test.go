@@ -42,6 +42,7 @@ func withMCPDelivery(cfg *config.Config) {
 		panic(err)
 	}
 	cfg.Experimental.MCP.RetryDelays = mcpRetrySchedule
+	cfg.Experimental.MCP.VerificationTimeout = mcpVerifyTimeout
 	cfg.DeliveryTimeoutSeconds = mcpDeliveryTimeoutSeconds
 	cfg.RetryPollBackoffMs = 50
 	cfg.Alert.ConsecutiveFailureCount = config.NewOptionalString(mcpAutoDisableCount)

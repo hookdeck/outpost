@@ -84,7 +84,7 @@ func TestE2E_Regression_FormatErrorIsDeliveredAttempt(t *testing.T) {
 		<-appDone
 	}()
 
-	waitForHealthy(t, cfg.APIPort, 5*time.Second)
+	waitForHealthy(t, cfg.APIPort, healthPollTimeout)
 
 	client := newRegressionHTTPClient(cfg.APIKey)
 	apiURL := fmt.Sprintf("http://localhost:%d/api/v1", cfg.APIPort)

@@ -24,7 +24,7 @@ func TestMCP_Disabled(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping e2e test")
 	}
-	suite.Run(t, &mcpDisabledSuite{})
+	runMethodsInParallel(t, func() *mcpDisabledSuite { return &mcpDisabledSuite{} })
 }
 
 type mcpDisabledSuite struct {

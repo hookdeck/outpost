@@ -146,11 +146,28 @@ func RandomString(length int) string {
 	return fmt.Sprintf("%x", b)[2 : length+2]
 }
 
+var handedOutPorts sync.Map
+
+// RandomPortNumber returns a free port for a test server, never the same one
+// twice in a process. It picks below 32768, outside the range the OS and
+// Docker assign ports from, so a container started meanwhile can't take it
+// before the server binds it.
 func RandomPortNumber() int {
-	return 10000 + mathrand.Intn(50000)
+	for {
+		port := 10000 + mathrand.Intn(22768)
+		if _, taken := handedOutPorts.LoadOrStore(port, true); taken {
+			continue
+		}
+		ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+		if err != nil {
+			continue
+		}
+		ln.Close()
+		return port
+	}
 }
 
-// RandomPort returns a random port string in the range :10000–:59999.
+// RandomPort returns a free port string, such as ":23121".
 func RandomPort() string {
 	return ":" + strconv.Itoa(RandomPortNumber())
 }
