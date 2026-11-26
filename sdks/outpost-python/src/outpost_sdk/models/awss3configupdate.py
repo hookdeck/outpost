@@ -21,7 +21,7 @@ class Awss3ConfigUpdateTypedDict(TypedDict):
     region: NotRequired[str]
     r"""The AWS region where your bucket is located."""
     key_template: NotRequired[str]
-    r"""JMESPath expression for generating S3 object keys."""
+    r"""JMESPath expression for generating S3 object keys. Templates may use field paths, string literals, `join`, `to_string`, `not_null` and `||`."""
     storage_class: NotRequired[str]
     r"""The storage class for the S3 objects."""
 
@@ -36,7 +36,7 @@ class Awss3ConfigUpdate(BaseModel):
     r"""The AWS region where your bucket is located."""
 
     key_template: Optional[str] = None
-    r"""JMESPath expression for generating S3 object keys."""
+    r"""JMESPath expression for generating S3 object keys. Templates may use field paths, string literals, `join`, `to_string`, `not_null` and `||`."""
 
     storage_class: Optional[str] = None
     r"""The storage class for the S3 objects."""

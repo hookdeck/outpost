@@ -19,7 +19,7 @@ class WebhookConfigUpdateTypedDict(TypedDict):
     url: NotRequired[str]
     r"""The URL to send the webhook events to."""
     custom_headers: NotRequired[str]
-    r"""JSON string of custom HTTP headers to include with every webhook request."""
+    r"""JSON string of custom HTTP headers to include with every webhook request, merged header by header. A header not sent keeps its saved value, a header sent with a value gets that value, and a header sent as null is removed. Set the field to null to remove all."""
 
 
 class WebhookConfigUpdate(BaseModel):
@@ -29,7 +29,7 @@ class WebhookConfigUpdate(BaseModel):
     r"""The URL to send the webhook events to."""
 
     custom_headers: Optional[str] = None
-    r"""JSON string of custom HTTP headers to include with every webhook request."""
+    r"""JSON string of custom HTTP headers to include with every webhook request, merged header by header. A header not sent keeps its saved value, a header sent with a value gets that value, and a header sent as null is removed. Set the field to null to remove all."""
 
     @model_serializer(mode="wrap")
     def _serialize_model_with_info(self, handler, info):

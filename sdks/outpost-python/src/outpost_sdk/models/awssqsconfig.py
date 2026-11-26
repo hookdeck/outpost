@@ -15,17 +15,17 @@ from typing_extensions import NotRequired, TypedDict
 
 class AWSSQSConfigTypedDict(TypedDict):
     queue_url: str
-    r"""The URL of the SQS queue."""
+    r"""The URL of the SQS queue. A URL that is not an AWS SQS endpoint is only accepted when the Outpost deployment sets DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true."""
     endpoint: NotRequired[str]
-    r"""Optional. Custom AWS endpoint URL (e.g., for LocalStack or specific regions)."""
+    r"""Optional. Custom AWS endpoint URL for emulators such as LocalStack. Only accepted when the Outpost deployment sets DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true."""
 
 
 class AWSSQSConfig(BaseModel):
     queue_url: str
-    r"""The URL of the SQS queue."""
+    r"""The URL of the SQS queue. A URL that is not an AWS SQS endpoint is only accepted when the Outpost deployment sets DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true."""
 
     endpoint: Optional[str] = None
-    r"""Optional. Custom AWS endpoint URL (e.g., for LocalStack or specific regions)."""
+    r"""Optional. Custom AWS endpoint URL for emulators such as LocalStack. Only accepted when the Outpost deployment sets DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true."""
 
     @model_serializer(mode="wrap")
     def _serialize_model_with_info(self, handler, info):

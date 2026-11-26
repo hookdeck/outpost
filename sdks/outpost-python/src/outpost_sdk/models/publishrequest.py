@@ -18,7 +18,7 @@ class PublishRequestTypedDict(TypedDict):
     data: Dict[str, Any]
     r"""Any JSON payload for the event data."""
     id: NotRequired[str]
-    r"""Optional. A unique identifier for the event. If not provided, a ID will be generated."""
+    r"""Optional. An identifier for the event, unique within its tenant. If not provided, an ID is generated. An event published again with the same `id` for the same tenant within the idempotency window (`PUBLISH_IDEMPOTENCY_KEY_TTL`, 1 hour by default) is not queued again. Different tenants can use the same `id`."""
     tenant_id: NotRequired[str]
     r"""The ID of the tenant to publish for."""
     destination_id: NotRequired[str]
@@ -38,7 +38,7 @@ class PublishRequest(BaseModel):
     r"""Any JSON payload for the event data."""
 
     id: Optional[str] = None
-    r"""Optional. A unique identifier for the event. If not provided, a ID will be generated."""
+    r"""Optional. An identifier for the event, unique within its tenant. If not provided, an ID is generated. An event published again with the same `id` for the same tenant within the idempotency window (`PUBLISH_IDEMPOTENCY_KEY_TTL`, 1 hour by default) is not queued again. Different tenants can use the same `id`."""
 
     tenant_id: Optional[str] = None
     r"""The ID of the tenant to publish for."""

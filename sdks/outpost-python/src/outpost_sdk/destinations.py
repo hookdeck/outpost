@@ -271,7 +271,7 @@ class Destinations(BaseSDK):
     ) -> models.Destination:
         r"""Create Destination
 
-        Creates a new destination for the tenant. The request body structure depends on the `type`.
+        Creates a new destination for the tenant. The request body structure depends on the `type`. Keys in `config` and `credentials` that the destination type does not define are ignored and not stored.
 
         :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
         :param body:
@@ -385,7 +385,7 @@ class Destinations(BaseSDK):
     ) -> models.Destination:
         r"""Create Destination
 
-        Creates a new destination for the tenant. The request body structure depends on the `type`.
+        Creates a new destination for the tenant. The request body structure depends on the `type`. Keys in `config` and `credentials` that the destination type does not define are ignored and not stored.
 
         :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
         :param body:
@@ -712,7 +712,7 @@ class Destinations(BaseSDK):
     ) -> models.UpdateTenantDestinationResponse:
         r"""Update Destination
 
-        Updates the configuration of an existing destination. The request body structure depends on the destination's `type`. Type itself cannot be updated. May return an OAuth redirect URL for certain types.
+        Updates the configuration of an existing destination. The request body structure depends on the destination's `type`. Type itself cannot be updated. May return an OAuth redirect URL for certain types. Keys in `config` and `credentials` that the destination type does not define are ignored, and any such keys stored earlier are removed.
 
         :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
         :param destination_id: The ID of the destination.
@@ -828,7 +828,7 @@ class Destinations(BaseSDK):
     ) -> models.UpdateTenantDestinationResponse:
         r"""Update Destination
 
-        Updates the configuration of an existing destination. The request body structure depends on the destination's `type`. Type itself cannot be updated. May return an OAuth redirect URL for certain types.
+        Updates the configuration of an existing destination. The request body structure depends on the destination's `type`. Type itself cannot be updated. May return an OAuth redirect URL for certain types. Keys in `config` and `credentials` that the destination type does not define are ignored, and any such keys stored earlier are removed.
 
         :param tenant_id: The ID of the tenant. Required when using AdminApiKey authentication.
         :param destination_id: The ID of the destination.
