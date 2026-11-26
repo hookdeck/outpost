@@ -11,14 +11,11 @@ import (
 
 	"github.com/hookdeck/outpost/internal/config"
 	"github.com/hookdeck/outpost/internal/deliverymq"
-	"github.com/hookdeck/outpost/internal/mqinfra"
 	"github.com/hookdeck/outpost/internal/mqs"
 	"github.com/hookdeck/outpost/internal/services"
 	"github.com/hookdeck/outpost/internal/util/testinfra"
 	"github.com/hookdeck/outpost/internal/util/testutil"
 	"github.com/hookdeck/outpost/internal/worker"
-	natsgo "github.com/nats-io/nats.go"
-	"github.com/nats-io/nats.go/jetstream"
 	amqp091 "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/require"
 )
@@ -213,9 +210,9 @@ func runBrokerOutage(t *testing.T, h *publishMQHarness, broker *flakyBroker) {
 	h.awaitStatus(worker.WorkerStatusHealthy, 45*time.Second)
 }
 
-// restartQueue is a queue the restart tests below run on: NATS by default,
-// RabbitMQ with TESTCOMPAT=1. The /nats publish-MQ variants exercise the
-// queue-agnostic supervisor; NATS isn't a publish queue provider.
+// restartQueue is a real broker the restart tests below run on (RabbitMQ,
+// TESTCOMPAT=1). The supervisor logic itself runs on a fake queue and clock in
+// consumer_worker_restart_fake_test.go.
 type restartQueue struct {
 	name   string
 	compat bool
@@ -231,32 +228,6 @@ type restartQueue struct {
 }
 
 var restartQueues = []restartQueue{
-	{
-		name:      "nats",
-		newConfig: testinfra.NewMQNATSConfig,
-		failingConfig: func(t *testing.T, cfg mqs.QueueConfig) mqs.QueueConfig {
-			unreachable := *cfg.NATS
-			unreachable.ServerURL = "nats://127.0.0.1:1" // nothing listens on port 1
-			cfg.NATS = &unreachable
-			return cfg
-		},
-		deleteQueue: func(t *testing.T, cfg mqs.QueueConfig) {
-			nc, err := natsgo.Connect(cfg.NATS.ServerURL)
-			require.NoError(t, err)
-			defer nc.Close()
-			js, err := jetstream.New(nc)
-			require.NoError(t, err)
-			require.NoError(t, js.DeleteStream(context.Background(), cfg.NATS.Stream))
-		},
-		redeclare: func(t *testing.T, cfg mqs.QueueConfig) {
-			infra := mqinfra.New(&mqinfra.MQInfraConfig{NATS: &mqinfra.NATSInfraConfig{
-				ServerURL: cfg.NATS.ServerURL,
-				Stream:    cfg.NATS.Stream,
-				Subject:   cfg.NATS.Subject,
-			}})
-			require.NoError(t, infra.Declare(context.Background()))
-		},
-	},
 	{
 		name:          "rabbitmq",
 		compat:        true,

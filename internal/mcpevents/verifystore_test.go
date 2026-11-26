@@ -46,8 +46,10 @@ func runVerificationStoreSuite(t *testing.T, client internalredis.Cmdable, deplo
 		assert.Greater(t, ttl, time.Duration(0))
 		assert.LessOrEqual(t, ttl, 2*time.Second)
 
-		fastForward(3 * time.Second)
-		ok, err = s.Verified(ctx, "t1", url)
+		// Short TTL: on a real server the test sleeps past it.
+		require.NoError(t, s.MarkVerified(ctx, "short", url, 100*time.Millisecond))
+		fastForward(200 * time.Millisecond)
+		ok, err = s.Verified(ctx, "short", url)
 		require.NoError(t, err)
 		assert.False(t, ok, "expired")
 	})
