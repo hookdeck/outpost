@@ -47,6 +47,11 @@ type RouterConfig struct {
 	MCPSubscribe bool
 	// MaxEventSizeBytes caps the size of a publish request body; 0 means no cap.
 	MaxEventSizeBytes int64
+	// MaxConcurrentPayloadLists caps how many list requests that include
+	// payloads may run at once in this process; 0 means no cap. Payload lists
+	// are built in memory before they are sent, so several at once can exceed
+	// the process budget.
+	MaxConcurrentPayloadLists int
 }
 
 type RouterDeps struct {
@@ -146,6 +151,9 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 
 	displayer := newDestinationDisplayer(cfg.Registry, cfg.TopicsAllowWildcards)
 
+	// One limiter per router so the bound is per process, not per request.
+	payloadListMiddleware := PayloadListLimitMiddleware(NewPayloadListLimiter(cfg.MaxConcurrentPayloadLists))
+
 	tenantHandlers := NewTenantHandlers(deps.Logger, deps.Telemetry, cfg.JWTSecret, cfg.DeploymentID, deps.TenantStore, cfg.TopicsAllowWildcards, deps.MCPVerifier)
 	// Destinations of internal types stay out of the destinations API.
 	publicStore := tenantstore.NewPublicStore(deps.TenantStore)
@@ -193,11 +201,11 @@ func NewRouter(cfg RouterConfig, deps RouterDeps) http.Handler {
 		{Method: http.MethodPost, Path: "/tenants/:tenant_id/mcp/events/unsubscribe", Handler: mcpSubscribeHandlers.Unsubscribe, AdminOnly: true},
 
 		// Events
-		{Method: http.MethodGet, Path: "/events", Handler: logHandlers.ListEvents},
+		{Method: http.MethodGet, Path: "/events", Handler: logHandlers.ListEvents, Middlewares: []gin.HandlerFunc{payloadListMiddleware}},
 		{Method: http.MethodGet, Path: "/events/:event_id", Handler: logHandlers.RetrieveEvent},
 
 		// Attempts
-		{Method: http.MethodGet, Path: "/attempts", Handler: logHandlers.ListAttempts},
+		{Method: http.MethodGet, Path: "/attempts", Handler: logHandlers.ListAttempts, Middlewares: []gin.HandlerFunc{payloadListMiddleware}},
 		{Method: http.MethodGet, Path: "/attempts/:attempt_id", Handler: logHandlers.RetrieveAttempt},
 
 		// Metrics
