@@ -14,6 +14,8 @@ type WebhookCredentials struct {
 	PreviousSecret *string `json:"previous_secret,omitempty"`
 	// ISO timestamp when the previous secret becomes invalid. Read-only.
 	PreviousSecretInvalidAt *time.Time `json:"previous_secret_invalid_at,omitempty"`
+	// JSON string of HTTP headers with secret values, such as Authorization, to include with every webhook request. Same name rules as `config.custom_headers`, and a name can't appear in both. Values are encrypted at rest and returned masked.
+	CustomHeaders *string `json:"custom_headers,omitempty"`
 }
 
 func (w WebhookCredentials) MarshalJSON() ([]byte, error) {
@@ -46,4 +48,11 @@ func (w *WebhookCredentials) GetPreviousSecretInvalidAt() *time.Time {
 		return nil
 	}
 	return w.PreviousSecretInvalidAt
+}
+
+func (w *WebhookCredentials) GetCustomHeaders() *string {
+	if w == nil {
+		return nil
+	}
+	return w.CustomHeaders
 }

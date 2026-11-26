@@ -62,6 +62,8 @@ type ManagedConfig struct {
 	DestinationsWebhookTimestampHeaderName optionalnullable.OptionalNullable[string] `json:"DESTINATIONS_WEBHOOK_TIMESTAMP_HEADER_NAME,omitempty"`
 	// Complete name of the topic header. Unset uses the default "<prefix>topic"; an explicit value pins that exact name; an empty string disables the header. Only applies to "default" mode.
 	DestinationsWebhookTopicHeaderName        optionalnullable.OptionalNullable[string] `json:"DESTINATIONS_WEBHOOK_TOPIC_HEADER_NAME,omitempty"`
+	ExperimentalMcpEnabled                    optionalnullable.OptionalNullable[string] `json:"EXPERIMENTAL_MCP_ENABLED,omitempty"`
+	ExperimentalMcpEventsSchema               optionalnullable.OptionalNullable[string] `json:"EXPERIMENTAL_MCP_EVENTS_SCHEMA,omitempty"`
 	HTTPUserAgent                             optionalnullable.OptionalNullable[string] `json:"HTTP_USER_AGENT,omitempty"`
 	IdgenAttemptPrefix                        optionalnullable.OptionalNullable[string] `json:"IDGEN_ATTEMPT_PREFIX,omitempty"`
 	IdgenDestinationPrefix                    optionalnullable.OptionalNullable[string] `json:"IDGEN_DESTINATION_PREFIX,omitempty"`
@@ -93,6 +95,7 @@ type ManagedConfig struct {
 	PublishAwsSqsEndpoint                     optionalnullable.OptionalNullable[string] `json:"PUBLISH_AWS_SQS_ENDPOINT,omitempty"`
 	PublishAwsSqsQueue                        optionalnullable.OptionalNullable[string] `json:"PUBLISH_AWS_SQS_QUEUE,omitempty"`
 	PublishAwsSqsRegion                       optionalnullable.OptionalNullable[string] `json:"PUBLISH_AWS_SQS_REGION,omitempty"`
+	PublishAwsSqsRoleArn                      optionalnullable.OptionalNullable[string] `json:"PUBLISH_AWS_SQS_ROLE_ARN,omitempty"`
 	PublishAwsSqsSecretAccessKey              optionalnullable.OptionalNullable[string] `json:"PUBLISH_AWS_SQS_SECRET_ACCESS_KEY,omitempty"`
 	PublishAzureServicebusConnectionString    optionalnullable.OptionalNullable[string] `json:"PUBLISH_AZURE_SERVICEBUS_CONNECTION_STRING,omitempty"`
 	PublishAzureServicebusSubscription        optionalnullable.OptionalNullable[string] `json:"PUBLISH_AZURE_SERVICEBUS_SUBSCRIPTION,omitempty"`
@@ -318,6 +321,20 @@ func (m *ManagedConfig) GetDestinationsWebhookTopicHeaderName() optionalnullable
 	return m.DestinationsWebhookTopicHeaderName
 }
 
+func (m *ManagedConfig) GetExperimentalMcpEnabled() optionalnullable.OptionalNullable[string] {
+	if m == nil {
+		return nil
+	}
+	return m.ExperimentalMcpEnabled
+}
+
+func (m *ManagedConfig) GetExperimentalMcpEventsSchema() optionalnullable.OptionalNullable[string] {
+	if m == nil {
+		return nil
+	}
+	return m.ExperimentalMcpEventsSchema
+}
+
 func (m *ManagedConfig) GetHTTPUserAgent() optionalnullable.OptionalNullable[string] {
 	if m == nil {
 		return nil
@@ -533,6 +550,13 @@ func (m *ManagedConfig) GetPublishAwsSqsRegion() optionalnullable.OptionalNullab
 		return nil
 	}
 	return m.PublishAwsSqsRegion
+}
+
+func (m *ManagedConfig) GetPublishAwsSqsRoleArn() optionalnullable.OptionalNullable[string] {
+	if m == nil {
+		return nil
+	}
+	return m.PublishAwsSqsRoleArn
 }
 
 func (m *ManagedConfig) GetPublishAwsSqsSecretAccessKey() optionalnullable.OptionalNullable[string] {

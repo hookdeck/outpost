@@ -17,6 +17,8 @@ type WebhookCredentialsUpdate struct {
 	PreviousSecretInvalidAt *time.Time `json:"previous_secret_invalid_at,omitempty"`
 	// Set to true to rotate the secret. The current secret becomes the previous_secret, and a new secret is generated. `previous_secret_invalid_at` defaults to 24h if not provided.
 	RotateSecret *bool `json:"rotate_secret,omitempty"`
+	// JSON string of HTTP headers with secret values, merged header by header like `config.custom_headers`. A header not sent keeps its saved value, a header sent with a value gets that value, and a header sent as null is removed. Set the field to null to remove all.
+	CustomHeaders *string `json:"custom_headers,omitempty"`
 }
 
 func (w WebhookCredentialsUpdate) MarshalJSON() ([]byte, error) {
@@ -56,4 +58,11 @@ func (w *WebhookCredentialsUpdate) GetRotateSecret() *bool {
 		return nil
 	}
 	return w.RotateSecret
+}
+
+func (w *WebhookCredentialsUpdate) GetCustomHeaders() *string {
+	if w == nil {
+		return nil
+	}
+	return w.CustomHeaders
 }

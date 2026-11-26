@@ -56,6 +56,29 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/NotFound"
+    MCPError:
+      description: >-
+        The MCP request failed. `mcp_error` is a JSON-RPC error object with `data` only where the MCP Events spec defines it: `-32602` invalid params (a malformed request body also answers this) has no `data`, `-32023` not found (`data.kind` is `event` or `subscription`), `-32025` resource exhausted (`data.limit`, and `data.max` when there is one), `-32026` unsupported (`data.feature` and `data.value`, such as a delivery mode other than `webhook`), `-32027` callback endpoint error (`data.reason` names the failure category).
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [mcp_error]
+            properties:
+              mcp_error:
+                type: object
+                required: [code, message]
+                properties:
+                  code:
+                    type: integer
+                    example: -32023
+                  message:
+                    type: string
+                    example: "NotFound"
+                  data:
+                    type: object
+                    additionalProperties: true
+                    example: {kind: "event"}
     RequestBodyTooLarge:
       description: Request body is larger than 1 MiB.
       content:
@@ -74,6 +97,13 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/InternalServerError"
+    ServiceUnavailable:
+      description: |
+        A subscription's callback verification could not run (`data.code` is `verification_unavailable`), the subscription is being changed by concurrent requests (retry), or the MCP event definitions are invalid (the reason is in the server log).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/APIErrorResponse"
     RateLimited:
       description: Status codes relating to the client being rate limited by the server
       content:
@@ -212,6 +242,7 @@ components:
       description: |
         Optional JSON schema filter for event matching. Events must match this filter to be delivered to this destination.
         Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
+        A filter can be nested up to 16 levels deep. The filter object is level 1, and each nested object or array adds one.
         If null or empty, all events matching the topic filter will be delivered.
         Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
       example:
@@ -300,6 +331,10 @@ components:
           format: date-time
           description: ISO timestamp when the previous secret becomes invalid. Read-only.
           example: "2024-01-02T00:00:00Z"
+        custom_headers:
+          type: string
+          description: JSON string of HTTP headers with secret values, such as Authorization, to include with every webhook request. Same name rules as `config.custom_headers`, and a name can't appear in both. Values are encrypted at rest and returned masked.
+          example: '{"Authorization":"Bear**************"}'
     AWSSQSConfig:
       type: object
       required: [queue_url]
@@ -307,12 +342,12 @@ components:
         endpoint:
           type: string
           format: url
-          description: Optional. Custom AWS endpoint URL (e.g., for LocalStack or specific regions).
-          example: "https://sqs.us-east-1.amazonaws.com" # Corrected Example
+          description: Optional. Custom AWS endpoint URL for emulators such as LocalStack. Only accepted when the Outpost deployment sets DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true.
+          example: "http://localhost:4566"
         queue_url:
           type: string
           format: url # Technically an ARN/URL hybrid, but URL format is close enough
-          description: The URL of the SQS queue.
+          description: The URL of the SQS queue. A URL that is not an AWS SQS endpoint is only accepted when the Outpost deployment sets DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true.
           example: "https://sqs.us-east-1.amazonaws.com/123456789012/my-queue"
     AWSSQSCredentials:
       type: object
@@ -367,7 +402,7 @@ components:
         endpoint:
           type: string
           format: url
-          description: Optional. Custom AWS endpoint URL (e.g., for LocalStack or VPC endpoints).
+          description: Optional. Custom AWS endpoint URL for emulators such as LocalStack. Only accepted when the Outpost deployment sets DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true.
           example: "https://events.us-east-1.amazonaws.com"
     AWSEventBridgeCredentials:
       type: object
@@ -437,11 +472,12 @@ components:
         endpoint:
           type: string
           format: url
-          description: Optional. Custom AWS endpoint URL (e.g., for LocalStack or VPC endpoints).
+          description: Optional. Custom AWS endpoint URL for emulators such as LocalStack. Only accepted when the Outpost deployment sets DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true.
           example: "https://kinesis.us-east-1.amazonaws.com"
         partition_key_template:
           type: string
-          description: Optional. JMESPath template to extract the partition key from the event payload (e.g., `metadata."event-id"`). Defaults to event ID.
+          description: Optional. JMESPath template to extract the partition key from the event payload (e.g., `metadata."event-id"`). Defaults to event ID. Templates may use field paths, string literals, `join`, `to_string`, `not_null` and `||`.
+          maxLength: 1024
           example: 'data."user_id"'
     AWSKinesisCredentials:
       type: object
@@ -490,7 +526,8 @@ components:
           example: "us-east-1"
         key_template:
           type: string
-          description: JMESPath expression for generating S3 object keys. Default is join('', [time.rfc3339_nano, '_', metadata."event-id", '.json']).
+          description: JMESPath expression for generating S3 object keys. Default is join('', [time.rfc3339_nano, '_', metadata."event-id", '.json']). Templates may use field paths, string literals, `join`, `to_string`, `not_null` and `||`.
+          maxLength: 1024
           example: 'join(''/'', [time.year, time.month, time.day, metadata."event-id", ''.json''])'
         storage_class:
           type: string
@@ -526,7 +563,7 @@ components:
           example: "events-topic"
         endpoint:
           type: string
-          description: Optional. Custom endpoint URL (e.g., localhost:8085 for emulator).
+          description: Optional. Custom endpoint (e.g., localhost:8085 for the Pub/Sub emulator), connected without TLS or authentication. Only accepted when the Outpost deployment sets DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true.
           example: "pubsub.googleapis.com:443"
     GCPPubSubCredentials:
       type: object
@@ -561,7 +598,8 @@ components:
           example: "true"
         partition_key_template:
           type: string
-          description: Optional JMESPath template to extract the partition key from the event payload. Defaults to the event ID.
+          description: Optional JMESPath template to extract the partition key from the event payload. Defaults to the event ID. Templates may use field paths, string literals, `join`, `to_string`, `not_null` and `||`.
+          maxLength: 1024
           example: "data.customer_id"
     KafkaCredentials:
       type: object
@@ -2115,8 +2153,8 @@ components:
           example: "https://example.com/webhooks/user"
         custom_headers:
           type: string
-          description: JSON string of custom HTTP headers to include with every webhook request.
-          example: '{"x-api-key":"secret123","x-tenant-id":"customer-456"}'
+          description: JSON string of custom HTTP headers to include with every webhook request, merged header by header. A header not sent keeps its saved value, a header sent with a value gets that value, and a header sent as null is removed. Set the field to null to remove all.
+          example: '{"x-tenant-id":"customer-456","x-old-header":null}'
     WebhookCredentialsUpdate:
       type: object
       description: Partial Webhook credentials for PATCH updates (RFC 7396 merge-patch).
@@ -2134,6 +2172,10 @@ components:
         rotate_secret:
           type: boolean
           description: Set to true to rotate the secret. The current secret becomes the previous_secret, and a new secret is generated. `previous_secret_invalid_at` defaults to 24h if not provided.
+        custom_headers:
+          type: string
+          description: JSON string of HTTP headers with secret values, merged header by header like `config.custom_headers`. A header not sent keeps its saved value, a header sent with a value gets that value, and a header sent as null is removed. Set the field to null to remove all.
+          example: '{"X-Api-Key":"new-key","X-Old-Key":null}'
     AWSSQSConfigUpdate:
       type: object
       description: Partial AWS SQS config for PATCH updates (RFC 7396 merge-patch).
@@ -2141,12 +2183,12 @@ components:
         endpoint:
           type: string
           format: url
-          description: Optional. Custom AWS endpoint URL (e.g., for LocalStack or specific regions).
-          example: "https://sqs.us-east-1.amazonaws.com"
+          description: Optional. Custom AWS endpoint URL for emulators such as LocalStack. Only accepted when the Outpost deployment sets DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true.
+          example: "http://localhost:4566"
         queue_url:
           type: string
           format: url
-          description: The URL of the SQS queue.
+          description: The URL of the SQS queue. A URL that is not an AWS SQS endpoint is only accepted when the Outpost deployment sets DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true.
           example: "https://sqs.us-east-1.amazonaws.com/123456789012/my-queue"
     AWSSQSCredentialsUpdate:
       type: object
@@ -2205,10 +2247,11 @@ components:
         endpoint:
           type: string
           format: url
-          description: Optional. Custom AWS endpoint URL (e.g., for LocalStack or VPC endpoints).
+          description: Optional. Custom AWS endpoint URL for emulators such as LocalStack. Only accepted when the Outpost deployment sets DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true.
         partition_key_template:
           type: string
-          description: Optional. JMESPath template to extract the partition key from the event payload.
+          description: Optional. JMESPath template to extract the partition key from the event payload. Templates may use field paths, string literals, `join`, `to_string`, `not_null` and `||`.
+          maxLength: 1024
     AWSKinesisCredentialsUpdate:
       type: object
       description: Partial AWS Kinesis credentials for PATCH updates (RFC 7396 merge-patch).
@@ -2249,7 +2292,8 @@ components:
           description: The AWS region where your bucket is located.
         key_template:
           type: string
-          description: JMESPath expression for generating S3 object keys.
+          description: JMESPath expression for generating S3 object keys. Templates may use field paths, string literals, `join`, `to_string`, `not_null` and `||`.
+          maxLength: 1024
         storage_class:
           type: string
           description: The storage class for the S3 objects.
@@ -2278,7 +2322,7 @@ components:
           description: The Pub/Sub topic name.
         endpoint:
           type: string
-          description: Optional. Custom endpoint URL (e.g., localhost:8085 for emulator).
+          description: Optional. Custom endpoint (e.g., localhost:8085 for the Pub/Sub emulator), connected without TLS or authentication. Only accepted when the Outpost deployment sets DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true.
     GCPPubSubCredentialsUpdate:
       type: object
       description: Partial GCP Pub/Sub credentials for PATCH updates (RFC 7396 merge-patch).
@@ -2306,7 +2350,8 @@ components:
           description: Whether to enable TLS for the connection.
         partition_key_template:
           type: string
-          description: Optional JMESPath template to extract the partition key from the event payload.
+          description: Optional JMESPath template to extract the partition key from the event payload. Templates may use field paths, string literals, `join`, `to_string`, `not_null` and `||`.
+          maxLength: 1024
     KafkaCredentialsUpdate:
       type: object
       description: Partial Kafka credentials for PATCH updates (RFC 7396 merge-patch).
@@ -2349,7 +2394,7 @@ components:
         endpoint:
           type: string
           format: url
-          description: Optional. Custom AWS endpoint URL (e.g., for LocalStack or VPC endpoints).
+          description: Optional. Custom AWS endpoint URL for emulators such as LocalStack. Only accepted when the Outpost deployment sets DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true.
     AWSEventBridgeCredentialsUpdate:
       type: object
       description: Partial AWS EventBridge credentials for PATCH updates (RFC 7396 merge-patch).
@@ -2904,7 +2949,7 @@ components:
       properties:
         id:
           type: string
-          description: Optional. A unique identifier for the event. If not provided, a ID will be generated.
+          description: Optional. An identifier for the event, unique within its tenant. If not provided, an ID is generated. An event published again with the same `id` for the same tenant within the idempotency window (`PUBLISH_IDEMPOTENCY_KEY_TTL`, 1 hour by default) is not queued again. Different tenants can use the same `id`.
           example: "evt_custom_123"
         tenant_id:
           type: string
@@ -2950,7 +2995,7 @@ components:
           example: "evt_abc123xyz789"
         duplicate:
           type: boolean
-          description: Whether this event was already processed (idempotency hit). If true, the event was not queued again.
+          description: Whether this tenant already published an event with this ID within the idempotency window. If true, the event was not queued again.
           example: false
         destination_ids:
           type: array
@@ -3525,6 +3570,10 @@ components:
           type: [string, "null"]
           description: >-
             Complete name of the topic header. Unset uses the default "<prefix>topic"; an explicit value pins that exact name; an empty string disables the header. Only applies to "default" mode.
+        EXPERIMENTAL_MCP_ENABLED:
+          type: [string, "null"]
+        EXPERIMENTAL_MCP_EVENTS_SCHEMA:
+          type: [string, "null"]
         HTTP_USER_AGENT:
           type: [string, "null"]
         IDGEN_ATTEMPT_PREFIX:
@@ -3586,6 +3635,8 @@ components:
         PUBLISH_AWS_SQS_QUEUE:
           type: [string, "null"]
         PUBLISH_AWS_SQS_REGION:
+          type: [string, "null"]
+        PUBLISH_AWS_SQS_ROLE_ARN:
           type: [string, "null"]
         PUBLISH_AWS_SQS_SECRET_ACCESS_KEY:
           type: [string, "null"]
@@ -4081,7 +4132,13 @@ paths:
                           label: "Custom Headers"
                           description: "Additional HTTP headers to include with every webhook request"
                           required: false
-                      credential_fields: []
+                      credential_fields:
+                        - key: "custom_headers"
+                          type: "key_value_map"
+                          label: "Secret Headers"
+                          description: "Headers with secret values, such as tokens or API keys. Stored encrypted."
+                          required: false
+                          sensitive: true
                     - type: "hookdeck"
                       label: "Hookdeck"
                       description: "Send events to Hookdeck Event Gateway."
@@ -4702,11 +4759,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter tenants by ID(s). Use bracket notation for multiple values (e.g., `id[0]=t1&id[1]=t2` or `id[]=t1&id[]=t2`).
         - name: limit
           in: query
@@ -4916,21 +4971,17 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter events by ID(s). Use bracket notation for multiple values (e.g., `id[0]=abc&id[1]=def`).
         - name: tenant_id
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Filter events by tenant ID(s). Use bracket notation for multiple values (e.g., `tenant_id[0]=t1&tenant_id[1]=t2`).
             When authenticated with a Tenant JWT, this parameter is ignored and the JWT's tenant is used.
@@ -4949,11 +5000,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter events by topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
         - name: time
           in: query
@@ -5107,11 +5156,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Filter attempts by tenant ID(s). Use bracket notation for multiple values (e.g., `tenant_id[0]=t1&tenant_id[1]=t2`).
             When authenticated with a Tenant JWT, this parameter is ignored and the JWT's tenant is used.
@@ -5120,21 +5167,17 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter attempts by event ID(s). Use bracket notation for multiple values (e.g., `event_id[0]=e1&event_id[1]=e2`).
         - name: destination_id
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter attempts by destination ID(s). Use bracket notation for multiple values (e.g., `destination_id[0]=d1&destination_id[1]=d2`).
         - name: destination_type
           in: query
@@ -5157,11 +5200,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter attempts by event topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
         - name: time
           in: query
@@ -5196,11 +5237,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
             - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
@@ -5321,11 +5360,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
             - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
@@ -5420,6 +5457,12 @@ paths:
           $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalServerError"
+        "501":
+          description: Tenant JWT is not enabled.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIErrorResponse"
       x-speakeasy-name-override: getPortalUrl
       security:
         - BearerAuth: []
@@ -5456,6 +5499,12 @@ paths:
           $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalServerError"
+        "501":
+          description: Tenant JWT is not enabled.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIErrorResponse"
       x-speakeasy-name-override: getToken
       security:
         - BearerAuth: []
@@ -5481,21 +5530,17 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - $ref: "#/components/schemas/DestinationType"
-              - type: array
-                items:
-                  $ref: "#/components/schemas/DestinationType"
+            type: array
+            items:
+              $ref: "#/components/schemas/DestinationType"
           description: Filter destinations by type(s). Use bracket notation for multiple values (e.g., `type[0]=webhook&type[1]=aws_sqs`).
         - name: topics
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter destinations by supported topic(s). Use bracket notation for multiple values (e.g., `topics[0]=user.created&topics[1]=user.deleted`).
       responses:
         "200":
@@ -5557,7 +5602,7 @@ paths:
     post:
       tags: [Destinations]
       summary: Create Destination
-      description: Creates a new destination for the tenant. The request body structure depends on the `type`.
+      description: Creates a new destination for the tenant. The request body structure depends on the `type`. Keys in `config` and `credentials` that the destination type does not define are ignored and not stored.
       operationId: createTenantDestination
       requestBody:
         required: true
@@ -5663,7 +5708,7 @@ paths:
     patch:
       tags: [Destinations]
       summary: Update Destination
-      description: Updates the configuration of an existing destination. The request body structure depends on the destination's `type`. Type itself cannot be updated. May return an OAuth redirect URL for certain types.
+      description: Updates the configuration of an existing destination. The request body structure depends on the destination's `type`. Type itself cannot be updated. May return an OAuth redirect URL for certain types. Keys in `config` and `credentials` that the destination type does not define are ignored, and any such keys stored earlier are removed.
       operationId: updateTenantDestination
       requestBody:
         required: true
@@ -5886,11 +5931,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter attempts by event ID(s). Use bracket notation for multiple values (e.g., `event_id[0]=e1&event_id[1]=e2`).
         - name: status
           in: query
@@ -5903,11 +5946,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: Filter attempts by event topic(s). Use bracket notation for multiple values (e.g., `topic[0]=user.created&topic[1]=user.updated`).
         - name: time
           in: query
@@ -5942,11 +5983,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
             - `event`: Include event summary (id, topic, time, eligible_for_retry, metadata)
@@ -6048,11 +6087,9 @@ paths:
           in: query
           required: false
           schema:
-            oneOf:
-              - type: string
-              - type: array
-                items:
-                  type: string
+            type: array
+            items:
+              type: string
           description: |
             Fields to include in the response. Use bracket notation for multiple values (e.g., `include[0]=event&include[1]=response_data`).
             - `event`: Include event summary
@@ -6130,13 +6167,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/APIErrorResponse"
+        "413":
+          description: Request body is larger than the configured maximum, 1 MiB by default.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIErrorResponse"
+          $ref: '#/components/responses/BadRequest'
         "422":
           description: The event topic was either required or was invalid.
           $ref: '#/components/responses/BadRequest'
         "500":
           $ref: "#/components/responses/InternalServerError"
-        '413':
-          $ref: '#/components/responses/BadRequest'
         '414':
           $ref: '#/components/responses/BadRequest'
         '415':
@@ -6459,6 +6501,232 @@ paths:
         '504':
           $ref: '#/components/responses/Timeout'
       x-speakeasy-name-override: list
+  /mcp/events/list:
+    get:
+      tags: [Topics]
+      summary: List MCP Events
+      x-speakeasy-ignore: true
+      description: |
+        **Experimental.** Returns the event definitions configured with `EXPERIMENTAL_MCP_EVENTS_SCHEMA`
+        (`experimental.mcp.events_schema` in YAML), in the shape of an MCP `events/list` result. Admin API key only. Returns 404
+        when MCP is not enabled or no events are defined, and 503 when the definitions are invalid.
+      operationId: listMCPEvents
+      parameters:
+        - name: topics
+          in: query
+          description: Comma-separated event names; only these are returned.
+          schema:
+            type: string
+          example: "order.created,order.refunded"
+        - name: cursor
+          in: query
+          description: The `nextCursor` of the previous page.
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Maximum events per page.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        "200":
+          description: A page of event definitions, in the configured order.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [resultType, events]
+                properties:
+                  resultType:
+                    type: string
+                    enum: [complete]
+                  events:
+                    type: array
+                    items:
+                      type: object
+                      required: [name, inputSchema, payloadSchema, delivery]
+                      properties:
+                        name:
+                          type: string
+                          example: "order.created"
+                        description:
+                          type: string
+                          example: "An order was placed."
+                        inputSchema:
+                          type: object
+                          additionalProperties: true
+                          description: JSON Schema of the `arguments` a subscription accepts, as defined in the event definitions. Derived from `payloadSchema` when the definition has no `inputSchema`.
+                        payloadSchema:
+                          type: object
+                          additionalProperties: true
+                          description: JSON Schema of the event data.
+                        delivery:
+                          type: array
+                          items:
+                            type: string
+                          example: ["webhook"]
+                  nextCursor:
+                    type: string
+                    description: Present when there are more events.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /tenants/{tenant_id}/mcp/events/subscribe:
+    parameters:
+      - name: tenant_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the tenant that holds the subscription. It identifies the subscriber.
+    post:
+      tags: [Destinations]
+      summary: Subscribe (MCP Events)
+      x-speakeasy-ignore: true
+      description: |
+        **Experimental.** Serves the MCP Events `events/subscribe` method for an MCP server that
+        forwards the request `params` as the body. Creates a subscription, or refreshes it when
+        the tenant already holds the same subscription: the same tenant, event, arguments and
+        callback URL always give the same `id`. A new subscription is
+        verified with a challenge to its callback URL before it is stored; one that has expired is
+        replaced by a new one. The tenant is created if it does not exist, even when the subscribe then fails. Admin API key only;
+        answers `404` while MCP is not enabled (`EXPERIMENTAL_MCP_ENABLED`).
+
+        Failures answer `422` with an `mcp_error` the MCP server returns as its JSON-RPC error.
+      operationId: subscribeMCPEvents
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              description: The `events/subscribe` params, forwarded as received.
+              example:
+                name: "order.created"
+                arguments: {status: "paid"}
+                delivery:
+                  mode: "webhook"
+                  url: "https://example.com/mcp-events/abc123"
+                  secret: "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw"
+                ttlMs: 3600000
+      responses:
+        "200":
+          description: The `events/subscribe` result.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [resultType, id, refreshBefore, cursor, truncated]
+                properties:
+                  resultType:
+                    type: string
+                    enum: [complete]
+                  id:
+                    type: string
+                    example: "sub_3f1c2a9e5b7d4c6a8e0f1b2c3d4e5f60"
+                  refreshBefore:
+                    type: [string, "null"]
+                    format: date-time
+                    description: >-
+                      Subscribe again before this time to keep the subscription. Null only when the request sent `ttlMs: null`, which means the subscription does not expire.
+                  cursor:
+                    type: [string, "null"]
+                    description: Always null; events are not replayed.
+                  truncated:
+                    type: boolean
+                    description: Always false; events are not replayed.
+                  deliveryStatus:
+                    type: object
+                    description: Present when an existing subscription was refreshed.
+                    required: [active]
+                    properties:
+                      active:
+                        type: boolean
+                        description: False when the subscription was suspended before this refresh. The refresh re-enables it.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/RequestBodyTooLarge"
+        "422":
+          $ref: "#/components/responses/MCPError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /tenants/{tenant_id}/mcp/events/unsubscribe:
+    parameters:
+      - name: tenant_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the tenant that holds the subscription. It identifies the subscriber.
+    post:
+      tags: [Destinations]
+      summary: Unsubscribe (MCP Events)
+      x-speakeasy-ignore: true
+      description: |
+        **Experimental.** Serves the MCP Events `events/unsubscribe` method: deletes the tenant's
+        subscription for the event, arguments and callback URL in the request body, the `events/unsubscribe` params. Answers `422` with a
+        `NotFound` `mcp_error` when there is none, including when the tenant does not exist.
+        Admin API key only; answers `404` while MCP is not enabled (`EXPERIMENTAL_MCP_ENABLED`).
+      operationId: unsubscribeMCPEvents
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              description: The `events/unsubscribe` params, forwarded as received.
+              example:
+                name: "order.created"
+                arguments: {status: "paid"}
+                delivery:
+                  url: "https://example.com/mcp-events/abc123"
+      responses:
+        "200":
+          description: The subscription was deleted. The `events/unsubscribe` result.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [resultType]
+                properties:
+                  resultType:
+                    type: string
+                    enum: ["complete"]
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/RequestBodyTooLarge"
+        "422":
+          $ref: "#/components/responses/MCPError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /metrics/events:
     get:
       tags: [Metrics]

@@ -336,7 +336,7 @@ func (s *Destinations) List(ctx context.Context, tenantID string, type_ []compon
 }
 
 // Create Destination
-// Creates a new destination for the tenant. The request body structure depends on the `type`.
+// Creates a new destination for the tenant. The request body structure depends on the `type`. Keys in `config` and `credentials` that the destination type does not define are ignored and not stored.
 func (s *Destinations) Create(ctx context.Context, tenantID string, body components.DestinationCreate, opts ...operations.Option) (*operations.CreateTenantDestinationResponse, error) {
 	request := operations.CreateTenantDestinationRequest{
 		TenantID: tenantID,
@@ -958,7 +958,7 @@ func (s *Destinations) Get(ctx context.Context, tenantID string, destinationID s
 }
 
 // Update Destination
-// Updates the configuration of an existing destination. The request body structure depends on the destination's `type`. Type itself cannot be updated. May return an OAuth redirect URL for certain types.
+// Updates the configuration of an existing destination. The request body structure depends on the destination's `type`. Type itself cannot be updated. May return an OAuth redirect URL for certain types. Keys in `config` and `credentials` that the destination type does not define are ignored, and any such keys stored earlier are removed.
 func (s *Destinations) Update(ctx context.Context, tenantID string, destinationID string, body components.DestinationUpdate, opts ...operations.Option) (*operations.UpdateTenantDestinationResponse, error) {
 	request := operations.UpdateTenantDestinationRequest{
 		TenantID:      tenantID,

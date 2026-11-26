@@ -10,7 +10,7 @@ import (
 type WebhookConfigUpdate struct {
 	// The URL to send the webhook events to.
 	URL *string `json:"url,omitempty"`
-	// JSON string of custom HTTP headers to include with every webhook request.
+	// JSON string of custom HTTP headers to include with every webhook request, merged header by header. A header not sent keeps its saved value, a header sent with a value gets that value, and a header sent as null is removed. Set the field to null to remove all.
 	CustomHeaders *string `json:"custom_headers,omitempty"`
 }
 

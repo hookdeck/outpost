@@ -239,6 +239,10 @@ func UnmarshalJSON(b []byte, v interface{}, tag reflect.StructTag, topLevel bool
 			// If we receive a value for a const field ignore it but mark it as unmarshaled
 			if field.Tag.Get("const") != "" {
 				if r, ok := unmarshaled[fieldName]; ok {
+					if isContainerKind(field.Type) && bytes.Equal(bytes.TrimSpace(r), []byte("null")) {
+						delete(unmarshaled, fieldName)
+						continue
+					}
 					val := string(r)
 
 					if strings.HasPrefix(val, `"`) && strings.HasSuffix(val, `"`) {
@@ -249,7 +253,11 @@ func UnmarshalJSON(b []byte, v interface{}, tag reflect.StructTag, topLevel bool
 						}
 					}
 					constValue := field.Tag.Get("const")
-					if val != constValue {
+					matches := val == constValue
+					if isContainerKind(field.Type) {
+						matches = constJSONValuesEqual(r, constValue)
+					}
+					if !matches {
 						return fmt.Errorf("const field `%s` does not match expected value `%s` got `%s`", fieldName, constValue, val)
 					}
 
@@ -466,6 +474,79 @@ func implementsJSONMarshaler(v interface{}) bool {
 		return reflect.PtrTo(vType.Elem()).Implements(marshalerType)
 	}
 	return reflect.PtrTo(vType).Implements(marshalerType)
+}
+
+func isContainerKind(typ reflect.Type) bool {
+	typ = dereferenceTypePointer(typ)
+	if optionalnullable.IsOptionalNullableType(typ) {
+		typ = dereferenceTypePointer(typ.Elem())
+	}
+	switch typ.Kind() {
+	case reflect.Slice, reflect.Map:
+		return true
+	default:
+		return false
+	}
+}
+
+func constJSONValuesEqual(received json.RawMessage, constValue string) bool {
+	got, err := decodeJSONWithNumbers(received)
+	if err != nil {
+		return false
+	}
+	want, err := decodeJSONWithNumbers([]byte(constValue))
+	if err != nil {
+		return false
+	}
+	return jsonValuesEqual(got, want)
+}
+
+func decodeJSONWithNumbers(data []byte) (interface{}, error) {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	var value interface{}
+	if err := decoder.Decode(&value); err != nil {
+		return nil, err
+	}
+	return value, nil
+}
+
+func jsonValuesEqual(a, b interface{}) bool {
+	switch av := a.(type) {
+	case json.Number:
+		bv, ok := b.(json.Number)
+		if !ok {
+			return false
+		}
+		ar, aok := new(big.Rat).SetString(av.String())
+		br, bok := new(big.Rat).SetString(bv.String())
+		return aok && bok && ar.Cmp(br) == 0
+	case map[string]interface{}:
+		bv, ok := b.(map[string]interface{})
+		if !ok || len(av) != len(bv) {
+			return false
+		}
+		for key, value := range av {
+			other, ok := bv[key]
+			if !ok || !jsonValuesEqual(value, other) {
+				return false
+			}
+		}
+		return true
+	case []interface{}:
+		bv, ok := b.([]interface{})
+		if !ok || len(av) != len(bv) {
+			return false
+		}
+		for i := range av {
+			if !jsonValuesEqual(av[i], bv[i]) {
+				return false
+			}
+		}
+		return true
+	default:
+		return reflect.DeepEqual(a, b)
+	}
 }
 
 func handleDefaultConstValue(tagValue string, val interface{}, tag reflect.StructTag) json.RawMessage {
