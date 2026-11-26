@@ -135,7 +135,7 @@ func (suite *basicSuite) SetupSuite() {
 	suite.httpClient = &http.Client{Timeout: 10 * time.Second}
 
 	// wait for outpost services to start
-	waitForHealthy(t, cfg.APIPort, 5*time.Second)
+	waitForHealthy(t, cfg.APIPort, healthPollTimeout)
 }
 
 func (s *basicSuite) SetupTest() {

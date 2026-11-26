@@ -68,7 +68,7 @@ func TestMCP_Subscriptions(t *testing.T) {
 	}
 	for _, fx := range mcpFixtures {
 		t.Run(fx.Name(), func(t *testing.T) {
-			suite.Run(t, &mcpSubscriptionsSuite{fx: fx})
+			runMethodsInParallel(t, func() *mcpSubscriptionsSuite { return &mcpSubscriptionsSuite{fx: fx} })
 		})
 	}
 }

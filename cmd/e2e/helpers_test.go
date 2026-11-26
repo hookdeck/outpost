@@ -36,6 +36,7 @@ var (
 	mockServerPollTimeout = envDuration("E2E_MOCK_TIMEOUT", 10*time.Second)
 	attemptPollTimeout    = envDuration("E2E_ATTEMPT_TIMEOUT", 10*time.Second)
 	alertPollTimeout      = envDuration("E2E_ALERT_TIMEOUT", 10*time.Second)
+	healthPollTimeout     = envDuration("E2E_HEALTH_TIMEOUT", 30*time.Second)
 )
 
 // =============================================================================

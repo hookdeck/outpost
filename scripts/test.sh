@@ -52,7 +52,11 @@ cmd_unit() {
 
 # Command: e2e - run end-to-end tests
 cmd_e2e() {
-    run_tests "./cmd/e2e"
+    # The suites run their tests in parallel and mostly wait on retries and
+    # timeouts, so allow more of them at once than the default (GOMAXPROCS).
+    # Each running test has its own Outpost: E2E_PARALLEL caps how many are up
+    # at once.
+    run_tests "./cmd/e2e" -parallel "${E2E_PARALLEL:-32}"
 }
 
 # Command: full - run all tests with TESTCOMPAT and TESTDEST (not TESTAZURE)
@@ -62,7 +66,7 @@ cmd_full() {
     run_tests "$TEST"
     echo ""
     echo "Running e2e tests..."
-    run_tests "./cmd/e2e"
+    cmd_e2e
 }
 
 # Main entry point

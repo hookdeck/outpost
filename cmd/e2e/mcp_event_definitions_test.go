@@ -25,7 +25,7 @@ func TestMCP_EventDefinitions(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping e2e test")
 	}
-	suite.Run(t, &mcpEventDefinitionsSuite{})
+	runMethodsInParallel(t, func() *mcpEventDefinitionsSuite { return &mcpEventDefinitionsSuite{} })
 }
 
 // mcpEventsYAML lists user.updated first to show the configured order is kept.

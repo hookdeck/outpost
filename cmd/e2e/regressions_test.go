@@ -112,7 +112,7 @@ func TestE2E_Regression_AutoDisableWithoutCallbackURL(t *testing.T) {
 		<-appDone
 	}()
 
-	waitForHealthy(t, cfg.APIPort, 5*time.Second)
+	waitForHealthy(t, cfg.APIPort, healthPollTimeout)
 
 	client := newRegressionHTTPClient(cfg.APIKey)
 	apiURL := fmt.Sprintf("http://localhost:%d/api/v1", cfg.APIPort)
@@ -247,7 +247,7 @@ func TestE2E_ManualRetryScheduleInteraction(t *testing.T) {
 		<-appDone
 	}()
 
-	waitForHealthy(t, cfg.APIPort, 5*time.Second)
+	waitForHealthy(t, cfg.APIPort, healthPollTimeout)
 
 	client := newRegressionHTTPClient(cfg.APIKey)
 	apiURL := fmt.Sprintf("http://localhost:%d/api/v1", cfg.APIPort)
@@ -432,7 +432,7 @@ func TestE2E_Regression_RetryRaceCondition(t *testing.T) {
 		<-appDone
 	}()
 
-	waitForHealthy(t, cfg.APIPort, 5*time.Second)
+	waitForHealthy(t, cfg.APIPort, healthPollTimeout)
 
 	client := newRegressionHTTPClient(cfg.APIKey)
 	apiURL := fmt.Sprintf("http://localhost:%d/api/v1", cfg.APIPort)
