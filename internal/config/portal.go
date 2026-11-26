@@ -40,6 +40,7 @@ func (c *Config) GetPortalConfig() portal.PortalConfig {
 			"TOPICS_ALLOW_WILDCARDS":        strconv.FormatBool(c.TopicsAllowWildcards),
 			"DISABLE_OUTPOST_BRANDING":      strconv.FormatBool(c.Portal.DisableOutpostBranding),
 			"DISABLE_TELEMETRY":             strconv.FormatBool(c.Telemetry.Disabled),
+			"SENTRY_DSN":                    c.Telemetry.SentryDSN,
 			"ENABLE_DESTINATION_FILTER":     strconv.FormatBool(c.Portal.EnableDestinationFilter),
 			"ENABLE_WEBHOOK_CUSTOM_HEADERS": strconv.FormatBool(c.Portal.EnableWebhookCustomHeaders),
 		},

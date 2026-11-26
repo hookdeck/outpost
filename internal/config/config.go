@@ -257,7 +257,7 @@ func (c *Config) InitDefaults() {
 		BatchSize:         100,
 		BatchInterval:     5,
 		HookdeckSourceURL: "https://hkdk.events/yhk665ljz3rn6l",
-		SentryDSN:         "https://examplePublicKey@o0.ingest.sentry.io/0",
+		SentryDSN:         "https://e53653f8b83691c0b4d02c92fc7505b6@o376420.ingest.us.sentry.io/4508422371409920",
 	}
 
 	c.IDGen = IDGenConfig{
@@ -318,6 +318,10 @@ func (c *Config) parseConfigFile(flagPath string, osInterface OSInterface) error
 		}); err != nil {
 			return fmt.Errorf("error parsing .env file: %w", err)
 		}
+		// Same empty-value handling as captureEmptySentryDSNEnv, for the file's own env map.
+		if v, ok := envMap["TELEMETRY_SENTRY_DSN"]; ok && v == "" {
+			c.Telemetry.SentryDSN = ""
+		}
 	} else {
 		if err := yaml.Unmarshal(data, c); err != nil {
 			return fmt.Errorf("error parsing yaml config: %w", err)
@@ -347,6 +351,7 @@ func (c *Config) parseEnvVariables(osInterface OSInterface) error {
 	}
 
 	c.captureEmptyAlertEnv(osInterface)
+	c.captureEmptySentryDSNEnv(osInterface)
 	c.captureEmptyWebhookHeaderEnv(osInterface)
 	c.OpenTelemetry.resolveOTelEnv(osInterface)
 	return nil
@@ -364,6 +369,15 @@ func (c *Config) captureEmptyAlertEnv(osInterface OSInterface) {
 	}
 	if v, ok := osInterface.LookupEnv("ALERT_EXHAUSTED_RETRIES_WINDOW_SECONDS"); ok && v == "" {
 		c.Alert.ExhaustedRetriesWindowSeconds = NewOptionalString("")
+	}
+}
+
+// captureEmptySentryDSNEnv honors "an empty TELEMETRY_SENTRY_DSN turns off
+// portal error reporting". Same caarlos0/env gap as captureEmptyAlertEnv: a
+// present-but-empty env var is skipped, so the default would stay in place.
+func (c *Config) captureEmptySentryDSNEnv(osInterface OSInterface) {
+	if v, ok := osInterface.LookupEnv("TELEMETRY_SENTRY_DSN"); ok && v == "" {
+		c.Telemetry.SentryDSN = ""
 	}
 }
 
@@ -756,7 +770,7 @@ type TelemetryConfig struct {
 	BatchSize         int    `yaml:"batch_size" env:"TELEMETRY_BATCH_SIZE" desc:"Maximum number of telemetry events to batch before sending." required:"N"`
 	BatchInterval     int    `yaml:"batch_interval" env:"TELEMETRY_BATCH_INTERVAL" desc:"Maximum time in seconds to wait before sending a batch of telemetry events if batch size is not reached." required:"N"`
 	HookdeckSourceURL string `yaml:"hookdeck_source_url" env:"TELEMETRY_HOOKDECK_SOURCE_URL" desc:"The Hookdeck Source URL to send anonymous usage telemetry data to. Set to empty to disable sending to Hookdeck." required:"N"`
-	SentryDSN         string `yaml:"sentry_dsn" env:"TELEMETRY_SENTRY_DSN" desc:"Sentry DSN for error reporting. If provided and telemetry is not disabled, Sentry integration will be enabled." required:"N"`
+	SentryDSN         string `yaml:"sentry_dsn" env:"TELEMETRY_SENTRY_DSN" desc:"Sentry DSN the portal sends its errors to. Defaults to the Outpost maintainers' project. Set to an empty string (sentry_dsn: \"\" or TELEMETRY_SENTRY_DSN=\"\") to turn off portal error reporting." required:"N"`
 }
 
 func (c *TelemetryConfig) ToTelemetryConfig() telemetry.TelemetryConfig {
