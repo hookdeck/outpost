@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { ClosedEnum } from "../../types/enums.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
@@ -129,10 +129,12 @@ export const GetEventMetricsTime$inboundSchema: z.ZodType<
   GetEventMetricsTime,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  start: z.string().datetime({ offset: true }).transform(v => new Date(v)),
-  end: z.string().datetime({ offset: true }).transform(v => new Date(v)),
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    start: z.string().datetime({ offset: true }).transform(v => new Date(v)),
+    end: z.string().datetime({ offset: true }).transform(v => new Date(v)),
+  })
+);
 /** @internal */
 export type GetEventMetricsTime$Outbound = {
   start: string;
@@ -144,10 +146,12 @@ export const GetEventMetricsTime$outboundSchema: z.ZodType<
   GetEventMetricsTime$Outbound,
   z.ZodTypeDef,
   GetEventMetricsTime
-> = z.object({
-  start: z.date().transform(v => v.toISOString()),
-  end: z.date().transform(v => v.toISOString()),
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    start: z.date().transform(v => v.toISOString()),
+    end: z.date().transform(v => v.toISOString()),
+  })
+);
 
 export function getEventMetricsTimeToJSON(
   getEventMetricsTime: GetEventMetricsTime,
@@ -169,7 +173,9 @@ export function getEventMetricsTimeFromJSON(
 /** @internal */
 export const GetEventMetricsMeasuresEnum2$inboundSchema: z.ZodNativeEnum<
   typeof GetEventMetricsMeasuresEnum2
-> = z.nativeEnum(GetEventMetricsMeasuresEnum2);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.nativeEnum(GetEventMetricsMeasuresEnum2)
+);
 /** @internal */
 export const GetEventMetricsMeasuresEnum2$outboundSchema: z.ZodNativeEnum<
   typeof GetEventMetricsMeasuresEnum2
@@ -178,7 +184,9 @@ export const GetEventMetricsMeasuresEnum2$outboundSchema: z.ZodNativeEnum<
 /** @internal */
 export const GetEventMetricsMeasuresEnum1$inboundSchema: z.ZodNativeEnum<
   typeof GetEventMetricsMeasuresEnum1
-> = z.nativeEnum(GetEventMetricsMeasuresEnum1);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.nativeEnum(GetEventMetricsMeasuresEnum1)
+);
 /** @internal */
 export const GetEventMetricsMeasuresEnum1$outboundSchema: z.ZodNativeEnum<
   typeof GetEventMetricsMeasuresEnum1
@@ -189,10 +197,12 @@ export const GetEventMetricsMeasuresUnion$inboundSchema: z.ZodType<
   GetEventMetricsMeasuresUnion,
   z.ZodTypeDef,
   unknown
-> = z.union([
-  GetEventMetricsMeasuresEnum1$inboundSchema,
-  z.array(GetEventMetricsMeasuresEnum2$inboundSchema),
-]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([
+    GetEventMetricsMeasuresEnum1$inboundSchema,
+    z.array(GetEventMetricsMeasuresEnum2$inboundSchema),
+  ])
+);
 /** @internal */
 export type GetEventMetricsMeasuresUnion$Outbound = string | Array<string>;
 
@@ -201,10 +211,12 @@ export const GetEventMetricsMeasuresUnion$outboundSchema: z.ZodType<
   GetEventMetricsMeasuresUnion$Outbound,
   z.ZodTypeDef,
   GetEventMetricsMeasuresUnion
-> = z.union([
-  GetEventMetricsMeasuresEnum1$outboundSchema,
-  z.array(GetEventMetricsMeasuresEnum2$outboundSchema),
-]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([
+    GetEventMetricsMeasuresEnum1$outboundSchema,
+    z.array(GetEventMetricsMeasuresEnum2$outboundSchema),
+  ])
+);
 
 export function getEventMetricsMeasuresUnionToJSON(
   getEventMetricsMeasuresUnion: GetEventMetricsMeasuresUnion,
@@ -228,7 +240,9 @@ export function getEventMetricsMeasuresUnionFromJSON(
 /** @internal */
 export const GetEventMetricsDimensionsEnum2$inboundSchema: z.ZodNativeEnum<
   typeof GetEventMetricsDimensionsEnum2
-> = z.nativeEnum(GetEventMetricsDimensionsEnum2);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.nativeEnum(GetEventMetricsDimensionsEnum2)
+);
 /** @internal */
 export const GetEventMetricsDimensionsEnum2$outboundSchema: z.ZodNativeEnum<
   typeof GetEventMetricsDimensionsEnum2
@@ -237,7 +251,9 @@ export const GetEventMetricsDimensionsEnum2$outboundSchema: z.ZodNativeEnum<
 /** @internal */
 export const GetEventMetricsDimensionsEnum1$inboundSchema: z.ZodNativeEnum<
   typeof GetEventMetricsDimensionsEnum1
-> = z.nativeEnum(GetEventMetricsDimensionsEnum1);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.nativeEnum(GetEventMetricsDimensionsEnum1)
+);
 /** @internal */
 export const GetEventMetricsDimensionsEnum1$outboundSchema: z.ZodNativeEnum<
   typeof GetEventMetricsDimensionsEnum1
@@ -248,10 +264,12 @@ export const GetEventMetricsDimensionsUnion$inboundSchema: z.ZodType<
   GetEventMetricsDimensionsUnion,
   z.ZodTypeDef,
   unknown
-> = z.union([
-  GetEventMetricsDimensionsEnum1$inboundSchema,
-  z.array(GetEventMetricsDimensionsEnum2$inboundSchema),
-]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([
+    GetEventMetricsDimensionsEnum1$inboundSchema,
+    z.array(GetEventMetricsDimensionsEnum2$inboundSchema),
+  ])
+);
 /** @internal */
 export type GetEventMetricsDimensionsUnion$Outbound = string | Array<string>;
 
@@ -260,10 +278,12 @@ export const GetEventMetricsDimensionsUnion$outboundSchema: z.ZodType<
   GetEventMetricsDimensionsUnion$Outbound,
   z.ZodTypeDef,
   GetEventMetricsDimensionsUnion
-> = z.union([
-  GetEventMetricsDimensionsEnum1$outboundSchema,
-  z.array(GetEventMetricsDimensionsEnum2$outboundSchema),
-]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([
+    GetEventMetricsDimensionsEnum1$outboundSchema,
+    z.array(GetEventMetricsDimensionsEnum2$outboundSchema),
+  ])
+);
 
 export function getEventMetricsDimensionsUnionToJSON(
   getEventMetricsDimensionsUnion: GetEventMetricsDimensionsUnion,
@@ -289,7 +309,9 @@ export const GetEventMetricsFiltersTopic$inboundSchema: z.ZodType<
   GetEventMetricsFiltersTopic,
   z.ZodTypeDef,
   unknown
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 /** @internal */
 export type GetEventMetricsFiltersTopic$Outbound = string | Array<string>;
 
@@ -298,7 +320,9 @@ export const GetEventMetricsFiltersTopic$outboundSchema: z.ZodType<
   GetEventMetricsFiltersTopic$Outbound,
   z.ZodTypeDef,
   GetEventMetricsFiltersTopic
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 
 export function getEventMetricsFiltersTopicToJSON(
   getEventMetricsFiltersTopic: GetEventMetricsFiltersTopic,
@@ -324,7 +348,9 @@ export const GetEventMetricsFiltersDestinationId$inboundSchema: z.ZodType<
   GetEventMetricsFiltersDestinationId,
   z.ZodTypeDef,
   unknown
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 /** @internal */
 export type GetEventMetricsFiltersDestinationId$Outbound =
   | string
@@ -335,7 +361,9 @@ export const GetEventMetricsFiltersDestinationId$outboundSchema: z.ZodType<
   GetEventMetricsFiltersDestinationId$Outbound,
   z.ZodTypeDef,
   GetEventMetricsFiltersDestinationId
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 
 export function getEventMetricsFiltersDestinationIdToJSON(
   getEventMetricsFiltersDestinationId: GetEventMetricsFiltersDestinationId,
@@ -362,7 +390,9 @@ export const GetEventMetricsFiltersTenantId$inboundSchema: z.ZodType<
   GetEventMetricsFiltersTenantId,
   z.ZodTypeDef,
   unknown
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 /** @internal */
 export type GetEventMetricsFiltersTenantId$Outbound = string | Array<string>;
 
@@ -371,7 +401,9 @@ export const GetEventMetricsFiltersTenantId$outboundSchema: z.ZodType<
   GetEventMetricsFiltersTenantId$Outbound,
   z.ZodTypeDef,
   GetEventMetricsFiltersTenantId
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 
 export function getEventMetricsFiltersTenantIdToJSON(
   getEventMetricsFiltersTenantId: GetEventMetricsFiltersTenantId,
@@ -397,28 +429,30 @@ export const GetEventMetricsRequest$inboundSchema: z.ZodType<
   GetEventMetricsRequest,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  time: z.lazy(() => GetEventMetricsTime$inboundSchema),
-  granularity: z.string().optional(),
-  measures: z.union([
-    GetEventMetricsMeasuresEnum1$inboundSchema,
-    z.array(GetEventMetricsMeasuresEnum2$inboundSchema),
-  ]),
-  dimensions: z.union([
-    GetEventMetricsDimensionsEnum1$inboundSchema,
-    z.array(GetEventMetricsDimensionsEnum2$inboundSchema),
-  ]).optional(),
-  "filters[topic]": z.union([z.string(), z.array(z.string())]).optional(),
-  "filters[destination_id]": z.union([z.string(), z.array(z.string())])
-    .optional(),
-  "filters[tenant_id]": z.union([z.string(), z.array(z.string())]).optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "filters[topic]": "filtersTopic",
-    "filters[destination_id]": "filtersDestinationId",
-    "filters[tenant_id]": "filtersTenantId",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    time: z.lazy(() => GetEventMetricsTime$inboundSchema),
+    granularity: z.string().optional(),
+    measures: z.union([
+      GetEventMetricsMeasuresEnum1$inboundSchema,
+      z.array(GetEventMetricsMeasuresEnum2$inboundSchema),
+    ]),
+    dimensions: z.union([
+      GetEventMetricsDimensionsEnum1$inboundSchema,
+      z.array(GetEventMetricsDimensionsEnum2$inboundSchema),
+    ]).optional(),
+    "filters[topic]": z.union([z.string(), z.array(z.string())]).optional(),
+    "filters[destination_id]": z.union([z.string(), z.array(z.string())])
+      .optional(),
+    "filters[tenant_id]": z.union([z.string(), z.array(z.string())]).optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      "filters[topic]": "filtersTopic",
+      "filters[destination_id]": "filtersDestinationId",
+      "filters[tenant_id]": "filtersTenantId",
+    });
+  })
+);
 /** @internal */
 export type GetEventMetricsRequest$Outbound = {
   time: GetEventMetricsTime$Outbound;
@@ -435,27 +469,29 @@ export const GetEventMetricsRequest$outboundSchema: z.ZodType<
   GetEventMetricsRequest$Outbound,
   z.ZodTypeDef,
   GetEventMetricsRequest
-> = z.object({
-  time: z.lazy(() => GetEventMetricsTime$outboundSchema),
-  granularity: z.string().optional(),
-  measures: z.union([
-    GetEventMetricsMeasuresEnum1$outboundSchema,
-    z.array(GetEventMetricsMeasuresEnum2$outboundSchema),
-  ]),
-  dimensions: z.union([
-    GetEventMetricsDimensionsEnum1$outboundSchema,
-    z.array(GetEventMetricsDimensionsEnum2$outboundSchema),
-  ]).optional(),
-  filtersTopic: z.union([z.string(), z.array(z.string())]).optional(),
-  filtersDestinationId: z.union([z.string(), z.array(z.string())]).optional(),
-  filtersTenantId: z.union([z.string(), z.array(z.string())]).optional(),
-}).transform((v) => {
-  return remap$(v, {
-    filtersTopic: "filters[topic]",
-    filtersDestinationId: "filters[destination_id]",
-    filtersTenantId: "filters[tenant_id]",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    time: z.lazy(() => GetEventMetricsTime$outboundSchema),
+    granularity: z.string().optional(),
+    measures: z.union([
+      GetEventMetricsMeasuresEnum1$outboundSchema,
+      z.array(GetEventMetricsMeasuresEnum2$outboundSchema),
+    ]),
+    dimensions: z.union([
+      GetEventMetricsDimensionsEnum1$outboundSchema,
+      z.array(GetEventMetricsDimensionsEnum2$outboundSchema),
+    ]).optional(),
+    filtersTopic: z.union([z.string(), z.array(z.string())]).optional(),
+    filtersDestinationId: z.union([z.string(), z.array(z.string())]).optional(),
+    filtersTenantId: z.union([z.string(), z.array(z.string())]).optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      filtersTopic: "filters[topic]",
+      filtersDestinationId: "filters[destination_id]",
+      filtersTenantId: "filters[tenant_id]",
+    });
+  })
+);
 
 export function getEventMetricsRequestToJSON(
   getEventMetricsRequest: GetEventMetricsRequest,

@@ -3,7 +3,7 @@
  */
 
 import * as z from "zod/v3";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 import {
@@ -38,10 +38,12 @@ export const EventPaginatedResult$inboundSchema: z.ZodType<
   EventPaginatedResult,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  pagination: SeekPagination$inboundSchema.optional(),
-  models: z.array(Event$inboundSchema).optional(),
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    pagination: SeekPagination$inboundSchema.optional(),
+    models: z.array(Event$inboundSchema).optional(),
+  })
+);
 /** @internal */
 export type EventPaginatedResult$Outbound = {
   pagination?: SeekPagination$Outbound | undefined;
@@ -53,10 +55,12 @@ export const EventPaginatedResult$outboundSchema: z.ZodType<
   EventPaginatedResult$Outbound,
   z.ZodTypeDef,
   EventPaginatedResult
-> = z.object({
-  pagination: SeekPagination$outboundSchema.optional(),
-  models: z.array(Event$outboundSchema).optional(),
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    pagination: SeekPagination$outboundSchema.optional(),
+    models: z.array(Event$outboundSchema).optional(),
+  })
+);
 
 export function eventPaginatedResultToJSON(
   eventPaginatedResult: EventPaginatedResult,

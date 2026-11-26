@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 import {
@@ -65,10 +65,12 @@ export const SetupLink$inboundSchema: z.ZodType<
   SetupLink,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  href: z.string(),
-  cta: z.string(),
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    href: z.string(),
+    cta: z.string(),
+  })
+);
 /** @internal */
 export type SetupLink$Outbound = {
   href: string;
@@ -80,10 +82,12 @@ export const SetupLink$outboundSchema: z.ZodType<
   SetupLink$Outbound,
   z.ZodTypeDef,
   SetupLink
-> = z.object({
-  href: z.string(),
-  cta: z.string(),
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    href: z.string(),
+    cta: z.string(),
+  })
+);
 
 export function setupLinkToJSON(setupLink: SetupLink): string {
   return JSON.stringify(SetupLink$outboundSchema.parse(setupLink));
@@ -103,22 +107,24 @@ export const DestinationTypeSchema$inboundSchema: z.ZodType<
   DestinationTypeSchema,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  type: z.string().optional(),
-  label: z.string().optional(),
-  description: z.string().optional(),
-  icon: z.string().optional(),
-  instructions: z.string().optional(),
-  setup_link: z.lazy(() => SetupLink$inboundSchema).optional(),
-  config_fields: z.array(DestinationSchemaField$inboundSchema).optional(),
-  credential_fields: z.array(DestinationSchemaField$inboundSchema).optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "setup_link": "setupLink",
-    "config_fields": "configFields",
-    "credential_fields": "credentialFields",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    type: z.string().optional(),
+    label: z.string().optional(),
+    description: z.string().optional(),
+    icon: z.string().optional(),
+    instructions: z.string().optional(),
+    setup_link: z.lazy(() => SetupLink$inboundSchema).optional(),
+    config_fields: z.array(DestinationSchemaField$inboundSchema).optional(),
+    credential_fields: z.array(DestinationSchemaField$inboundSchema).optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      "setup_link": "setupLink",
+      "config_fields": "configFields",
+      "credential_fields": "credentialFields",
+    });
+  })
+);
 /** @internal */
 export type DestinationTypeSchema$Outbound = {
   type?: string | undefined;
@@ -136,22 +142,24 @@ export const DestinationTypeSchema$outboundSchema: z.ZodType<
   DestinationTypeSchema$Outbound,
   z.ZodTypeDef,
   DestinationTypeSchema
-> = z.object({
-  type: z.string().optional(),
-  label: z.string().optional(),
-  description: z.string().optional(),
-  icon: z.string().optional(),
-  instructions: z.string().optional(),
-  setupLink: z.lazy(() => SetupLink$outboundSchema).optional(),
-  configFields: z.array(DestinationSchemaField$outboundSchema).optional(),
-  credentialFields: z.array(DestinationSchemaField$outboundSchema).optional(),
-}).transform((v) => {
-  return remap$(v, {
-    setupLink: "setup_link",
-    configFields: "config_fields",
-    credentialFields: "credential_fields",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    type: z.string().optional(),
+    label: z.string().optional(),
+    description: z.string().optional(),
+    icon: z.string().optional(),
+    instructions: z.string().optional(),
+    setupLink: z.lazy(() => SetupLink$outboundSchema).optional(),
+    configFields: z.array(DestinationSchemaField$outboundSchema).optional(),
+    credentialFields: z.array(DestinationSchemaField$outboundSchema).optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      setupLink: "setup_link",
+      configFields: "config_fields",
+      credentialFields: "credential_fields",
+    });
+  })
+);
 
 export function destinationTypeSchemaToJSON(
   destinationTypeSchema: DestinationTypeSchema,

@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { ClosedEnum } from "../../types/enums.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
@@ -57,7 +57,7 @@ export type KafkaConfigUpdate = {
    */
   tls?: KafkaConfigUpdateTls | undefined;
   /**
-   * Optional JMESPath template to extract the partition key from the event payload.
+   * Optional JMESPath template to extract the partition key from the event payload. Templates may use field paths, string literals, `join`, `to_string`, `not_null` and `||`.
    */
   partitionKeyTemplate?: string | undefined;
 };
@@ -65,7 +65,9 @@ export type KafkaConfigUpdate = {
 /** @internal */
 export const KafkaConfigUpdateSaslMechanism$inboundSchema: z.ZodNativeEnum<
   typeof KafkaConfigUpdateSaslMechanism
-> = z.nativeEnum(KafkaConfigUpdateSaslMechanism);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.nativeEnum(KafkaConfigUpdateSaslMechanism)
+);
 /** @internal */
 export const KafkaConfigUpdateSaslMechanism$outboundSchema: z.ZodNativeEnum<
   typeof KafkaConfigUpdateSaslMechanism
@@ -74,7 +76,7 @@ export const KafkaConfigUpdateSaslMechanism$outboundSchema: z.ZodNativeEnum<
 /** @internal */
 export const KafkaConfigUpdateTls$inboundSchema: z.ZodNativeEnum<
   typeof KafkaConfigUpdateTls
-> = z.nativeEnum(KafkaConfigUpdateTls);
+> = /* @__PURE__ */ lazySchema$(() => z.nativeEnum(KafkaConfigUpdateTls));
 /** @internal */
 export const KafkaConfigUpdateTls$outboundSchema: z.ZodNativeEnum<
   typeof KafkaConfigUpdateTls
@@ -85,18 +87,20 @@ export const KafkaConfigUpdate$inboundSchema: z.ZodType<
   KafkaConfigUpdate,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  brokers: z.string().optional(),
-  topic: z.string().optional(),
-  sasl_mechanism: KafkaConfigUpdateSaslMechanism$inboundSchema.optional(),
-  tls: KafkaConfigUpdateTls$inboundSchema.optional(),
-  partition_key_template: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "sasl_mechanism": "saslMechanism",
-    "partition_key_template": "partitionKeyTemplate",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    brokers: z.string().optional(),
+    topic: z.string().optional(),
+    sasl_mechanism: KafkaConfigUpdateSaslMechanism$inboundSchema.optional(),
+    tls: KafkaConfigUpdateTls$inboundSchema.optional(),
+    partition_key_template: z.string().optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      "sasl_mechanism": "saslMechanism",
+      "partition_key_template": "partitionKeyTemplate",
+    });
+  })
+);
 /** @internal */
 export type KafkaConfigUpdate$Outbound = {
   brokers?: string | undefined;
@@ -111,18 +115,20 @@ export const KafkaConfigUpdate$outboundSchema: z.ZodType<
   KafkaConfigUpdate$Outbound,
   z.ZodTypeDef,
   KafkaConfigUpdate
-> = z.object({
-  brokers: z.string().optional(),
-  topic: z.string().optional(),
-  saslMechanism: KafkaConfigUpdateSaslMechanism$outboundSchema.optional(),
-  tls: KafkaConfigUpdateTls$outboundSchema.optional(),
-  partitionKeyTemplate: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    saslMechanism: "sasl_mechanism",
-    partitionKeyTemplate: "partition_key_template",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    brokers: z.string().optional(),
+    topic: z.string().optional(),
+    saslMechanism: KafkaConfigUpdateSaslMechanism$outboundSchema.optional(),
+    tls: KafkaConfigUpdateTls$outboundSchema.optional(),
+    partitionKeyTemplate: z.string().optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      saslMechanism: "sasl_mechanism",
+      partitionKeyTemplate: "partition_key_template",
+    });
+  })
+);
 
 export function kafkaConfigUpdateToJSON(
   kafkaConfigUpdate: KafkaConfigUpdate,

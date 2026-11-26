@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { ClosedEnum } from "../../types/enums.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
@@ -44,7 +44,7 @@ export type RabbitMQConfigUpdate = {
 /** @internal */
 export const RabbitMQConfigUpdateTls$inboundSchema: z.ZodNativeEnum<
   typeof RabbitMQConfigUpdateTls
-> = z.nativeEnum(RabbitMQConfigUpdateTls);
+> = /* @__PURE__ */ lazySchema$(() => z.nativeEnum(RabbitMQConfigUpdateTls));
 /** @internal */
 export const RabbitMQConfigUpdateTls$outboundSchema: z.ZodNativeEnum<
   typeof RabbitMQConfigUpdateTls
@@ -55,15 +55,17 @@ export const RabbitMQConfigUpdate$inboundSchema: z.ZodType<
   RabbitMQConfigUpdate,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  server_url: z.string().optional(),
-  exchange: z.string().optional(),
-  tls: RabbitMQConfigUpdateTls$inboundSchema.optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "server_url": "serverUrl",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    server_url: z.string().optional(),
+    exchange: z.string().optional(),
+    tls: RabbitMQConfigUpdateTls$inboundSchema.optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      "server_url": "serverUrl",
+    });
+  })
+);
 /** @internal */
 export type RabbitMQConfigUpdate$Outbound = {
   server_url?: string | undefined;
@@ -76,15 +78,17 @@ export const RabbitMQConfigUpdate$outboundSchema: z.ZodType<
   RabbitMQConfigUpdate$Outbound,
   z.ZodTypeDef,
   RabbitMQConfigUpdate
-> = z.object({
-  serverUrl: z.string().optional(),
-  exchange: z.string().optional(),
-  tls: RabbitMQConfigUpdateTls$outboundSchema.optional(),
-}).transform((v) => {
-  return remap$(v, {
-    serverUrl: "server_url",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    serverUrl: z.string().optional(),
+    exchange: z.string().optional(),
+    tls: RabbitMQConfigUpdateTls$outboundSchema.optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      serverUrl: "server_url",
+    });
+  })
+);
 
 export function rabbitMQConfigUpdateToJSON(
   rabbitMQConfigUpdate: RabbitMQConfigUpdate,

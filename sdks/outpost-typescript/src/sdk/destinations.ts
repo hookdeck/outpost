@@ -42,7 +42,7 @@ export class Destinations extends ClientSDK {
    * Create Destination
    *
    * @remarks
-   * Creates a new destination for the tenant. The request body structure depends on the `type`.
+   * Creates a new destination for the tenant. The request body structure depends on the `type`. Keys in `config` and `credentials` that the destination type does not define are ignored and not stored.
    */
   async create(
     tenantId: string,
@@ -80,7 +80,7 @@ export class Destinations extends ClientSDK {
    * Update Destination
    *
    * @remarks
-   * Updates the configuration of an existing destination. The request body structure depends on the destination's `type`. Type itself cannot be updated. May return an OAuth redirect URL for certain types.
+   * Updates the configuration of an existing destination. The request body structure depends on the destination's `type`. Type itself cannot be updated. May return an OAuth redirect URL for certain types. Keys in `config` and `credentials` that the destination type does not define are ignored, and any such keys stored earlier are removed.
    */
   async update(
     tenantId: string,

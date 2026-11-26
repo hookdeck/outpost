@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
@@ -24,15 +24,17 @@ export const GetEventRequest$inboundSchema: z.ZodType<
   GetEventRequest,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  event_id: z.string(),
-  tenant_id: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "event_id": "eventId",
-    "tenant_id": "tenantId",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    event_id: z.string(),
+    tenant_id: z.string().optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      "event_id": "eventId",
+      "tenant_id": "tenantId",
+    });
+  })
+);
 /** @internal */
 export type GetEventRequest$Outbound = {
   event_id: string;
@@ -44,15 +46,17 @@ export const GetEventRequest$outboundSchema: z.ZodType<
   GetEventRequest$Outbound,
   z.ZodTypeDef,
   GetEventRequest
-> = z.object({
-  eventId: z.string(),
-  tenantId: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    eventId: "event_id",
-    tenantId: "tenant_id",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    eventId: z.string(),
+    tenantId: z.string().optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      eventId: "event_id",
+      tenantId: "tenant_id",
+    });
+  })
+);
 
 export function getEventRequestToJSON(
   getEventRequest: GetEventRequest,

@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
@@ -24,14 +24,16 @@ export const TenantToken$inboundSchema: z.ZodType<
   TenantToken,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  token: z.string().optional(),
-  tenant_id: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "tenant_id": "tenantId",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    token: z.string().optional(),
+    tenant_id: z.string().optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      "tenant_id": "tenantId",
+    });
+  })
+);
 /** @internal */
 export type TenantToken$Outbound = {
   token?: string | undefined;
@@ -43,14 +45,16 @@ export const TenantToken$outboundSchema: z.ZodType<
   TenantToken$Outbound,
   z.ZodTypeDef,
   TenantToken
-> = z.object({
-  token: z.string().optional(),
-  tenantId: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    tenantId: "tenant_id",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    token: z.string().optional(),
+    tenantId: z.string().optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      tenantId: "tenant_id",
+    });
+  })
+);
 
 export function tenantTokenToJSON(tenantToken: TenantToken): string {
   return JSON.stringify(TenantToken$outboundSchema.parse(tenantToken));

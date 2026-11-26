@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
@@ -21,11 +21,11 @@ export type AWSKinesisConfigUpdate = {
    */
   region?: string | undefined;
   /**
-   * Optional. Custom AWS endpoint URL (e.g., for LocalStack or VPC endpoints).
+   * Optional. Custom AWS endpoint URL for emulators such as LocalStack. Only accepted when the Outpost deployment sets DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true.
    */
   endpoint?: string | undefined;
   /**
-   * Optional. JMESPath template to extract the partition key from the event payload.
+   * Optional. JMESPath template to extract the partition key from the event payload. Templates may use field paths, string literals, `join`, `to_string`, `not_null` and `||`.
    */
   partitionKeyTemplate?: string | undefined;
 };
@@ -35,17 +35,19 @@ export const AWSKinesisConfigUpdate$inboundSchema: z.ZodType<
   AWSKinesisConfigUpdate,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  stream_name: z.string().optional(),
-  region: z.string().optional(),
-  endpoint: z.string().optional(),
-  partition_key_template: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "stream_name": "streamName",
-    "partition_key_template": "partitionKeyTemplate",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    stream_name: z.string().optional(),
+    region: z.string().optional(),
+    endpoint: z.string().optional(),
+    partition_key_template: z.string().optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      "stream_name": "streamName",
+      "partition_key_template": "partitionKeyTemplate",
+    });
+  })
+);
 /** @internal */
 export type AWSKinesisConfigUpdate$Outbound = {
   stream_name?: string | undefined;
@@ -59,17 +61,19 @@ export const AWSKinesisConfigUpdate$outboundSchema: z.ZodType<
   AWSKinesisConfigUpdate$Outbound,
   z.ZodTypeDef,
   AWSKinesisConfigUpdate
-> = z.object({
-  streamName: z.string().optional(),
-  region: z.string().optional(),
-  endpoint: z.string().optional(),
-  partitionKeyTemplate: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    streamName: "stream_name",
-    partitionKeyTemplate: "partition_key_template",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    streamName: z.string().optional(),
+    region: z.string().optional(),
+    endpoint: z.string().optional(),
+    partitionKeyTemplate: z.string().optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      streamName: "stream_name",
+      partitionKeyTemplate: "partition_key_template",
+    });
+  })
+);
 
 export function awsKinesisConfigUpdateToJSON(
   awsKinesisConfigUpdate: AWSKinesisConfigUpdate,

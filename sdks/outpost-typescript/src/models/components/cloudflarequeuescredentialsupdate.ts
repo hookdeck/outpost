@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
@@ -23,13 +23,15 @@ export const CloudflareQueuesCredentialsUpdate$inboundSchema: z.ZodType<
   CloudflareQueuesCredentialsUpdate,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  api_token: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "api_token": "apiToken",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    api_token: z.string().optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      "api_token": "apiToken",
+    });
+  })
+);
 /** @internal */
 export type CloudflareQueuesCredentialsUpdate$Outbound = {
   api_token?: string | undefined;
@@ -40,13 +42,15 @@ export const CloudflareQueuesCredentialsUpdate$outboundSchema: z.ZodType<
   CloudflareQueuesCredentialsUpdate$Outbound,
   z.ZodTypeDef,
   CloudflareQueuesCredentialsUpdate
-> = z.object({
-  apiToken: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    apiToken: "api_token",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    apiToken: z.string().optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      apiToken: "api_token",
+    });
+  })
+);
 
 export function cloudflareQueuesCredentialsUpdateToJSON(
   cloudflareQueuesCredentialsUpdate: CloudflareQueuesCredentialsUpdate,

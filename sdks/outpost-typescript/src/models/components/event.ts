@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
@@ -38,24 +38,26 @@ export type Event = {
 };
 
 /** @internal */
-export const Event$inboundSchema: z.ZodType<Event, z.ZodTypeDef, unknown> = z
-  .object({
-    id: z.string().optional(),
-    tenant_id: z.string().optional(),
-    matched_destination_ids: z.array(z.string()).optional(),
-    topic: z.string().optional(),
-    time: z.string().datetime({ offset: true }).transform(v => new Date(v))
-      .optional(),
-    eligible_for_retry: z.boolean().optional(),
-    metadata: z.nullable(z.record(z.string())).optional(),
-    data: z.record(z.any()).optional(),
-  }).transform((v) => {
-    return remap$(v, {
-      "tenant_id": "tenantId",
-      "matched_destination_ids": "matchedDestinationIds",
-      "eligible_for_retry": "eligibleForRetry",
-    });
-  });
+export const Event$inboundSchema: z.ZodType<Event, z.ZodTypeDef, unknown> =
+  /* @__PURE__ */ lazySchema$(() =>
+    z.object({
+      id: z.string().optional(),
+      tenant_id: z.string().optional(),
+      matched_destination_ids: z.array(z.string()).optional(),
+      topic: z.string().optional(),
+      time: z.string().datetime({ offset: true }).transform(v => new Date(v))
+        .optional(),
+      eligible_for_retry: z.boolean().optional(),
+      metadata: z.nullable(z.record(z.string())).optional(),
+      data: z.record(z.any()).optional(),
+    }).transform((v) => {
+      return remap$(v, {
+        "tenant_id": "tenantId",
+        "matched_destination_ids": "matchedDestinationIds",
+        "eligible_for_retry": "eligibleForRetry",
+      });
+    })
+  );
 /** @internal */
 export type Event$Outbound = {
   id?: string | undefined;
@@ -73,22 +75,24 @@ export const Event$outboundSchema: z.ZodType<
   Event$Outbound,
   z.ZodTypeDef,
   Event
-> = z.object({
-  id: z.string().optional(),
-  tenantId: z.string().optional(),
-  matchedDestinationIds: z.array(z.string()).optional(),
-  topic: z.string().optional(),
-  time: z.date().transform(v => v.toISOString()).optional(),
-  eligibleForRetry: z.boolean().optional(),
-  metadata: z.nullable(z.record(z.string())).optional(),
-  data: z.record(z.any()).optional(),
-}).transform((v) => {
-  return remap$(v, {
-    tenantId: "tenant_id",
-    matchedDestinationIds: "matched_destination_ids",
-    eligibleForRetry: "eligible_for_retry",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    id: z.string().optional(),
+    tenantId: z.string().optional(),
+    matchedDestinationIds: z.array(z.string()).optional(),
+    topic: z.string().optional(),
+    time: z.date().transform(v => v.toISOString()).optional(),
+    eligibleForRetry: z.boolean().optional(),
+    metadata: z.nullable(z.record(z.string())).optional(),
+    data: z.record(z.any()).optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      tenantId: "tenant_id",
+      matchedDestinationIds: "matched_destination_ids",
+      eligibleForRetry: "eligible_for_retry",
+    });
+  })
+);
 
 export function eventToJSON(event: Event): string {
   return JSON.stringify(Event$outboundSchema.parse(event));

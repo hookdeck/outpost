@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
@@ -14,7 +14,7 @@ export type PublishResponse = {
    */
   id: string;
   /**
-   * Whether this event was already processed (idempotency hit). If true, the event was not queued again.
+   * Whether this tenant already published an event with this ID within the idempotency window. If true, the event was not queued again.
    */
   duplicate: boolean;
   /**
@@ -28,15 +28,17 @@ export const PublishResponse$inboundSchema: z.ZodType<
   PublishResponse,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  id: z.string(),
-  duplicate: z.boolean(),
-  destination_ids: z.array(z.string()),
-}).transform((v) => {
-  return remap$(v, {
-    "destination_ids": "destinationIds",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    id: z.string(),
+    duplicate: z.boolean(),
+    destination_ids: z.array(z.string()),
+  }).transform((v) => {
+    return remap$(v, {
+      "destination_ids": "destinationIds",
+    });
+  })
+);
 /** @internal */
 export type PublishResponse$Outbound = {
   id: string;
@@ -49,15 +51,17 @@ export const PublishResponse$outboundSchema: z.ZodType<
   PublishResponse$Outbound,
   z.ZodTypeDef,
   PublishResponse
-> = z.object({
-  id: z.string(),
-  duplicate: z.boolean(),
-  destinationIds: z.array(z.string()),
-}).transform((v) => {
-  return remap$(v, {
-    destinationIds: "destination_ids",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    id: z.string(),
+    duplicate: z.boolean(),
+    destinationIds: z.array(z.string()),
+  }).transform((v) => {
+    return remap$(v, {
+      destinationIds: "destination_ids",
+    });
+  })
+);
 
 export function publishResponseToJSON(
   publishResponse: PublishResponse,

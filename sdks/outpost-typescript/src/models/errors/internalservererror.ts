@@ -4,7 +4,10 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { collectExtraKeys as collectExtraKeys$ } from "../../lib/schemas.js";
+import {
+  collectExtraKeys as collectExtraKeys$,
+  lazySchema as lazySchema$,
+} from "../../lib/schemas.js";
 import { OutpostError } from "./outposterror.js";
 
 /**
@@ -45,24 +48,26 @@ export const InternalServerError$inboundSchema: z.ZodType<
   InternalServerError,
   z.ZodTypeDef,
   unknown
-> = collectExtraKeys$(
-  z.object({
-    message: z.string().optional(),
-    request$: z.instanceof(Request),
-    response$: z.instanceof(Response),
-    body$: z.string(),
-  })
-    .catchall(z.any()),
-  "additionalProperties",
-  false,
-)
-  .transform((v) => {
-    return new InternalServerError(v, {
-      request: v.request$,
-      response: v.response$,
-      body: v.body$,
-    });
-  });
+> = /* @__PURE__ */ lazySchema$(() =>
+  collectExtraKeys$(
+    z.object({
+      message: z.string().optional(),
+      request$: z.instanceof(Request),
+      response$: z.instanceof(Response),
+      body$: z.string(),
+    })
+      .catchall(z.any()),
+    "additionalProperties",
+    false,
+  )
+    .transform((v) => {
+      return new InternalServerError(v, {
+        request: v.request$,
+        response: v.response$,
+        body: v.body$,
+      });
+    })
+);
 
 /** @internal */
 export type InternalServerError$Outbound = {
@@ -75,18 +80,20 @@ export const InternalServerError$outboundSchema: z.ZodType<
   InternalServerError$Outbound,
   z.ZodTypeDef,
   InternalServerError
-> = z.instanceof(InternalServerError)
-  .transform(v => v.data$)
-  .pipe(
-    z.object({
-      message: z.string().optional(),
-      additionalProperties: z.record(z.any()),
-    }).transform((v) => {
-      return {
-        ...v.additionalProperties,
-        ...remap$(v, {
-          additionalProperties: null,
-        }),
-      };
-    }),
-  );
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.instanceof(InternalServerError)
+    .transform(v => v.data$)
+    .pipe(
+      z.object({
+        message: z.string().optional(),
+        additionalProperties: z.record(z.any()),
+      }).transform((v) => {
+        return {
+          ...v.additionalProperties,
+          ...remap$(v, {
+            additionalProperties: null,
+          }),
+        };
+      }),
+    )
+);

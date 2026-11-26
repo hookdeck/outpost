@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 import {
@@ -40,6 +40,7 @@ export type DestinationUpdateAwss3 = {
    *
    * @remarks
    * Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
+   * A filter can be nested up to 16 levels deep. The filter object is level 1, and each nested object or array adds one.
    * If null or empty, all events matching the topic filter will be delivered.
    * Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
    */
@@ -71,23 +72,25 @@ export const DestinationUpdateAwss3$inboundSchema: z.ZodType<
   DestinationUpdateAwss3,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  type: z.literal("aws_s3"),
-  topics: Topics$inboundSchema.optional(),
-  filter: z.nullable(z.record(z.any())).optional(),
-  config: Awss3ConfigUpdate$inboundSchema.optional(),
-  credentials: Awss3CredentialsUpdate$inboundSchema.optional(),
-  delivery_metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
-  metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
-  disabled_at: z.nullable(
-    z.string().datetime({ offset: true }).transform(v => new Date(v)),
-  ).optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "delivery_metadata": "deliveryMetadata",
-    "disabled_at": "disabledAt",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    type: z.literal("aws_s3"),
+    topics: Topics$inboundSchema.optional(),
+    filter: z.nullable(z.record(z.any())).optional(),
+    config: Awss3ConfigUpdate$inboundSchema.optional(),
+    credentials: Awss3CredentialsUpdate$inboundSchema.optional(),
+    delivery_metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
+    metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
+    disabled_at: z.nullable(
+      z.string().datetime({ offset: true }).transform(v => new Date(v)),
+    ).optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      "delivery_metadata": "deliveryMetadata",
+      "disabled_at": "disabledAt",
+    });
+  })
+);
 /** @internal */
 export type DestinationUpdateAwss3$Outbound = {
   type: "aws_s3";
@@ -105,21 +108,23 @@ export const DestinationUpdateAwss3$outboundSchema: z.ZodType<
   DestinationUpdateAwss3$Outbound,
   z.ZodTypeDef,
   DestinationUpdateAwss3
-> = z.object({
-  type: z.literal("aws_s3"),
-  topics: Topics$outboundSchema.optional(),
-  filter: z.nullable(z.record(z.any())).optional(),
-  config: Awss3ConfigUpdate$outboundSchema.optional(),
-  credentials: Awss3CredentialsUpdate$outboundSchema.optional(),
-  deliveryMetadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
-  metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
-  disabledAt: z.nullable(z.date().transform(v => v.toISOString())).optional(),
-}).transform((v) => {
-  return remap$(v, {
-    deliveryMetadata: "delivery_metadata",
-    disabledAt: "disabled_at",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    type: z.literal("aws_s3"),
+    topics: Topics$outboundSchema.optional(),
+    filter: z.nullable(z.record(z.any())).optional(),
+    config: Awss3ConfigUpdate$outboundSchema.optional(),
+    credentials: Awss3CredentialsUpdate$outboundSchema.optional(),
+    deliveryMetadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
+    metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
+    disabledAt: z.nullable(z.date().transform(v => v.toISOString())).optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      deliveryMetadata: "delivery_metadata",
+      disabledAt: "disabled_at",
+    });
+  })
+);
 
 export function destinationUpdateAwss3ToJSON(
   destinationUpdateAwss3: DestinationUpdateAwss3,

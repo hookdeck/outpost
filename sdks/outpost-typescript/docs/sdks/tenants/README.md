@@ -387,6 +387,7 @@ run();
 | errors.APIErrorResponse    | 403                        | application/json           |
 | errors.NotFoundError       | 404                        | application/json           |
 | errors.InternalServerError | 500                        | application/json           |
+| errors.APIErrorResponse    | 501                        | application/json           |
 | errors.APIError            | 4XX, 5XX                   | \*/\*                      |
 
 ## getToken
@@ -460,4 +461,5 @@ run();
 | errors.APIErrorResponse    | 403                        | application/json           |
 | errors.NotFoundError       | 404                        | application/json           |
 | errors.InternalServerError | 500                        | application/json           |
+| errors.APIErrorResponse    | 501                        | application/json           |
 | errors.APIError            | 4XX, 5XX                   | \*/\*                      |

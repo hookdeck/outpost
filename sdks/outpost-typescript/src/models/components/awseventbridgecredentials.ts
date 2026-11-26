@@ -3,7 +3,7 @@
  */
 
 import * as z from "zod/v3";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
@@ -27,11 +27,13 @@ export const AWSEventBridgeCredentials$inboundSchema: z.ZodType<
   AWSEventBridgeCredentials,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  key: z.string(),
-  secret: z.string(),
-  session: z.string().optional(),
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    key: z.string(),
+    secret: z.string(),
+    session: z.string().optional(),
+  })
+);
 /** @internal */
 export type AWSEventBridgeCredentials$Outbound = {
   key: string;
@@ -44,11 +46,13 @@ export const AWSEventBridgeCredentials$outboundSchema: z.ZodType<
   AWSEventBridgeCredentials$Outbound,
   z.ZodTypeDef,
   AWSEventBridgeCredentials
-> = z.object({
-  key: z.string(),
-  secret: z.string(),
-  session: z.string().optional(),
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    key: z.string(),
+    secret: z.string(),
+    session: z.string().optional(),
+  })
+);
 
 export function awsEventBridgeCredentialsToJSON(
   awsEventBridgeCredentials: AWSEventBridgeCredentials,

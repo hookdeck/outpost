@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import * as components from "../components/index.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
@@ -31,16 +31,18 @@ export const UpdateTenantDestinationRequest$inboundSchema: z.ZodType<
   UpdateTenantDestinationRequest,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  tenant_id: z.string(),
-  destination_id: z.string(),
-  body: components.DestinationUpdate$inboundSchema,
-}).transform((v) => {
-  return remap$(v, {
-    "tenant_id": "tenantId",
-    "destination_id": "destinationId",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    tenant_id: z.string(),
+    destination_id: z.string(),
+    body: components.DestinationUpdate$inboundSchema,
+  }).transform((v) => {
+    return remap$(v, {
+      "tenant_id": "tenantId",
+      "destination_id": "destinationId",
+    });
+  })
+);
 /** @internal */
 export type UpdateTenantDestinationRequest$Outbound = {
   tenant_id: string;
@@ -53,16 +55,18 @@ export const UpdateTenantDestinationRequest$outboundSchema: z.ZodType<
   UpdateTenantDestinationRequest$Outbound,
   z.ZodTypeDef,
   UpdateTenantDestinationRequest
-> = z.object({
-  tenantId: z.string(),
-  destinationId: z.string(),
-  body: components.DestinationUpdate$outboundSchema,
-}).transform((v) => {
-  return remap$(v, {
-    tenantId: "tenant_id",
-    destinationId: "destination_id",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    tenantId: z.string(),
+    destinationId: z.string(),
+    body: components.DestinationUpdate$outboundSchema,
+  }).transform((v) => {
+    return remap$(v, {
+      tenantId: "tenant_id",
+      destinationId: "destination_id",
+    });
+  })
+);
 
 export function updateTenantDestinationRequestToJSON(
   updateTenantDestinationRequest: UpdateTenantDestinationRequest,
@@ -88,7 +92,7 @@ export const UpdateTenantDestinationResponse$inboundSchema: z.ZodType<
   UpdateTenantDestinationResponse,
   z.ZodTypeDef,
   unknown
-> = components.Destination$inboundSchema;
+> = /* @__PURE__ */ lazySchema$(() => components.Destination$inboundSchema);
 /** @internal */
 export type UpdateTenantDestinationResponse$Outbound =
   components.Destination$Outbound;
@@ -98,7 +102,7 @@ export const UpdateTenantDestinationResponse$outboundSchema: z.ZodType<
   UpdateTenantDestinationResponse$Outbound,
   z.ZodTypeDef,
   UpdateTenantDestinationResponse
-> = components.Destination$outboundSchema;
+> = /* @__PURE__ */ lazySchema$(() => components.Destination$outboundSchema);
 
 export function updateTenantDestinationResponseToJSON(
   updateTenantDestinationResponse: UpdateTenantDestinationResponse,

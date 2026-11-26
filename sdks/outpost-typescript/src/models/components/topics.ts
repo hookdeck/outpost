@@ -3,7 +3,7 @@
  */
 
 import * as z from "zod/v3";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { ClosedEnum } from "../../types/enums.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
@@ -19,15 +19,17 @@ export type TopicsEnum = ClosedEnum<typeof TopicsEnum>;
 export type Topics = TopicsEnum | Array<string>;
 
 /** @internal */
-export const TopicsEnum$inboundSchema: z.ZodNativeEnum<typeof TopicsEnum> = z
-  .nativeEnum(TopicsEnum);
+export const TopicsEnum$inboundSchema: z.ZodNativeEnum<typeof TopicsEnum> =
+  /* @__PURE__ */ lazySchema$(() => z.nativeEnum(TopicsEnum));
 /** @internal */
 export const TopicsEnum$outboundSchema: z.ZodNativeEnum<typeof TopicsEnum> =
   TopicsEnum$inboundSchema;
 
 /** @internal */
-export const Topics$inboundSchema: z.ZodType<Topics, z.ZodTypeDef, unknown> = z
-  .union([TopicsEnum$inboundSchema, z.array(z.string())]);
+export const Topics$inboundSchema: z.ZodType<Topics, z.ZodTypeDef, unknown> =
+  /* @__PURE__ */ lazySchema$(() =>
+    z.union([TopicsEnum$inboundSchema, z.array(z.string())])
+  );
 /** @internal */
 export type Topics$Outbound = string | Array<string>;
 
@@ -36,7 +38,9 @@ export const Topics$outboundSchema: z.ZodType<
   Topics$Outbound,
   z.ZodTypeDef,
   Topics
-> = z.union([TopicsEnum$outboundSchema, z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([TopicsEnum$outboundSchema, z.array(z.string())])
+);
 
 export function topicsToJSON(topics: Topics): string {
   return JSON.stringify(Topics$outboundSchema.parse(topics));

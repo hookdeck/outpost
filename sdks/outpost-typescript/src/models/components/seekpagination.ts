@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { ClosedEnum } from "../../types/enums.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
@@ -48,7 +48,8 @@ export type SeekPagination = {
 };
 
 /** @internal */
-export const Dir$inboundSchema: z.ZodNativeEnum<typeof Dir> = z.nativeEnum(Dir);
+export const Dir$inboundSchema: z.ZodNativeEnum<typeof Dir> =
+  /* @__PURE__ */ lazySchema$(() => z.nativeEnum(Dir));
 /** @internal */
 export const Dir$outboundSchema: z.ZodNativeEnum<typeof Dir> =
   Dir$inboundSchema;
@@ -58,17 +59,19 @@ export const SeekPagination$inboundSchema: z.ZodType<
   SeekPagination,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  order_by: z.string().optional(),
-  dir: Dir$inboundSchema.optional(),
-  limit: z.number().int().optional(),
-  next: z.nullable(z.string()).optional(),
-  prev: z.nullable(z.string()).optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "order_by": "orderBy",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    order_by: z.string().optional(),
+    dir: Dir$inboundSchema.optional(),
+    limit: z.number().int().optional(),
+    next: z.nullable(z.string()).optional(),
+    prev: z.nullable(z.string()).optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      "order_by": "orderBy",
+    });
+  })
+);
 /** @internal */
 export type SeekPagination$Outbound = {
   order_by?: string | undefined;
@@ -83,17 +86,19 @@ export const SeekPagination$outboundSchema: z.ZodType<
   SeekPagination$Outbound,
   z.ZodTypeDef,
   SeekPagination
-> = z.object({
-  orderBy: z.string().optional(),
-  dir: Dir$outboundSchema.optional(),
-  limit: z.number().int().optional(),
-  next: z.nullable(z.string()).optional(),
-  prev: z.nullable(z.string()).optional(),
-}).transform((v) => {
-  return remap$(v, {
-    orderBy: "order_by",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    orderBy: z.string().optional(),
+    dir: Dir$outboundSchema.optional(),
+    limit: z.number().int().optional(),
+    next: z.nullable(z.string()).optional(),
+    prev: z.nullable(z.string()).optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      orderBy: "order_by",
+    });
+  })
+);
 
 export function seekPaginationToJSON(seekPagination: SeekPagination): string {
   return JSON.stringify(SeekPagination$outboundSchema.parse(seekPagination));

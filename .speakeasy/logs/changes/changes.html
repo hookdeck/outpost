@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
-    <title>SDK Changelog - python</title>
+    <title>SDK Changelog - typescript</title>
     <style>
         :root {
             --bg-color: #ffffff;
@@ -95,58 +95,58 @@
         }
     </style>
 </head>
-<body><h2 id="python-sdk-changes">Python SDK Changes:</h2>
+<body><h2 id="typescript-sdk-changes">Typescript SDK Changes:</h2>
 
 <ul>
-<li><code>outpost.configuration.get_managed_config()</code>: <code>response</code> <strong>Changed</strong>
+<li><code>outpost.configuration.getManagedConfig()</code>: <code>response</code> <strong>Changed</strong>
 
 <ul>
-<li><code>experimental_mcp_enabled</code> <strong>Added</strong></li>
-<li><code>experimental_mcp_events_schema</code> <strong>Added</strong></li>
-<li><code>publish_aws_sqs_role_arn</code> <strong>Added</strong></li>
+<li><code>experimentalMcpEnabled</code> <strong>Added</strong></li>
+<li><code>experimentalMcpEventsSchema</code> <strong>Added</strong></li>
+<li><code>publishAwsSqsRoleArn</code> <strong>Added</strong></li>
 </ul></li>
-<li><code>outpost.configuration.update_managed_config()</code>:
+<li><code>outpost.configuration.updateManagedConfig()</code>:
 
 <ul>
 <li><code>request</code> <strong>Changed</strong>
 
 <ul>
-<li><code>experimental_mcp_enabled</code> <strong>Added</strong></li>
-<li><code>experimental_mcp_events_schema</code> <strong>Added</strong></li>
-<li><code>publish_aws_sqs_role_arn</code> <strong>Added</strong></li>
+<li><code>experimentalMcpEnabled</code> <strong>Added</strong></li>
+<li><code>experimentalMcpEventsSchema</code> <strong>Added</strong></li>
+<li><code>publishAwsSqsRoleArn</code> <strong>Added</strong></li>
 </ul></li>
 <li><code>response</code> <strong>Changed</strong>
 
 <ul>
-<li><code>experimental_mcp_enabled</code> <strong>Added</strong></li>
-<li><code>experimental_mcp_events_schema</code> <strong>Added</strong></li>
-<li><code>publish_aws_sqs_role_arn</code> <strong>Added</strong></li>
+<li><code>experimentalMcpEnabled</code> <strong>Added</strong></li>
+<li><code>experimentalMcpEventsSchema</code> <strong>Added</strong></li>
+<li><code>publishAwsSqsRoleArn</code> <strong>Added</strong></li>
 </ul></li>
 </ul></li>
-<li><code>outpost.operator_events.list_destinations()</code>:  <code>response.[].union(webhook).credentials.custom_headers</code> <strong>Added</strong></li>
-<li><code>outpost.operator_events.create_destination()</code>:  <code>response.union(webhook).credentials.custom_headers</code> <strong>Added</strong></li>
-<li><code>outpost.operator_events.get_destination()</code>:  <code>response.union(webhook).credentials.custom_headers</code> <strong>Added</strong></li>
-<li><code>outpost.operator_events.update_destination()</code>:  <code>response.union(webhook).credentials.custom_headers</code> <strong>Added</strong></li>
-<li><code>outpost.operator_events.enable_destination()</code>:  <code>response.union(webhook).credentials.custom_headers</code> <strong>Added</strong></li>
-<li><code>outpost.operator_events.disable_destination()</code>:  <code>response.union(webhook).credentials.custom_headers</code> <strong>Added</strong></li>
-<li><code>outpost.tenants.get_portal_url()</code>:  <code>error.status[501]</code> <strong>Added</strong></li>
-<li><code>outpost.tenants.get_token()</code>:  <code>error.status[501]</code> <strong>Added</strong></li>
-<li><code>outpost.destinations.list()</code>:  <code>response.[].union(webhook).credentials.custom_headers</code> <strong>Added</strong></li>
+<li><code>outpost.operatorEvents.listDestinations()</code>:  <code>response.[].union(webhook).credentials.customHeaders</code> <strong>Added</strong></li>
+<li><code>outpost.operatorEvents.createDestination()</code>:  <code>response.union(webhook).credentials.customHeaders</code> <strong>Added</strong></li>
+<li><code>outpost.operatorEvents.getDestination()</code>:  <code>response.union(webhook).credentials.customHeaders</code> <strong>Added</strong></li>
+<li><code>outpost.operatorEvents.updateDestination()</code>:  <code>response.union(webhook).credentials.customHeaders</code> <strong>Added</strong></li>
+<li><code>outpost.operatorEvents.enableDestination()</code>:  <code>response.union(webhook).credentials.customHeaders</code> <strong>Added</strong></li>
+<li><code>outpost.operatorEvents.disableDestination()</code>:  <code>response.union(webhook).credentials.customHeaders</code> <strong>Added</strong></li>
+<li><code>outpost.tenants.getPortalUrl()</code>:  <code>error.status[501]</code> <strong>Added</strong></li>
+<li><code>outpost.tenants.getToken()</code>:  <code>error.status[501]</code> <strong>Added</strong></li>
+<li><code>outpost.destinations.list()</code>:  <code>response.[].union(webhook).credentials.customHeaders</code> <strong>Added</strong></li>
 <li><code>outpost.destinations.create()</code>:
 
 <ul>
-<li><code>request.body.union(webhook).credentials.custom_headers</code> <strong>Added</strong></li>
-<li><code>response.union(webhook).credentials.custom_headers</code> <strong>Added</strong></li>
+<li><code>request.body.union(webhook).credentials.customHeaders</code> <strong>Added</strong></li>
+<li><code>response.union(webhook).credentials.customHeaders</code> <strong>Added</strong></li>
 </ul></li>
-<li><code>outpost.destinations.get()</code>:  <code>response.union(webhook).credentials.custom_headers</code> <strong>Added</strong></li>
+<li><code>outpost.destinations.get()</code>:  <code>response.union(webhook).credentials.customHeaders</code> <strong>Added</strong></li>
 <li><code>outpost.destinations.update()</code>:
 
 <ul>
-<li><code>request.body.union(webhook).credentials.custom_headers</code> <strong>Added</strong></li>
-<li><code>response.union(Destination).union(webhook).credentials.custom_headers</code> <strong>Added</strong></li>
+<li><code>request.body.union(webhook).credentials.customHeaders</code> <strong>Added</strong></li>
+<li><code>response.union(Destination).union(webhook).credentials.customHeaders</code> <strong>Added</strong></li>
 </ul></li>
-<li><code>outpost.destinations.enable()</code>:  <code>response.union(webhook).credentials.custom_headers</code> <strong>Added</strong></li>
-<li><code>outpost.destinations.disable()</code>:  <code>response.union(webhook).credentials.custom_headers</code> <strong>Added</strong></li>
+<li><code>outpost.destinations.enable()</code>:  <code>response.union(webhook).credentials.customHeaders</code> <strong>Added</strong></li>
+<li><code>outpost.destinations.disable()</code>:  <code>response.union(webhook).credentials.customHeaders</code> <strong>Added</strong></li>
 </ul>
 </body>
 </html>

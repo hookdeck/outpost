@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
@@ -36,25 +36,27 @@ export type Tenant = {
 };
 
 /** @internal */
-export const Tenant$inboundSchema: z.ZodType<Tenant, z.ZodTypeDef, unknown> = z
-  .object({
-    id: z.string().optional(),
-    destinations_count: z.number().int().optional(),
-    topics: z.array(z.string()).optional(),
-    metadata: z.nullable(z.record(z.string())).optional(),
-    created_at: z.string().datetime({ offset: true }).transform(v =>
-      new Date(v)
-    ).optional(),
-    updated_at: z.string().datetime({ offset: true }).transform(v =>
-      new Date(v)
-    ).optional(),
-  }).transform((v) => {
-    return remap$(v, {
-      "destinations_count": "destinationsCount",
-      "created_at": "createdAt",
-      "updated_at": "updatedAt",
-    });
-  });
+export const Tenant$inboundSchema: z.ZodType<Tenant, z.ZodTypeDef, unknown> =
+  /* @__PURE__ */ lazySchema$(() =>
+    z.object({
+      id: z.string().optional(),
+      destinations_count: z.number().int().optional(),
+      topics: z.array(z.string()).optional(),
+      metadata: z.nullable(z.record(z.string())).optional(),
+      created_at: z.string().datetime({ offset: true }).transform(v =>
+        new Date(v)
+      ).optional(),
+      updated_at: z.string().datetime({ offset: true }).transform(v =>
+        new Date(v)
+      ).optional(),
+    }).transform((v) => {
+      return remap$(v, {
+        "destinations_count": "destinationsCount",
+        "created_at": "createdAt",
+        "updated_at": "updatedAt",
+      });
+    })
+  );
 /** @internal */
 export type Tenant$Outbound = {
   id?: string | undefined;
@@ -70,20 +72,22 @@ export const Tenant$outboundSchema: z.ZodType<
   Tenant$Outbound,
   z.ZodTypeDef,
   Tenant
-> = z.object({
-  id: z.string().optional(),
-  destinationsCount: z.number().int().optional(),
-  topics: z.array(z.string()).optional(),
-  metadata: z.nullable(z.record(z.string())).optional(),
-  createdAt: z.date().transform(v => v.toISOString()).optional(),
-  updatedAt: z.date().transform(v => v.toISOString()).optional(),
-}).transform((v) => {
-  return remap$(v, {
-    destinationsCount: "destinations_count",
-    createdAt: "created_at",
-    updatedAt: "updated_at",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    id: z.string().optional(),
+    destinationsCount: z.number().int().optional(),
+    topics: z.array(z.string()).optional(),
+    metadata: z.nullable(z.record(z.string())).optional(),
+    createdAt: z.date().transform(v => v.toISOString()).optional(),
+    updatedAt: z.date().transform(v => v.toISOString()).optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      destinationsCount: "destinations_count",
+      createdAt: "created_at",
+      updatedAt: "updated_at",
+    });
+  })
+);
 
 export function tenantToJSON(tenant: Tenant): string {
   return JSON.stringify(Tenant$outboundSchema.parse(tenant));

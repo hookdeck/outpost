@@ -8,9 +8,8 @@ import { matchStatusCode } from "../lib/http.js";
 import * as M from "../lib/matchers.js";
 import { compactMap } from "../lib/primitives.js";
 import { safeParse } from "../lib/schemas.js";
-import { RequestOptions } from "../lib/sdks.js";
+import { encodePath, RequestOptions } from "../lib/sdks.js";
 import { extractSecurity, resolveGlobalSecurity } from "../lib/security.js";
-import { pathToFunc } from "../lib/url.js";
 import * as components from "../models/components/index.js";
 import {
   ConnectionError,
@@ -112,7 +111,11 @@ async function $do(
       charEncoding: "percent",
     }),
   };
-  const path = pathToFunc("/tenants/{tenant_id}/portal")(pathParams);
+  const pathResult = encodePath("/tenants/{tenant_id}/portal", pathParams);
+  if (!pathResult.ok) {
+    return [pathResult, { status: "invalid" }];
+  }
+  const path = pathResult.value;
 
   const query = encodeFormQuery({
     "theme": payload.theme,
@@ -193,6 +196,7 @@ async function $do(
     M.jsonErr(403, errors.APIErrorResponse$inboundSchema),
     M.jsonErr(404, errors.NotFoundError$inboundSchema),
     M.jsonErr(500, errors.InternalServerError$inboundSchema),
+    M.jsonErr(501, errors.APIErrorResponse$inboundSchema),
     M.fail("4XX"),
     M.fail("5XX"),
   )(response, req, { extraFields: responseFields });

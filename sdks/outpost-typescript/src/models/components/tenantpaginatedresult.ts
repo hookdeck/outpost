@@ -3,7 +3,7 @@
  */
 
 import * as z from "zod/v3";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 import {
@@ -42,11 +42,13 @@ export const TenantPaginatedResult$inboundSchema: z.ZodType<
   TenantPaginatedResult,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  models: z.array(Tenant$inboundSchema).optional(),
-  pagination: SeekPagination$inboundSchema.optional(),
-  count: z.number().int().optional(),
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    models: z.array(Tenant$inboundSchema).optional(),
+    pagination: SeekPagination$inboundSchema.optional(),
+    count: z.number().int().optional(),
+  })
+);
 /** @internal */
 export type TenantPaginatedResult$Outbound = {
   models?: Array<Tenant$Outbound> | undefined;
@@ -59,11 +61,13 @@ export const TenantPaginatedResult$outboundSchema: z.ZodType<
   TenantPaginatedResult$Outbound,
   z.ZodTypeDef,
   TenantPaginatedResult
-> = z.object({
-  models: z.array(Tenant$outboundSchema).optional(),
-  pagination: SeekPagination$outboundSchema.optional(),
-  count: z.number().int().optional(),
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    models: z.array(Tenant$outboundSchema).optional(),
+    pagination: SeekPagination$outboundSchema.optional(),
+    count: z.number().int().optional(),
+  })
+);
 
 export function tenantPaginatedResultToJSON(
   tenantPaginatedResult: TenantPaginatedResult,

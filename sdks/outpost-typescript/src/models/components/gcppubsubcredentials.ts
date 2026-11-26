@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
@@ -20,13 +20,15 @@ export const GCPPubSubCredentials$inboundSchema: z.ZodType<
   GCPPubSubCredentials,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  service_account_json: z.string(),
-}).transform((v) => {
-  return remap$(v, {
-    "service_account_json": "serviceAccountJson",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    service_account_json: z.string(),
+  }).transform((v) => {
+    return remap$(v, {
+      "service_account_json": "serviceAccountJson",
+    });
+  })
+);
 /** @internal */
 export type GCPPubSubCredentials$Outbound = {
   service_account_json: string;
@@ -37,13 +39,15 @@ export const GCPPubSubCredentials$outboundSchema: z.ZodType<
   GCPPubSubCredentials$Outbound,
   z.ZodTypeDef,
   GCPPubSubCredentials
-> = z.object({
-  serviceAccountJson: z.string(),
-}).transform((v) => {
-  return remap$(v, {
-    serviceAccountJson: "service_account_json",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    serviceAccountJson: z.string(),
+  }).transform((v) => {
+    return remap$(v, {
+      serviceAccountJson: "service_account_json",
+    });
+  })
+);
 
 export function gcpPubSubCredentialsToJSON(
   gcpPubSubCredentials: GCPPubSubCredentials,

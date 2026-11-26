@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
@@ -28,6 +28,10 @@ export type WebhookCredentialsUpdate = {
    * Set to true to rotate the secret. The current secret becomes the previous_secret, and a new secret is generated. `previous_secret_invalid_at` defaults to 24h if not provided.
    */
   rotateSecret?: boolean | undefined;
+  /**
+   * JSON string of HTTP headers with secret values, merged header by header like `config.custom_headers`. A header not sent keeps its saved value, a header sent with a value gets that value, and a header sent as null is removed. Set the field to null to remove all.
+   */
+  customHeaders?: string | undefined;
 };
 
 /** @internal */
@@ -35,26 +39,31 @@ export const WebhookCredentialsUpdate$inboundSchema: z.ZodType<
   WebhookCredentialsUpdate,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  secret: z.string().optional(),
-  previous_secret: z.string().optional(),
-  previous_secret_invalid_at: z.string().datetime({ offset: true }).transform(
-    v => new Date(v)
-  ).optional(),
-  rotate_secret: z.boolean().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "previous_secret": "previousSecret",
-    "previous_secret_invalid_at": "previousSecretInvalidAt",
-    "rotate_secret": "rotateSecret",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    secret: z.string().optional(),
+    previous_secret: z.string().optional(),
+    previous_secret_invalid_at: z.string().datetime({ offset: true }).transform(
+      v => new Date(v)
+    ).optional(),
+    rotate_secret: z.boolean().optional(),
+    custom_headers: z.string().optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      "previous_secret": "previousSecret",
+      "previous_secret_invalid_at": "previousSecretInvalidAt",
+      "rotate_secret": "rotateSecret",
+      "custom_headers": "customHeaders",
+    });
+  })
+);
 /** @internal */
 export type WebhookCredentialsUpdate$Outbound = {
   secret?: string | undefined;
   previous_secret?: string | undefined;
   previous_secret_invalid_at?: string | undefined;
   rotate_secret?: boolean | undefined;
+  custom_headers?: string | undefined;
 };
 
 /** @internal */
@@ -62,18 +71,23 @@ export const WebhookCredentialsUpdate$outboundSchema: z.ZodType<
   WebhookCredentialsUpdate$Outbound,
   z.ZodTypeDef,
   WebhookCredentialsUpdate
-> = z.object({
-  secret: z.string().optional(),
-  previousSecret: z.string().optional(),
-  previousSecretInvalidAt: z.date().transform(v => v.toISOString()).optional(),
-  rotateSecret: z.boolean().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    previousSecret: "previous_secret",
-    previousSecretInvalidAt: "previous_secret_invalid_at",
-    rotateSecret: "rotate_secret",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    secret: z.string().optional(),
+    previousSecret: z.string().optional(),
+    previousSecretInvalidAt: z.date().transform(v => v.toISOString())
+      .optional(),
+    rotateSecret: z.boolean().optional(),
+    customHeaders: z.string().optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      previousSecret: "previous_secret",
+      previousSecretInvalidAt: "previous_secret_invalid_at",
+      rotateSecret: "rotate_secret",
+      customHeaders: "custom_headers",
+    });
+  })
+);
 
 export function webhookCredentialsUpdateToJSON(
   webhookCredentialsUpdate: WebhookCredentialsUpdate,

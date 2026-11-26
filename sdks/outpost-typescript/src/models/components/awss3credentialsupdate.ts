@@ -3,7 +3,7 @@
  */
 
 import * as z from "zod/v3";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
@@ -30,11 +30,13 @@ export const Awss3CredentialsUpdate$inboundSchema: z.ZodType<
   Awss3CredentialsUpdate,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  key: z.string().optional(),
-  secret: z.string().optional(),
-  session: z.string().optional(),
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    key: z.string().optional(),
+    secret: z.string().optional(),
+    session: z.string().optional(),
+  })
+);
 /** @internal */
 export type Awss3CredentialsUpdate$Outbound = {
   key?: string | undefined;
@@ -47,11 +49,13 @@ export const Awss3CredentialsUpdate$outboundSchema: z.ZodType<
   Awss3CredentialsUpdate$Outbound,
   z.ZodTypeDef,
   Awss3CredentialsUpdate
-> = z.object({
-  key: z.string().optional(),
-  secret: z.string().optional(),
-  session: z.string().optional(),
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    key: z.string().optional(),
+    secret: z.string().optional(),
+    session: z.string().optional(),
+  })
+);
 
 export function awss3CredentialsUpdateToJSON(
   awss3CredentialsUpdate: Awss3CredentialsUpdate,

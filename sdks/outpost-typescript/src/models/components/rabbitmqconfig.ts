@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { ClosedEnum } from "../../types/enums.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
@@ -39,7 +39,7 @@ export type RabbitMQConfig = {
 /** @internal */
 export const RabbitMQConfigTls$inboundSchema: z.ZodNativeEnum<
   typeof RabbitMQConfigTls
-> = z.nativeEnum(RabbitMQConfigTls);
+> = /* @__PURE__ */ lazySchema$(() => z.nativeEnum(RabbitMQConfigTls));
 /** @internal */
 export const RabbitMQConfigTls$outboundSchema: z.ZodNativeEnum<
   typeof RabbitMQConfigTls
@@ -50,15 +50,17 @@ export const RabbitMQConfig$inboundSchema: z.ZodType<
   RabbitMQConfig,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  server_url: z.string(),
-  exchange: z.string(),
-  tls: RabbitMQConfigTls$inboundSchema.optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "server_url": "serverUrl",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    server_url: z.string(),
+    exchange: z.string(),
+    tls: RabbitMQConfigTls$inboundSchema.optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      "server_url": "serverUrl",
+    });
+  })
+);
 /** @internal */
 export type RabbitMQConfig$Outbound = {
   server_url: string;
@@ -71,15 +73,17 @@ export const RabbitMQConfig$outboundSchema: z.ZodType<
   RabbitMQConfig$Outbound,
   z.ZodTypeDef,
   RabbitMQConfig
-> = z.object({
-  serverUrl: z.string(),
-  exchange: z.string(),
-  tls: RabbitMQConfigTls$outboundSchema.optional(),
-}).transform((v) => {
-  return remap$(v, {
-    serverUrl: "server_url",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    serverUrl: z.string(),
+    exchange: z.string(),
+    tls: RabbitMQConfigTls$outboundSchema.optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      serverUrl: "server_url",
+    });
+  })
+);
 
 export function rabbitMQConfigToJSON(rabbitMQConfig: RabbitMQConfig): string {
   return JSON.stringify(RabbitMQConfig$outboundSchema.parse(rabbitMQConfig));

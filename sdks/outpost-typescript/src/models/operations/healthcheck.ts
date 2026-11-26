@@ -3,7 +3,7 @@
  */
 
 import * as z from "zod/v3";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { ClosedEnum } from "../../types/enums.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
@@ -71,7 +71,7 @@ export type HealthCheckResponse = {
 /** @internal */
 export const HealthCheckStatus$inboundSchema: z.ZodNativeEnum<
   typeof HealthCheckStatus
-> = z.nativeEnum(HealthCheckStatus);
+> = /* @__PURE__ */ lazySchema$(() => z.nativeEnum(HealthCheckStatus));
 /** @internal */
 export const HealthCheckStatus$outboundSchema: z.ZodNativeEnum<
   typeof HealthCheckStatus
@@ -80,27 +80,29 @@ export const HealthCheckStatus$outboundSchema: z.ZodNativeEnum<
 /** @internal */
 export const WorkersStatus$inboundSchema: z.ZodNativeEnum<
   typeof WorkersStatus
-> = z.nativeEnum(WorkersStatus);
+> = /* @__PURE__ */ lazySchema$(() => z.nativeEnum(WorkersStatus));
 /** @internal */
 export const WorkersStatus$outboundSchema: z.ZodNativeEnum<
   typeof WorkersStatus
 > = WorkersStatus$inboundSchema;
 
 /** @internal */
-export const Reason$inboundSchema: z.ZodNativeEnum<typeof Reason> = z
-  .nativeEnum(Reason);
+export const Reason$inboundSchema: z.ZodNativeEnum<typeof Reason> =
+  /* @__PURE__ */ lazySchema$(() => z.nativeEnum(Reason));
 /** @internal */
 export const Reason$outboundSchema: z.ZodNativeEnum<typeof Reason> =
   Reason$inboundSchema;
 
 /** @internal */
 export const Workers$inboundSchema: z.ZodType<Workers, z.ZodTypeDef, unknown> =
-  z.object({
-    status: WorkersStatus$inboundSchema,
-    since: z.string().datetime({ offset: true }).transform(v => new Date(v))
-      .optional(),
-    reason: Reason$inboundSchema.optional(),
-  });
+  /* @__PURE__ */ lazySchema$(() =>
+    z.object({
+      status: WorkersStatus$inboundSchema,
+      since: z.string().datetime({ offset: true }).transform(v => new Date(v))
+        .optional(),
+      reason: Reason$inboundSchema.optional(),
+    })
+  );
 /** @internal */
 export type Workers$Outbound = {
   status: string;
@@ -113,11 +115,13 @@ export const Workers$outboundSchema: z.ZodType<
   Workers$Outbound,
   z.ZodTypeDef,
   Workers
-> = z.object({
-  status: WorkersStatus$outboundSchema,
-  since: z.date().transform(v => v.toISOString()).optional(),
-  reason: Reason$outboundSchema.optional(),
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    status: WorkersStatus$outboundSchema,
+    since: z.date().transform(v => v.toISOString()).optional(),
+    reason: Reason$outboundSchema.optional(),
+  })
+);
 
 export function workersToJSON(workers: Workers): string {
   return JSON.stringify(Workers$outboundSchema.parse(workers));
@@ -137,11 +141,15 @@ export const HealthCheckResponse$inboundSchema: z.ZodType<
   HealthCheckResponse,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  status: HealthCheckStatus$inboundSchema,
-  timestamp: z.string().datetime({ offset: true }).transform(v => new Date(v)),
-  workers: z.record(z.lazy(() => Workers$inboundSchema)),
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    status: HealthCheckStatus$inboundSchema,
+    timestamp: z.string().datetime({ offset: true }).transform(v =>
+      new Date(v)
+    ),
+    workers: z.record(z.lazy(() => Workers$inboundSchema)),
+  })
+);
 /** @internal */
 export type HealthCheckResponse$Outbound = {
   status: string;
@@ -154,11 +162,13 @@ export const HealthCheckResponse$outboundSchema: z.ZodType<
   HealthCheckResponse$Outbound,
   z.ZodTypeDef,
   HealthCheckResponse
-> = z.object({
-  status: HealthCheckStatus$outboundSchema,
-  timestamp: z.date().transform(v => v.toISOString()),
-  workers: z.record(z.lazy(() => Workers$outboundSchema)),
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    status: HealthCheckStatus$outboundSchema,
+    timestamp: z.date().transform(v => v.toISOString()),
+    workers: z.record(z.lazy(() => Workers$outboundSchema)),
+  })
+);
 
 export function healthCheckResponseToJSON(
   healthCheckResponse: HealthCheckResponse,

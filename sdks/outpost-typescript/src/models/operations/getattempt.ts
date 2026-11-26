@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
@@ -45,7 +45,9 @@ export const GetAttemptInclude$inboundSchema: z.ZodType<
   GetAttemptInclude,
   z.ZodTypeDef,
   unknown
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 /** @internal */
 export type GetAttemptInclude$Outbound = string | Array<string>;
 
@@ -54,7 +56,9 @@ export const GetAttemptInclude$outboundSchema: z.ZodType<
   GetAttemptInclude$Outbound,
   z.ZodTypeDef,
   GetAttemptInclude
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 
 export function getAttemptIncludeToJSON(
   getAttemptInclude: GetAttemptInclude,
@@ -78,16 +82,18 @@ export const GetAttemptRequest$inboundSchema: z.ZodType<
   GetAttemptRequest,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  attempt_id: z.string(),
-  tenant_id: z.string().optional(),
-  include: z.union([z.string(), z.array(z.string())]).optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "attempt_id": "attemptId",
-    "tenant_id": "tenantId",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    attempt_id: z.string(),
+    tenant_id: z.string().optional(),
+    include: z.union([z.string(), z.array(z.string())]).optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      "attempt_id": "attemptId",
+      "tenant_id": "tenantId",
+    });
+  })
+);
 /** @internal */
 export type GetAttemptRequest$Outbound = {
   attempt_id: string;
@@ -100,16 +106,18 @@ export const GetAttemptRequest$outboundSchema: z.ZodType<
   GetAttemptRequest$Outbound,
   z.ZodTypeDef,
   GetAttemptRequest
-> = z.object({
-  attemptId: z.string(),
-  tenantId: z.string().optional(),
-  include: z.union([z.string(), z.array(z.string())]).optional(),
-}).transform((v) => {
-  return remap$(v, {
-    attemptId: "attempt_id",
-    tenantId: "tenant_id",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    attemptId: z.string(),
+    tenantId: z.string().optional(),
+    include: z.union([z.string(), z.array(z.string())]).optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      attemptId: "attempt_id",
+      tenantId: "tenant_id",
+    });
+  })
+);
 
 export function getAttemptRequestToJSON(
   getAttemptRequest: GetAttemptRequest,

@@ -4,17 +4,17 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
 export type AWSSQSConfig = {
   /**
-   * Optional. Custom AWS endpoint URL (e.g., for LocalStack or specific regions).
+   * Optional. Custom AWS endpoint URL for emulators such as LocalStack. Only accepted when the Outpost deployment sets DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true.
    */
   endpoint?: string | undefined;
   /**
-   * The URL of the SQS queue.
+   * The URL of the SQS queue. A URL that is not an AWS SQS endpoint is only accepted when the Outpost deployment sets DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true.
    */
   queueUrl: string;
 };
@@ -24,14 +24,16 @@ export const AWSSQSConfig$inboundSchema: z.ZodType<
   AWSSQSConfig,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  endpoint: z.string().optional(),
-  queue_url: z.string(),
-}).transform((v) => {
-  return remap$(v, {
-    "queue_url": "queueUrl",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    endpoint: z.string().optional(),
+    queue_url: z.string(),
+  }).transform((v) => {
+    return remap$(v, {
+      "queue_url": "queueUrl",
+    });
+  })
+);
 /** @internal */
 export type AWSSQSConfig$Outbound = {
   endpoint?: string | undefined;
@@ -43,14 +45,16 @@ export const AWSSQSConfig$outboundSchema: z.ZodType<
   AWSSQSConfig$Outbound,
   z.ZodTypeDef,
   AWSSQSConfig
-> = z.object({
-  endpoint: z.string().optional(),
-  queueUrl: z.string(),
-}).transform((v) => {
-  return remap$(v, {
-    queueUrl: "queue_url",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    endpoint: z.string().optional(),
+    queueUrl: z.string(),
+  }).transform((v) => {
+    return remap$(v, {
+      queueUrl: "queue_url",
+    });
+  })
+);
 
 export function awssqsConfigToJSON(awssqsConfig: AWSSQSConfig): string {
   return JSON.stringify(AWSSQSConfig$outboundSchema.parse(awssqsConfig));

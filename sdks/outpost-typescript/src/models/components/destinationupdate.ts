@@ -3,7 +3,7 @@
  */
 
 import * as z from "zod/v3";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 import {
@@ -91,19 +91,21 @@ export const DestinationUpdate$inboundSchema: z.ZodType<
   DestinationUpdate,
   z.ZodTypeDef,
   unknown
-> = z.union([
-  DestinationUpdateWebhook$inboundSchema,
-  DestinationUpdateAWSSQS$inboundSchema,
-  DestinationUpdateRabbitMQ$inboundSchema,
-  DestinationUpdateHookdeck$inboundSchema,
-  DestinationUpdateAWSKinesis$inboundSchema,
-  DestinationUpdateAzureServiceBus$inboundSchema,
-  DestinationUpdateAwss3$inboundSchema,
-  DestinationUpdateGCPPubSub$inboundSchema,
-  DestinationUpdateKafka$inboundSchema,
-  DestinationUpdateCloudflareQueues$inboundSchema,
-  DestinationUpdateAWSEventBridge$inboundSchema,
-]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([
+    DestinationUpdateWebhook$inboundSchema,
+    DestinationUpdateAWSSQS$inboundSchema,
+    DestinationUpdateRabbitMQ$inboundSchema,
+    DestinationUpdateHookdeck$inboundSchema,
+    DestinationUpdateAWSKinesis$inboundSchema,
+    DestinationUpdateAzureServiceBus$inboundSchema,
+    DestinationUpdateAwss3$inboundSchema,
+    DestinationUpdateGCPPubSub$inboundSchema,
+    DestinationUpdateKafka$inboundSchema,
+    DestinationUpdateCloudflareQueues$inboundSchema,
+    DestinationUpdateAWSEventBridge$inboundSchema,
+  ])
+);
 /** @internal */
 export type DestinationUpdate$Outbound =
   | DestinationUpdateWebhook$Outbound
@@ -123,19 +125,21 @@ export const DestinationUpdate$outboundSchema: z.ZodType<
   DestinationUpdate$Outbound,
   z.ZodTypeDef,
   DestinationUpdate
-> = z.union([
-  DestinationUpdateWebhook$outboundSchema,
-  DestinationUpdateAWSSQS$outboundSchema,
-  DestinationUpdateRabbitMQ$outboundSchema,
-  DestinationUpdateHookdeck$outboundSchema,
-  DestinationUpdateAWSKinesis$outboundSchema,
-  DestinationUpdateAzureServiceBus$outboundSchema,
-  DestinationUpdateAwss3$outboundSchema,
-  DestinationUpdateGCPPubSub$outboundSchema,
-  DestinationUpdateKafka$outboundSchema,
-  DestinationUpdateCloudflareQueues$outboundSchema,
-  DestinationUpdateAWSEventBridge$outboundSchema,
-]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([
+    DestinationUpdateWebhook$outboundSchema,
+    DestinationUpdateAWSSQS$outboundSchema,
+    DestinationUpdateRabbitMQ$outboundSchema,
+    DestinationUpdateHookdeck$outboundSchema,
+    DestinationUpdateAWSKinesis$outboundSchema,
+    DestinationUpdateAzureServiceBus$outboundSchema,
+    DestinationUpdateAwss3$outboundSchema,
+    DestinationUpdateGCPPubSub$outboundSchema,
+    DestinationUpdateKafka$outboundSchema,
+    DestinationUpdateCloudflareQueues$outboundSchema,
+    DestinationUpdateAWSEventBridge$outboundSchema,
+  ])
+);
 
 export function destinationUpdateToJSON(
   destinationUpdate: DestinationUpdate,

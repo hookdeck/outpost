@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
@@ -21,6 +21,10 @@ export type WebhookCredentials = {
    * ISO timestamp when the previous secret becomes invalid. Read-only.
    */
   previousSecretInvalidAt?: Date | undefined;
+  /**
+   * JSON string of HTTP headers with secret values, such as Authorization, to include with every webhook request. Same name rules as `config.custom_headers`, and a name can't appear in both. Values are encrypted at rest and returned masked.
+   */
+  customHeaders?: string | undefined;
 };
 
 /** @internal */
@@ -28,23 +32,28 @@ export const WebhookCredentials$inboundSchema: z.ZodType<
   WebhookCredentials,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  secret: z.string().optional(),
-  previous_secret: z.string().optional(),
-  previous_secret_invalid_at: z.string().datetime({ offset: true }).transform(
-    v => new Date(v)
-  ).optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "previous_secret": "previousSecret",
-    "previous_secret_invalid_at": "previousSecretInvalidAt",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    secret: z.string().optional(),
+    previous_secret: z.string().optional(),
+    previous_secret_invalid_at: z.string().datetime({ offset: true }).transform(
+      v => new Date(v)
+    ).optional(),
+    custom_headers: z.string().optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      "previous_secret": "previousSecret",
+      "previous_secret_invalid_at": "previousSecretInvalidAt",
+      "custom_headers": "customHeaders",
+    });
+  })
+);
 /** @internal */
 export type WebhookCredentials$Outbound = {
   secret?: string | undefined;
   previous_secret?: string | undefined;
   previous_secret_invalid_at?: string | undefined;
+  custom_headers?: string | undefined;
 };
 
 /** @internal */
@@ -52,16 +61,21 @@ export const WebhookCredentials$outboundSchema: z.ZodType<
   WebhookCredentials$Outbound,
   z.ZodTypeDef,
   WebhookCredentials
-> = z.object({
-  secret: z.string().optional(),
-  previousSecret: z.string().optional(),
-  previousSecretInvalidAt: z.date().transform(v => v.toISOString()).optional(),
-}).transform((v) => {
-  return remap$(v, {
-    previousSecret: "previous_secret",
-    previousSecretInvalidAt: "previous_secret_invalid_at",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    secret: z.string().optional(),
+    previousSecret: z.string().optional(),
+    previousSecretInvalidAt: z.date().transform(v => v.toISOString())
+      .optional(),
+    customHeaders: z.string().optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      previousSecret: "previous_secret",
+      previousSecretInvalidAt: "previous_secret_invalid_at",
+      customHeaders: "custom_headers",
+    });
+  })
+);
 
 export function webhookCredentialsToJSON(
   webhookCredentials: WebhookCredentials,

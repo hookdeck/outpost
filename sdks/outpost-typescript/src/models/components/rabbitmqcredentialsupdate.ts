@@ -3,7 +3,7 @@
  */
 
 import * as z from "zod/v3";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
@@ -26,10 +26,12 @@ export const RabbitMQCredentialsUpdate$inboundSchema: z.ZodType<
   RabbitMQCredentialsUpdate,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  username: z.string().optional(),
-  password: z.string().optional(),
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    username: z.string().optional(),
+    password: z.string().optional(),
+  })
+);
 /** @internal */
 export type RabbitMQCredentialsUpdate$Outbound = {
   username?: string | undefined;
@@ -41,10 +43,12 @@ export const RabbitMQCredentialsUpdate$outboundSchema: z.ZodType<
   RabbitMQCredentialsUpdate$Outbound,
   z.ZodTypeDef,
   RabbitMQCredentialsUpdate
-> = z.object({
-  username: z.string().optional(),
-  password: z.string().optional(),
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    username: z.string().optional(),
+    password: z.string().optional(),
+  })
+);
 
 export function rabbitMQCredentialsUpdateToJSON(
   rabbitMQCredentialsUpdate: RabbitMQCredentialsUpdate,

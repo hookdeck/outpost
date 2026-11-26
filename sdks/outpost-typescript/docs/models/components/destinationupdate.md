@@ -21,8 +21,10 @@ const value: components.DestinationUpdateWebhook = {
   },
   config: {
     url: "https://example.com/webhooks/user",
-    customHeaders:
-      "{\"x-api-key\":\"secret123\",\"x-tenant-id\":\"customer-456\"}",
+    customHeaders: "{\"x-tenant-id\":\"customer-456\",\"x-old-header\":null}",
+  },
+  credentials: {
+    customHeaders: "{\"X-Api-Key\":\"new-key\",\"X-Old-Key\":null}",
   },
   deliveryMetadata: {
     "app-id": "my-app",
@@ -53,7 +55,7 @@ const value: components.DestinationUpdateAWSSQS = {
     },
   },
   config: {
-    endpoint: "https://sqs.us-east-1.amazonaws.com",
+    endpoint: "http://localhost:4566",
     queueUrl: "https://sqs.us-east-1.amazonaws.com/123456789012/my-queue",
   },
   deliveryMetadata: {
