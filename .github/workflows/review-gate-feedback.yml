@@ -1,0 +1,116 @@
+# review-gate-feedback (policy `outpost`). Generated from hookdeck/review-gate
+# examples/review-gate-feedback.yml (v1.8.1).
+#
+# Feedback on the review gate's decisions, and the weekly retrospective of what it approved.
+# Anyone on a PR comments `@hookdeck-review-agent ...` to say a decision should have been
+# "AI review sufficient" or needed a human, and why.
+#
+# issue_comment,
+# pull_request_review_comment -> acknowledge: a 👀 reaction on the comment (recorded). One API
+#                                call with this workflow's own token; no secrets, no code.
+# schedule (weekly)           -> digest: every such comment of the week, with the decision it
+#                                disputes, sorted by Claude into themes with a suggested policy
+#                                change, as an issue in this repository (label
+#                                `review-gate-feedback`) and a 400-day artifact. Reads with this
+#                                workflow's own token: the review agent App's key is not used.
+#                             -> retro (CTL-5): every PR merged that week on the review agent's
+#                                approval, as a checklist issue (label `review-gate-retro`) a
+#                                human ticks and closes to sign off, and a 400-day artifact.
+# workflow_dispatch           -> both, for the last `since_days` days.
+# Acting on it happens in hookdeck/review-gate: agreed items join calibration/data/<policy>/
+# feedback.jsonl and policy changes go through a PR there.
+name: review-gate-feedback
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  schedule:
+    - cron: '0 13 * * 1'          # Mondays 13:00 UTC; daily: '0 13 * * *' with since-days 1
+  workflow_dispatch:
+    inputs:
+      since_days:
+        description: Days of feedback to collect, ending today 00:00 UTC
+        default: '7'
+      since:
+        description: Or an exact window start (ISO 8601 UTC), to rebuild a missed digest
+        required: false
+      until:
+        description: Exact window end (ISO 8601 UTC)
+        required: false
+
+permissions: {}
+
+jobs:
+  acknowledge:
+    if: >-
+      ((github.event_name == 'issue_comment' && github.event.issue.pull_request) ||
+       github.event_name == 'pull_request_review_comment') &&
+      github.event.comment.user.type != 'Bot' &&
+      contains(github.event.comment.body, '@hookdeck-review-agent')
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      issues: write          # reactions on PR conversation comments
+      pull-requests: write   # reactions on inline review comments
+    steps:
+      - name: React 👀
+        env:
+          GH_TOKEN: ${{ github.token }}
+          KIND: ${{ github.event_name == 'issue_comment' && 'issues' || 'pulls' }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+          BODY: ${{ github.event.comment.body }}
+        run: |
+          # a quote-reply to the agent's review (its footer names the agent) is not feedback
+          if ! printf '%s\n' "$BODY" | grep -v '^[[:space:]]*>' | grep -qiE '(^|[^[:alnum:]_.@])@hookdeck-review-agent($|[^[:alnum:]_-])'; then
+            exit 0
+          fi
+          gh api --method POST "repos/$GITHUB_REPOSITORY/$KIND/comments/$COMMENT_ID/reactions" -f content=eyes --silent
+
+  digest:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:              # the Claude key lives in the review-agent environment (README Setup)
+      name: review-agent
+      deployment: false
+    concurrency:
+      group: review-gate-feedback-digest
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      pull-requests: read    # PR comments
+      checks: read           # the gate's decision records
+      issues: write          # the digest issue
+    steps:
+      # pin to the release commit, like review-gate.yml: this action receives the Claude API key
+      - uses: hookdeck/review-gate@f97a35f6ee9a7131a9def9f15e29cba1790e8021 # v1.8.1
+        with:
+          mode: feedback
+          policy: outpost
+          since-days: ${{ inputs.since_days || '7' }}
+          since: ${{ inputs.since }}
+          until: ${{ inputs.until }}
+          anthropic-api-key: ${{ secrets.REVIEW_AGENT_ANTHROPIC_API_KEY }}
+
+  retro:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: review-gate-retro
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      pull-requests: read    # merged PRs and their reviews
+      checks: read           # the gate's decision records
+      issues: write          # the retrospective issue
+    steps:
+      - uses: hookdeck/review-gate@f97a35f6ee9a7131a9def9f15e29cba1790e8021 # v1.8.1
+        with:
+          mode: retro
+          policy: outpost
+          since-days: ${{ inputs.since_days || '7' }}
+          since: ${{ inputs.since }}
+          until: ${{ inputs.until }}
