@@ -283,7 +283,9 @@ func runCheck(t *testing.T, s *fakeServer, mutate func(*Options)) Report {
 		Publish: func(_ context.Context, ev string, data map[string]any) (string, error) {
 			return s.publish(ev, data), nil
 		},
-		Wait: 5 * time.Second, Quiet: 300 * time.Millisecond, HTTPClient: &http.Client{Timeout: 20 * time.Second},
+		// Deliveries are local and arrive in milliseconds: the wait only runs
+		// out where a fault means one never comes.
+		Wait: 2 * time.Second, Quiet: 300 * time.Millisecond, HTTPClient: &http.Client{Timeout: 20 * time.Second},
 	}
 	if mutate != nil {
 		mutate(&o)
@@ -315,6 +317,7 @@ func assertAllPassButHTTP(t *testing.T, rep Report) {
 }
 
 func TestConformingServerPassesEverything(t *testing.T) {
+	t.Parallel()
 	rep := runCheck(t, newFake(t, faults{}), nil)
 	assertAllPassButHTTP(t, rep)
 	assert.False(t, rep.Failed())
@@ -322,6 +325,7 @@ func TestConformingServerPassesEverything(t *testing.T) {
 }
 
 func TestFaultsFailTheirChecks(t *testing.T) {
+	t.Parallel()
 	for name, c := range map[string]struct {
 		f    faults
 		want []string
@@ -348,6 +352,7 @@ func TestFaultsFailTheirChecks(t *testing.T) {
 }
 
 func TestMissingChallengeWarns(t *testing.T) {
+	t.Parallel()
 	rep := runCheck(t, newFake(t, faults{noChallenge: true}), nil)
 	assert.Equal(t, Warn, status(rep, "subscribe.verification").Status)
 	assert.Equal(t, Skip, status(rep, "delivery.control-signed").Status)
@@ -355,6 +360,7 @@ func TestMissingChallengeWarns(t *testing.T) {
 }
 
 func TestHTTPCallbacksWarn(t *testing.T) {
+	t.Parallel()
 	rep := runCheck(t, newFake(t, faults{allowHTTP: true}), nil)
 	r := status(rep, "subscribe.https-required")
 	assert.Equal(t, Warn, r.Status)
@@ -363,15 +369,17 @@ func TestHTTPCallbacksWarn(t *testing.T) {
 }
 
 func TestNoRetrySkips(t *testing.T) {
+	t.Parallel()
 	rep := runCheck(t, newFake(t, faults{noRetryOnFailure: true}), func(o *Options) { o.Wait = 600 * time.Millisecond })
 	assert.Equal(t, Skip, status(rep, "delivery.retry").Status)
 	assert.Equal(t, Skip, status(rep, "delivery.retry-resigns").Status)
 }
 
 func TestWaitModeSkipsPublishChecks(t *testing.T) {
+	t.Parallel()
 	s := newFake(t, faults{})
 	go func() {
-		time.Sleep(1500 * time.Millisecond)
+		time.Sleep(300 * time.Millisecond)
 		s.publish("order.created", map[string]any{"id": "o1"})
 	}()
 	rep := runCheck(t, s, func(o *Options) { o.Publish = nil; o.Wait = 10 * time.Second })
@@ -387,6 +395,7 @@ func TestWaitModeSkipsPublishChecks(t *testing.T) {
 }
 
 func TestExplicitArgumentsAndData(t *testing.T) {
+	t.Parallel()
 	rep := runCheck(t, newFake(t, faults{}), func(o *Options) {
 		o.Event = "order.created"
 		o.Arguments = map[string]any{"status": "pending"}
@@ -397,12 +406,14 @@ func TestExplicitArgumentsAndData(t *testing.T) {
 }
 
 func TestUnknownEventFails(t *testing.T) {
+	t.Parallel()
 	rep := runCheck(t, newFake(t, faults{}), func(o *Options) { o.Event = "nope" })
 	assert.Equal(t, Fail, status(rep, "list.event").Status)
 	assert.Equal(t, Skip, status(rep, "subscribe.result").Status)
 }
 
 func TestReportString(t *testing.T) {
+	t.Parallel()
 	rep := Report{{ID: "a", Status: Pass}, {ID: "bb", Status: Skip, Detail: publishOnlyDetail}}
 	s := rep.String()
 	assert.Contains(t, s, "1 passed, 0 failed, 0 warnings, 1 skipped")
