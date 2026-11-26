@@ -1,5 +1,5 @@
 # review-gate-feedback (policy `outpost`). Generated from hookdeck/review-gate
-# examples/review-gate-feedback.yml (v1.8.0).
+# examples/review-gate-feedback.yml (v1.8.1).
 #
 # Feedback on the review gate's decisions, and the weekly retrospective of what it approved.
 # Anyone on a PR comments `@hookdeck-review-agent ...` to say a decision should have been
@@ -85,7 +85,7 @@ jobs:
       issues: write          # the digest issue
     steps:
       # pin to the release commit, like review-gate.yml: this action receives the Claude API key
-      - uses: hookdeck/review-gate@cf5dd65787c5b7483f0bca2287fac6fedcba726b # v1.8.0
+      - uses: hookdeck/review-gate@f97a35f6ee9a7131a9def9f15e29cba1790e8021 # v1.8.1
         with:
           mode: feedback
           policy: outpost
@@ -107,7 +107,7 @@ jobs:
       checks: read           # the gate's decision records
       issues: write          # the retrospective issue
     steps:
-      - uses: hookdeck/review-gate@cf5dd65787c5b7483f0bca2287fac6fedcba726b # v1.8.0
+      - uses: hookdeck/review-gate@f97a35f6ee9a7131a9def9f15e29cba1790e8021 # v1.8.1
         with:
           mode: retro
           policy: outpost

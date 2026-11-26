@@ -2,7 +2,7 @@
 # hookdeck organization against the shared review policy in hookdeck/review-gate. When no human is
 # needed (the AI review's findings are advice), or a human approval GitHub dismissed on a push carries
 # over, it approves the commit; otherwise, and for anyone else's PR, one human must approve.
-# Generated from hookdeck/review-gate examples/review-gate.yml (v1.8.0).
+# Generated from hookdeck/review-gate examples/review-gate.yml (v1.8.1).
 #
 # pull_request_target -> posts a `review-gate` check on every commit, and keeps one live review
 #                        per PR as the review agent App (a new review only when the decision
@@ -19,7 +19,7 @@
 #                        out the base commit, reads the PR diff through the API, and fetches the
 #                        PR's commits only as git objects the reviewer can search and read.
 #                        `edited` runs only when the base branch changed: a stacked PR that
-#                        GitHub moves onto staging once the PR below it merges (its branch is
+#                        GitHub moves onto main once the PR below it merges (its branch is
 #                        deleted) is reviewed then, not an hour later by the sweep.
 # schedule            -> hourly sweep: reviews any ready PR whose head has no review-gate check
 #                        yet (PRs open before this file existed, missed or cancelled runs) and,
@@ -32,9 +32,10 @@
 #                        when GitHub did because the merge base moved, it tells the author once
 #                        to update the branch. Silent when every PR is covered.
 # workflow_dispatch   -> a PR number: dry run (job summary + artifact) unless publish=true.
-#                        No PR number: a sweep (publish=true to post).
-# Release PRs (staging -> master) are detected automatically: only commits that were not
-# approved in a staging PR are reviewed. That needs the full history, hence fetch-depth 0.
+#                        No PR number: a sweep (publish=true to post). The App key and the Claude
+#                        key live in the review-agent environment, which deploys only from the
+#                        base branches (README Setup): a dispatch from any other branch fails
+#                        before either is read.
 name: review-gate
 
 on:
@@ -88,15 +89,15 @@ jobs:
       group: review-gate-${{ (github.event.action == 'edited' && !github.event.changes.base) && github.run_id || ((github.event_name == 'pull_request_target' || inputs.publish == 'true') && 'publish' || 'dry') }}-${{ github.event.pull_request.number || inputs.pr }}
       cancel-in-progress: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           # the base commit, never the PR head: no PR code runs, and a PR cannot re-route imports
           ref: ${{ github.event.pull_request.base.sha || github.event.repository.default_branch }}
           persist-credentials: false
-          # release PRs walk the staging history since master; other PRs need one commit
-          fetch-depth: ${{ (github.event_name == 'workflow_dispatch' || github.base_ref == 'master') && '0' || '1' }}
+          # a manual run reads the full history; a PR event needs one commit
+          fetch-depth: ${{ github.event_name == 'workflow_dispatch' && '0' || '1' }}
       # pin to the release commit: this action receives the App key and the Claude API key
-      - uses: hookdeck/review-gate@cf5dd65787c5b7483f0bca2287fac6fedcba726b # v1.8.0
+      - uses: hookdeck/review-gate@f97a35f6ee9a7131a9def9f15e29cba1790e8021 # v1.8.1
         with:
           policy: outpost
           pr-number: ${{ github.event.pull_request.number || inputs.pr }}
@@ -120,12 +121,12 @@ jobs:
       group: review-gate-sweep          # scheduled and manual sweeps never overlap
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
           fetch-depth: 0
-      - uses: hookdeck/review-gate@cf5dd65787c5b7483f0bca2287fac6fedcba726b # v1.8.0
+      - uses: hookdeck/review-gate@f97a35f6ee9a7131a9def9f15e29cba1790e8021 # v1.8.1
         with:
           mode: sweep
           policy: outpost
