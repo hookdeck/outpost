@@ -249,7 +249,8 @@ MCP Events subscriptions always refuse non-public addresses that aren't in `DEST
 | `OTEL_SERVICE_NAME` | Enables OpenTelemetry when set. All three signals (traces, metrics, and logs) are exported by default; see [OpenTelemetry](/docs/outpost/features/opentelemetry) for per-signal control |
 | `OTEL_ENABLED_INSTRUMENTATIONS` | Third-party instrumentation to export, comma-separated: `redis` (Redis command spans), `mq` (internal message queue client spans and metrics). Default: none |
 | `LOG_LEVEL` | Log verbosity: `trace`, `debug`, `info`, `warn`, `error` (default: `info`) |
-| `DISABLE_TELEMETRY` | Set to `true` to disable anonymous usage telemetry to Hookdeck |
+| `DISABLE_TELEMETRY` | Set to `true` to turn off anonymous usage statistics (sent to Hookdeck) and portal error reporting. YAML: `telemetry.disabled` |
+| `TELEMETRY_SENTRY_DSN` | Sentry DSN the portal sends errors to (default: the Outpost maintainers' project). Set to an empty string (`TELEMETRY_SENTRY_DSN=""`, or `sentry_dsn: ""` under `telemetry` in YAML) to turn off portal error reporting |
 
 ## YAML Configuration
 

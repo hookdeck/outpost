@@ -3,6 +3,8 @@ package config_test
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -1241,4 +1243,110 @@ func TestMaxEventSizeBytesValidation(t *testing.T) {
 
 	_, err := config.ParseWithOS(config.Flags{}, mockOS)
 	assert.ErrorContains(t, err, "max_event_size_bytes must not be negative")
+}
+
+func TestTelemetryDisabled(t *testing.T) {
+	tests := []struct {
+		name         string
+		files        map[string][]byte
+		env          map[string]string
+		wantDisabled bool
+	}{
+		{name: "nothing set"},
+		{
+			name:  "unknown top-level key is ignored",
+			files: map[string][]byte{"config.yaml": []byte("disable_telemetry: true\n")},
+			env:   map[string]string{"CONFIG": "config.yaml"},
+		},
+		{
+			name:         "env",
+			env:          map[string]string{"DISABLE_TELEMETRY": "true"},
+			wantDisabled: true,
+		},
+		{
+			name:         "yaml telemetry.disabled",
+			files:        map[string][]byte{"config.yaml": []byte("telemetry:\n  disabled: true\n")},
+			env:          map[string]string{"CONFIG": "config.yaml"},
+			wantDisabled: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := &mockOS{files: map[string][]byte{}, envVars: map[string]string{}}
+			for k, v := range tt.files {
+				m.files[k] = v
+			}
+			for k, v := range tt.env {
+				m.envVars[k] = v
+			}
+			cfg, err := config.ParseWithoutValidation(config.Flags{}, m)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantDisabled, cfg.Telemetry.Disabled)
+			assert.Equal(t, strconv.FormatBool(tt.wantDisabled), cfg.GetPortalConfig().Configs["DISABLE_TELEMETRY"])
+		})
+	}
+}
+
+func TestTelemetryDisabledEnvConfigFile(t *testing.T) {
+	const content = "DISABLE_TELEMETRY=true\n"
+	path := filepath.Join(t.TempDir(), "config.env")
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+	m := &mockOS{
+		files:   map[string][]byte{path: []byte(content)},
+		envVars: map[string]string{"CONFIG": path},
+	}
+	cfg, err := config.ParseWithoutValidation(config.Flags{}, m)
+	require.NoError(t, err)
+	assert.True(t, cfg.Telemetry.Disabled)
+}
+
+func TestPortalSentryDSN(t *testing.T) {
+	const defaultDSN = "https://e53653f8b83691c0b4d02c92fc7505b6@o376420.ingest.us.sentry.io/4508422371409920"
+	tests := []struct {
+		name  string
+		files map[string][]byte
+		env   map[string]string
+		want  string
+	}{
+		{name: "default", want: defaultDSN},
+		{name: "custom", env: map[string]string{"TELEMETRY_SENTRY_DSN": "https://k@example.test/1"}, want: "https://k@example.test/1"},
+		{name: "empty turns it off", env: map[string]string{"TELEMETRY_SENTRY_DSN": ""}, want: ""},
+		{
+			name:  "yaml empty turns it off",
+			files: map[string][]byte{"config.yaml": []byte("telemetry:\n  sentry_dsn: \"\"\n")},
+			env:   map[string]string{"CONFIG": "config.yaml"},
+			want:  "",
+		},
+		{
+			name:  "env overrides yaml",
+			files: map[string][]byte{"config.yaml": []byte("telemetry:\n  sentry_dsn: https://y@example.test/2\n")},
+			env:   map[string]string{"CONFIG": "config.yaml", "TELEMETRY_SENTRY_DSN": "https://k@example.test/1"},
+			want:  "https://k@example.test/1",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := &mockOS{files: map[string][]byte{}, envVars: map[string]string{}}
+			for k, v := range tt.files {
+				m.files[k] = v
+			}
+			for k, v := range tt.env {
+				m.envVars[k] = v
+			}
+			cfg, err := config.ParseWithoutValidation(config.Flags{}, m)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, cfg.Telemetry.SentryDSN)
+			assert.Equal(t, tt.want, cfg.GetPortalConfig().Configs["SENTRY_DSN"])
+		})
+	}
+}
+
+func TestPortalSentryDSNEnvConfigFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.env")
+	require.NoError(t, os.WriteFile(path, []byte("TELEMETRY_SENTRY_DSN=\n"), 0o600))
+	m := &mockOS{files: map[string][]byte{path: []byte("TELEMETRY_SENTRY_DSN=\n")}, envVars: map[string]string{"CONFIG": path}}
+	cfg, err := config.ParseWithoutValidation(config.Flags{}, m)
+	require.NoError(t, err)
+	assert.Empty(t, cfg.Telemetry.SentryDSN)
+	assert.Empty(t, cfg.GetPortalConfig().Configs["SENTRY_DSN"])
 }
