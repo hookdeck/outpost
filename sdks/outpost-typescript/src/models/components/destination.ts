@@ -3,7 +3,7 @@
  */
 
 import * as z from "zod/v3";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 import {
@@ -91,19 +91,21 @@ export const Destination$inboundSchema: z.ZodType<
   Destination,
   z.ZodTypeDef,
   unknown
-> = z.union([
-  DestinationWebhook$inboundSchema,
-  DestinationAWSSQS$inboundSchema,
-  DestinationRabbitMQ$inboundSchema,
-  DestinationHookdeck$inboundSchema,
-  DestinationAWSKinesis$inboundSchema,
-  DestinationAzureServiceBus$inboundSchema,
-  DestinationAwss3$inboundSchema,
-  DestinationGCPPubSub$inboundSchema,
-  DestinationKafka$inboundSchema,
-  DestinationCloudflareQueues$inboundSchema,
-  DestinationAWSEventBridge$inboundSchema,
-]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([
+    DestinationWebhook$inboundSchema,
+    DestinationAWSSQS$inboundSchema,
+    DestinationRabbitMQ$inboundSchema,
+    DestinationHookdeck$inboundSchema,
+    DestinationAWSKinesis$inboundSchema,
+    DestinationAzureServiceBus$inboundSchema,
+    DestinationAwss3$inboundSchema,
+    DestinationGCPPubSub$inboundSchema,
+    DestinationKafka$inboundSchema,
+    DestinationCloudflareQueues$inboundSchema,
+    DestinationAWSEventBridge$inboundSchema,
+  ])
+);
 /** @internal */
 export type Destination$Outbound =
   | DestinationWebhook$Outbound
@@ -123,19 +125,21 @@ export const Destination$outboundSchema: z.ZodType<
   Destination$Outbound,
   z.ZodTypeDef,
   Destination
-> = z.union([
-  DestinationWebhook$outboundSchema,
-  DestinationAWSSQS$outboundSchema,
-  DestinationRabbitMQ$outboundSchema,
-  DestinationHookdeck$outboundSchema,
-  DestinationAWSKinesis$outboundSchema,
-  DestinationAzureServiceBus$outboundSchema,
-  DestinationAwss3$outboundSchema,
-  DestinationGCPPubSub$outboundSchema,
-  DestinationKafka$outboundSchema,
-  DestinationCloudflareQueues$outboundSchema,
-  DestinationAWSEventBridge$outboundSchema,
-]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([
+    DestinationWebhook$outboundSchema,
+    DestinationAWSSQS$outboundSchema,
+    DestinationRabbitMQ$outboundSchema,
+    DestinationHookdeck$outboundSchema,
+    DestinationAWSKinesis$outboundSchema,
+    DestinationAzureServiceBus$outboundSchema,
+    DestinationAwss3$outboundSchema,
+    DestinationGCPPubSub$outboundSchema,
+    DestinationKafka$outboundSchema,
+    DestinationCloudflareQueues$outboundSchema,
+    DestinationAWSEventBridge$outboundSchema,
+  ])
+);
 
 export function destinationToJSON(destination: Destination): string {
   return JSON.stringify(Destination$outboundSchema.parse(destination));

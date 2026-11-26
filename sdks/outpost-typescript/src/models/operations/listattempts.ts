@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { ClosedEnum } from "../../types/enums.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import * as components from "../components/index.js";
@@ -160,7 +160,9 @@ export const ListAttemptsTenantId$inboundSchema: z.ZodType<
   ListAttemptsTenantId,
   z.ZodTypeDef,
   unknown
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 /** @internal */
 export type ListAttemptsTenantId$Outbound = string | Array<string>;
 
@@ -169,7 +171,9 @@ export const ListAttemptsTenantId$outboundSchema: z.ZodType<
   ListAttemptsTenantId$Outbound,
   z.ZodTypeDef,
   ListAttemptsTenantId
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 
 export function listAttemptsTenantIdToJSON(
   listAttemptsTenantId: ListAttemptsTenantId,
@@ -193,7 +197,9 @@ export const ListAttemptsEventId$inboundSchema: z.ZodType<
   ListAttemptsEventId,
   z.ZodTypeDef,
   unknown
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 /** @internal */
 export type ListAttemptsEventId$Outbound = string | Array<string>;
 
@@ -202,7 +208,9 @@ export const ListAttemptsEventId$outboundSchema: z.ZodType<
   ListAttemptsEventId$Outbound,
   z.ZodTypeDef,
   ListAttemptsEventId
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 
 export function listAttemptsEventIdToJSON(
   listAttemptsEventId: ListAttemptsEventId,
@@ -226,7 +234,9 @@ export const ListAttemptsDestinationId$inboundSchema: z.ZodType<
   ListAttemptsDestinationId,
   z.ZodTypeDef,
   unknown
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 /** @internal */
 export type ListAttemptsDestinationId$Outbound = string | Array<string>;
 
@@ -235,7 +245,9 @@ export const ListAttemptsDestinationId$outboundSchema: z.ZodType<
   ListAttemptsDestinationId$Outbound,
   z.ZodTypeDef,
   ListAttemptsDestinationId
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 
 export function listAttemptsDestinationIdToJSON(
   listAttemptsDestinationId: ListAttemptsDestinationId,
@@ -259,10 +271,12 @@ export const DestinationType$inboundSchema: z.ZodType<
   DestinationType,
   z.ZodTypeDef,
   unknown
-> = z.union([
-  components.DestinationType$inboundSchema,
-  z.array(components.DestinationType$inboundSchema),
-]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([
+    components.DestinationType$inboundSchema,
+    z.array(components.DestinationType$inboundSchema),
+  ])
+);
 /** @internal */
 export type DestinationType$Outbound = string | Array<string>;
 
@@ -271,10 +285,12 @@ export const DestinationType$outboundSchema: z.ZodType<
   DestinationType$Outbound,
   z.ZodTypeDef,
   DestinationType
-> = z.union([
-  components.DestinationType$outboundSchema,
-  z.array(components.DestinationType$outboundSchema),
-]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([
+    components.DestinationType$outboundSchema,
+    z.array(components.DestinationType$outboundSchema),
+  ])
+);
 
 export function destinationTypeToJSON(
   destinationType: DestinationType,
@@ -294,7 +310,7 @@ export function destinationTypeFromJSON(
 /** @internal */
 export const ListAttemptsStatus$inboundSchema: z.ZodNativeEnum<
   typeof ListAttemptsStatus
-> = z.nativeEnum(ListAttemptsStatus);
+> = /* @__PURE__ */ lazySchema$(() => z.nativeEnum(ListAttemptsStatus));
 /** @internal */
 export const ListAttemptsStatus$outboundSchema: z.ZodNativeEnum<
   typeof ListAttemptsStatus
@@ -305,7 +321,9 @@ export const ListAttemptsTopic$inboundSchema: z.ZodType<
   ListAttemptsTopic,
   z.ZodTypeDef,
   unknown
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 /** @internal */
 export type ListAttemptsTopic$Outbound = string | Array<string>;
 
@@ -314,7 +332,9 @@ export const ListAttemptsTopic$outboundSchema: z.ZodType<
   ListAttemptsTopic$Outbound,
   z.ZodTypeDef,
   ListAttemptsTopic
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 
 export function listAttemptsTopicToJSON(
   listAttemptsTopic: ListAttemptsTopic,
@@ -338,7 +358,9 @@ export const ListAttemptsInclude$inboundSchema: z.ZodType<
   ListAttemptsInclude,
   z.ZodTypeDef,
   unknown
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 /** @internal */
 export type ListAttemptsInclude$Outbound = string | Array<string>;
 
@@ -347,7 +369,9 @@ export const ListAttemptsInclude$outboundSchema: z.ZodType<
   ListAttemptsInclude$Outbound,
   z.ZodTypeDef,
   ListAttemptsInclude
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 
 export function listAttemptsIncludeToJSON(
   listAttemptsInclude: ListAttemptsInclude,
@@ -369,7 +393,7 @@ export function listAttemptsIncludeFromJSON(
 /** @internal */
 export const ListAttemptsOrderBy$inboundSchema: z.ZodNativeEnum<
   typeof ListAttemptsOrderBy
-> = z.nativeEnum(ListAttemptsOrderBy);
+> = /* @__PURE__ */ lazySchema$(() => z.nativeEnum(ListAttemptsOrderBy));
 /** @internal */
 export const ListAttemptsOrderBy$outboundSchema: z.ZodNativeEnum<
   typeof ListAttemptsOrderBy
@@ -378,7 +402,7 @@ export const ListAttemptsOrderBy$outboundSchema: z.ZodNativeEnum<
 /** @internal */
 export const ListAttemptsDir$inboundSchema: z.ZodNativeEnum<
   typeof ListAttemptsDir
-> = z.nativeEnum(ListAttemptsDir);
+> = /* @__PURE__ */ lazySchema$(() => z.nativeEnum(ListAttemptsDir));
 /** @internal */
 export const ListAttemptsDir$outboundSchema: z.ZodNativeEnum<
   typeof ListAttemptsDir
@@ -389,32 +413,34 @@ export const ListAttemptsRequest$inboundSchema: z.ZodType<
   ListAttemptsRequest,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  tenant_id: z.union([z.string(), z.array(z.string())]).optional(),
-  event_id: z.union([z.string(), z.array(z.string())]).optional(),
-  destination_id: z.union([z.string(), z.array(z.string())]).optional(),
-  destination_type: z.union([
-    components.DestinationType$inboundSchema,
-    z.array(components.DestinationType$inboundSchema),
-  ]).optional(),
-  status: ListAttemptsStatus$inboundSchema.optional(),
-  topic: z.union([z.string(), z.array(z.string())]).optional(),
-  time: components.Operator$inboundSchema.optional(),
-  limit: z.number().int().default(100),
-  next: z.string().optional(),
-  prev: z.string().optional(),
-  include: z.union([z.string(), z.array(z.string())]).optional(),
-  order_by: ListAttemptsOrderBy$inboundSchema.default("time"),
-  dir: ListAttemptsDir$inboundSchema.default("desc"),
-}).transform((v) => {
-  return remap$(v, {
-    "tenant_id": "tenantId",
-    "event_id": "eventId",
-    "destination_id": "destinationId",
-    "destination_type": "destinationType",
-    "order_by": "orderBy",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    tenant_id: z.union([z.string(), z.array(z.string())]).optional(),
+    event_id: z.union([z.string(), z.array(z.string())]).optional(),
+    destination_id: z.union([z.string(), z.array(z.string())]).optional(),
+    destination_type: z.union([
+      components.DestinationType$inboundSchema,
+      z.array(components.DestinationType$inboundSchema),
+    ]).optional(),
+    status: ListAttemptsStatus$inboundSchema.optional(),
+    topic: z.union([z.string(), z.array(z.string())]).optional(),
+    time: components.Operator$inboundSchema.optional(),
+    limit: z.number().int().default(100),
+    next: z.string().optional(),
+    prev: z.string().optional(),
+    include: z.union([z.string(), z.array(z.string())]).optional(),
+    order_by: ListAttemptsOrderBy$inboundSchema.default("time"),
+    dir: ListAttemptsDir$inboundSchema.default("desc"),
+  }).transform((v) => {
+    return remap$(v, {
+      "tenant_id": "tenantId",
+      "event_id": "eventId",
+      "destination_id": "destinationId",
+      "destination_type": "destinationType",
+      "order_by": "orderBy",
+    });
+  })
+);
 /** @internal */
 export type ListAttemptsRequest$Outbound = {
   tenant_id?: string | Array<string> | undefined;
@@ -437,32 +463,34 @@ export const ListAttemptsRequest$outboundSchema: z.ZodType<
   ListAttemptsRequest$Outbound,
   z.ZodTypeDef,
   ListAttemptsRequest
-> = z.object({
-  tenantId: z.union([z.string(), z.array(z.string())]).optional(),
-  eventId: z.union([z.string(), z.array(z.string())]).optional(),
-  destinationId: z.union([z.string(), z.array(z.string())]).optional(),
-  destinationType: z.union([
-    components.DestinationType$outboundSchema,
-    z.array(components.DestinationType$outboundSchema),
-  ]).optional(),
-  status: ListAttemptsStatus$outboundSchema.optional(),
-  topic: z.union([z.string(), z.array(z.string())]).optional(),
-  time: components.Operator$outboundSchema.optional(),
-  limit: z.number().int().default(100),
-  next: z.string().optional(),
-  prev: z.string().optional(),
-  include: z.union([z.string(), z.array(z.string())]).optional(),
-  orderBy: ListAttemptsOrderBy$outboundSchema.default("time"),
-  dir: ListAttemptsDir$outboundSchema.default("desc"),
-}).transform((v) => {
-  return remap$(v, {
-    tenantId: "tenant_id",
-    eventId: "event_id",
-    destinationId: "destination_id",
-    destinationType: "destination_type",
-    orderBy: "order_by",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    tenantId: z.union([z.string(), z.array(z.string())]).optional(),
+    eventId: z.union([z.string(), z.array(z.string())]).optional(),
+    destinationId: z.union([z.string(), z.array(z.string())]).optional(),
+    destinationType: z.union([
+      components.DestinationType$outboundSchema,
+      z.array(components.DestinationType$outboundSchema),
+    ]).optional(),
+    status: ListAttemptsStatus$outboundSchema.optional(),
+    topic: z.union([z.string(), z.array(z.string())]).optional(),
+    time: components.Operator$outboundSchema.optional(),
+    limit: z.number().int().default(100),
+    next: z.string().optional(),
+    prev: z.string().optional(),
+    include: z.union([z.string(), z.array(z.string())]).optional(),
+    orderBy: ListAttemptsOrderBy$outboundSchema.default("time"),
+    dir: ListAttemptsDir$outboundSchema.default("desc"),
+  }).transform((v) => {
+    return remap$(v, {
+      tenantId: "tenant_id",
+      eventId: "event_id",
+      destinationId: "destination_id",
+      destinationType: "destination_type",
+      orderBy: "order_by",
+    });
+  })
+);
 
 export function listAttemptsRequestToJSON(
   listAttemptsRequest: ListAttemptsRequest,

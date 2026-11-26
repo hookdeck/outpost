@@ -3,7 +3,7 @@
  */
 
 import * as z from "zod/v3";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { OutpostError } from "./outposterror.js";
 import { SDKValidationError } from "./sdkvalidationerror.js";
@@ -62,8 +62,10 @@ export class APIErrorResponse extends OutpostError {
 }
 
 /** @internal */
-export const Data$inboundSchema: z.ZodType<Data, z.ZodTypeDef, unknown> = z
-  .union([z.array(z.string()), z.record(z.any())]);
+export const Data$inboundSchema: z.ZodType<Data, z.ZodTypeDef, unknown> =
+  /* @__PURE__ */ lazySchema$(() =>
+    z.union([z.array(z.string()), z.record(z.any())])
+  );
 /** @internal */
 export type Data$Outbound = Array<string> | { [k: string]: any };
 
@@ -72,7 +74,9 @@ export const Data$outboundSchema: z.ZodType<
   Data$Outbound,
   z.ZodTypeDef,
   unknown
-> = z.union([z.array(z.string()), z.record(z.any())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.array(z.string()), z.record(z.any())])
+);
 
 export function dataToJSON(data: Data): string {
   return JSON.stringify(Data$outboundSchema.parse(data));
@@ -92,21 +96,23 @@ export const APIErrorResponse$inboundSchema: z.ZodType<
   APIErrorResponse,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  status: z.number().int().optional(),
-  message: z.string().optional(),
-  data: z.union([z.array(z.string()), z.record(z.any())]).optional(),
-  request$: z.instanceof(Request),
-  response$: z.instanceof(Response),
-  body$: z.string(),
-})
-  .transform((v) => {
-    return new APIErrorResponse(v, {
-      request: v.request$,
-      response: v.response$,
-      body: v.body$,
-    });
-  });
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    status: z.number().int().optional(),
+    message: z.string().optional(),
+    data: z.union([z.array(z.string()), z.record(z.any())]).optional(),
+    request$: z.instanceof(Request),
+    response$: z.instanceof(Response),
+    body$: z.string(),
+  })
+    .transform((v) => {
+      return new APIErrorResponse(v, {
+        request: v.request$,
+        response: v.response$,
+        body: v.body$,
+      });
+    })
+);
 
 /** @internal */
 export type APIErrorResponse$Outbound = {
@@ -120,10 +126,12 @@ export const APIErrorResponse$outboundSchema: z.ZodType<
   APIErrorResponse$Outbound,
   z.ZodTypeDef,
   APIErrorResponse
-> = z.instanceof(APIErrorResponse)
-  .transform(v => v.data$)
-  .pipe(z.object({
-    status: z.number().int().optional(),
-    message: z.string().optional(),
-    data: z.union([z.array(z.string()), z.record(z.any())]).optional(),
-  }));
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.instanceof(APIErrorResponse)
+    .transform(v => v.data$)
+    .pipe(z.object({
+      status: z.number().int().optional(),
+      message: z.string().optional(),
+      data: z.union([z.array(z.string()), z.record(z.any())]).optional(),
+    }))
+);

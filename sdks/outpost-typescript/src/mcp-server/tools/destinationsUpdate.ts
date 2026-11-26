@@ -17,7 +17,7 @@ export const tool$destinationsUpdate: ToolDefinition<typeof args> = {
   name: "destinations-update",
   description: `Update Destination
 
-Updates the configuration of an existing destination. The request body structure depends on the destination's \`type\`. Type itself cannot be updated. May return an OAuth redirect URL for certain types.`,
+Updates the configuration of an existing destination. The request body structure depends on the destination's \`type\`. Type itself cannot be updated. May return an OAuth redirect URL for certain types. Keys in \`config\` and \`credentials\` that the destination type does not define are ignored, and any such keys stored earlier are removed.`,
   args,
   tool: async (client, args, ctx) => {
     const [result, apiCall] = await destinationsUpdate(

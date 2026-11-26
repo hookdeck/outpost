@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
@@ -20,13 +20,15 @@ export const AzureServiceBusCredentials$inboundSchema: z.ZodType<
   AzureServiceBusCredentials,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  connection_string: z.string(),
-}).transform((v) => {
-  return remap$(v, {
-    "connection_string": "connectionString",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    connection_string: z.string(),
+  }).transform((v) => {
+    return remap$(v, {
+      "connection_string": "connectionString",
+    });
+  })
+);
 /** @internal */
 export type AzureServiceBusCredentials$Outbound = {
   connection_string: string;
@@ -37,13 +39,15 @@ export const AzureServiceBusCredentials$outboundSchema: z.ZodType<
   AzureServiceBusCredentials$Outbound,
   z.ZodTypeDef,
   AzureServiceBusCredentials
-> = z.object({
-  connectionString: z.string(),
-}).transform((v) => {
-  return remap$(v, {
-    connectionString: "connection_string",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    connectionString: z.string(),
+  }).transform((v) => {
+    return remap$(v, {
+      connectionString: "connection_string",
+    });
+  })
+);
 
 export function azureServiceBusCredentialsToJSON(
   azureServiceBusCredentials: AzureServiceBusCredentials,

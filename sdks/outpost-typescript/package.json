@@ -1,6 +1,6 @@
 {
   "name": "@hookdeck/outpost-sdk",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "author": "Speakeasy",
   "type": "module",
   "engines": {
@@ -16,6 +16,7 @@
     "exports": {
       ".": "./src/index.ts",
       "./package.json": "./package.json",
+      "./node": "./src/node.ts",
       "./types": "./src/types/index.ts",
       "./models/errors": "./src/models/errors/index.ts",
       "./models/components": "./src/models/components/index.ts",
@@ -70,6 +71,17 @@
       }
     },
     "./package.json": "./package.json",
+    "./node": {
+      "import": {
+        "@hookdeck/outpost-sdk/source": "./src/node.ts",
+        "types": "./dist/esm/node.d.ts",
+        "default": "./dist/esm/node.js"
+      },
+      "require": {
+        "types": "./dist/commonjs/node.d.ts",
+        "default": "./dist/commonjs/node.js"
+      }
+    },
     "./types": {
       "import": {
         "@hookdeck/outpost-sdk/source": "./src/types/index.ts",

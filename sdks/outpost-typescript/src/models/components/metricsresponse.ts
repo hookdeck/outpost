@@ -3,7 +3,7 @@
  */
 
 import * as z from "zod/v3";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 import {
@@ -32,10 +32,12 @@ export const MetricsResponse$inboundSchema: z.ZodType<
   MetricsResponse,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  data: z.array(MetricsDataPoint$inboundSchema).optional(),
-  metadata: MetricsMetadata$inboundSchema.optional(),
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    data: z.array(MetricsDataPoint$inboundSchema).optional(),
+    metadata: MetricsMetadata$inboundSchema.optional(),
+  })
+);
 /** @internal */
 export type MetricsResponse$Outbound = {
   data?: Array<MetricsDataPoint$Outbound> | undefined;
@@ -47,10 +49,12 @@ export const MetricsResponse$outboundSchema: z.ZodType<
   MetricsResponse$Outbound,
   z.ZodTypeDef,
   MetricsResponse
-> = z.object({
-  data: z.array(MetricsDataPoint$outboundSchema).optional(),
-  metadata: MetricsMetadata$outboundSchema.optional(),
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    data: z.array(MetricsDataPoint$outboundSchema).optional(),
+    metadata: MetricsMetadata$outboundSchema.optional(),
+  })
+);
 
 export function metricsResponseToJSON(
   metricsResponse: MetricsResponse,

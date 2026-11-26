@@ -3,7 +3,7 @@
  */
 
 import * as z from "zod/v3";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
@@ -27,11 +27,13 @@ export const Awss3Credentials$inboundSchema: z.ZodType<
   Awss3Credentials,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  key: z.string(),
-  secret: z.string(),
-  session: z.string().optional(),
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    key: z.string(),
+    secret: z.string(),
+    session: z.string().optional(),
+  })
+);
 /** @internal */
 export type Awss3Credentials$Outbound = {
   key: string;
@@ -44,11 +46,13 @@ export const Awss3Credentials$outboundSchema: z.ZodType<
   Awss3Credentials$Outbound,
   z.ZodTypeDef,
   Awss3Credentials
-> = z.object({
-  key: z.string(),
-  secret: z.string(),
-  session: z.string().optional(),
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    key: z.string(),
+    secret: z.string(),
+    session: z.string().optional(),
+  })
+);
 
 export function awss3CredentialsToJSON(
   awss3Credentials: Awss3Credentials,

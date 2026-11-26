@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
@@ -24,15 +24,17 @@ export const OperatorEventRetryRequest$inboundSchema: z.ZodType<
   OperatorEventRetryRequest,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  event_id: z.string(),
-  destination_id: z.string(),
-}).transform((v) => {
-  return remap$(v, {
-    "event_id": "eventId",
-    "destination_id": "destinationId",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    event_id: z.string(),
+    destination_id: z.string(),
+  }).transform((v) => {
+    return remap$(v, {
+      "event_id": "eventId",
+      "destination_id": "destinationId",
+    });
+  })
+);
 /** @internal */
 export type OperatorEventRetryRequest$Outbound = {
   event_id: string;
@@ -44,15 +46,17 @@ export const OperatorEventRetryRequest$outboundSchema: z.ZodType<
   OperatorEventRetryRequest$Outbound,
   z.ZodTypeDef,
   OperatorEventRetryRequest
-> = z.object({
-  eventId: z.string(),
-  destinationId: z.string(),
-}).transform((v) => {
-  return remap$(v, {
-    eventId: "event_id",
-    destinationId: "destination_id",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    eventId: z.string(),
+    destinationId: z.string(),
+  }).transform((v) => {
+    return remap$(v, {
+      eventId: "event_id",
+      destinationId: "destination_id",
+    });
+  })
+);
 
 export function operatorEventRetryRequestToJSON(
   operatorEventRetryRequest: OperatorEventRetryRequest,

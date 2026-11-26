@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import * as components from "../components/index.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
@@ -22,14 +22,16 @@ export const CreateTenantDestinationRequest$inboundSchema: z.ZodType<
   CreateTenantDestinationRequest,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  tenant_id: z.string(),
-  body: components.DestinationCreate$inboundSchema,
-}).transform((v) => {
-  return remap$(v, {
-    "tenant_id": "tenantId",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    tenant_id: z.string(),
+    body: components.DestinationCreate$inboundSchema,
+  }).transform((v) => {
+    return remap$(v, {
+      "tenant_id": "tenantId",
+    });
+  })
+);
 /** @internal */
 export type CreateTenantDestinationRequest$Outbound = {
   tenant_id: string;
@@ -41,14 +43,16 @@ export const CreateTenantDestinationRequest$outboundSchema: z.ZodType<
   CreateTenantDestinationRequest$Outbound,
   z.ZodTypeDef,
   CreateTenantDestinationRequest
-> = z.object({
-  tenantId: z.string(),
-  body: components.DestinationCreate$outboundSchema,
-}).transform((v) => {
-  return remap$(v, {
-    tenantId: "tenant_id",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    tenantId: z.string(),
+    body: components.DestinationCreate$outboundSchema,
+  }).transform((v) => {
+    return remap$(v, {
+      tenantId: "tenant_id",
+    });
+  })
+);
 
 export function createTenantDestinationRequestToJSON(
   createTenantDestinationRequest: CreateTenantDestinationRequest,

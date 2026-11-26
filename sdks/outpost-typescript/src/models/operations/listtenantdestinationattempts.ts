@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { ClosedEnum } from "../../types/enums.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import * as components from "../components/index.js";
@@ -134,7 +134,9 @@ export const ListTenantDestinationAttemptsEventId$inboundSchema: z.ZodType<
   ListTenantDestinationAttemptsEventId,
   z.ZodTypeDef,
   unknown
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 /** @internal */
 export type ListTenantDestinationAttemptsEventId$Outbound =
   | string
@@ -145,7 +147,9 @@ export const ListTenantDestinationAttemptsEventId$outboundSchema: z.ZodType<
   ListTenantDestinationAttemptsEventId$Outbound,
   z.ZodTypeDef,
   ListTenantDestinationAttemptsEventId
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 
 export function listTenantDestinationAttemptsEventIdToJSON(
   listTenantDestinationAttemptsEventId: ListTenantDestinationAttemptsEventId,
@@ -170,7 +174,9 @@ export function listTenantDestinationAttemptsEventIdFromJSON(
 /** @internal */
 export const ListTenantDestinationAttemptsStatus$inboundSchema: z.ZodNativeEnum<
   typeof ListTenantDestinationAttemptsStatus
-> = z.nativeEnum(ListTenantDestinationAttemptsStatus);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.nativeEnum(ListTenantDestinationAttemptsStatus)
+);
 /** @internal */
 export const ListTenantDestinationAttemptsStatus$outboundSchema:
   z.ZodNativeEnum<typeof ListTenantDestinationAttemptsStatus> =
@@ -181,7 +187,9 @@ export const ListTenantDestinationAttemptsTopic$inboundSchema: z.ZodType<
   ListTenantDestinationAttemptsTopic,
   z.ZodTypeDef,
   unknown
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 /** @internal */
 export type ListTenantDestinationAttemptsTopic$Outbound =
   | string
@@ -192,7 +200,9 @@ export const ListTenantDestinationAttemptsTopic$outboundSchema: z.ZodType<
   ListTenantDestinationAttemptsTopic$Outbound,
   z.ZodTypeDef,
   ListTenantDestinationAttemptsTopic
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 
 export function listTenantDestinationAttemptsTopicToJSON(
   listTenantDestinationAttemptsTopic: ListTenantDestinationAttemptsTopic,
@@ -219,7 +229,9 @@ export const ListTenantDestinationAttemptsInclude$inboundSchema: z.ZodType<
   ListTenantDestinationAttemptsInclude,
   z.ZodTypeDef,
   unknown
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 /** @internal */
 export type ListTenantDestinationAttemptsInclude$Outbound =
   | string
@@ -230,7 +242,9 @@ export const ListTenantDestinationAttemptsInclude$outboundSchema: z.ZodType<
   ListTenantDestinationAttemptsInclude$Outbound,
   z.ZodTypeDef,
   ListTenantDestinationAttemptsInclude
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 
 export function listTenantDestinationAttemptsIncludeToJSON(
   listTenantDestinationAttemptsInclude: ListTenantDestinationAttemptsInclude,
@@ -254,9 +268,10 @@ export function listTenantDestinationAttemptsIncludeFromJSON(
 
 /** @internal */
 export const ListTenantDestinationAttemptsOrderBy$inboundSchema:
-  z.ZodNativeEnum<typeof ListTenantDestinationAttemptsOrderBy> = z.nativeEnum(
-    ListTenantDestinationAttemptsOrderBy,
-  );
+  z.ZodNativeEnum<typeof ListTenantDestinationAttemptsOrderBy> =
+    /* @__PURE__ */ lazySchema$(() =>
+      z.nativeEnum(ListTenantDestinationAttemptsOrderBy)
+    );
 /** @internal */
 export const ListTenantDestinationAttemptsOrderBy$outboundSchema:
   z.ZodNativeEnum<typeof ListTenantDestinationAttemptsOrderBy> =
@@ -265,7 +280,9 @@ export const ListTenantDestinationAttemptsOrderBy$outboundSchema:
 /** @internal */
 export const ListTenantDestinationAttemptsDir$inboundSchema: z.ZodNativeEnum<
   typeof ListTenantDestinationAttemptsDir
-> = z.nativeEnum(ListTenantDestinationAttemptsDir);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.nativeEnum(ListTenantDestinationAttemptsDir)
+);
 /** @internal */
 export const ListTenantDestinationAttemptsDir$outboundSchema: z.ZodNativeEnum<
   typeof ListTenantDestinationAttemptsDir
@@ -276,27 +293,31 @@ export const ListTenantDestinationAttemptsRequest$inboundSchema: z.ZodType<
   ListTenantDestinationAttemptsRequest,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  tenant_id: z.string(),
-  destination_id: z.string(),
-  event_id: z.union([z.string(), z.array(z.string())]).optional(),
-  status: ListTenantDestinationAttemptsStatus$inboundSchema.optional(),
-  topic: z.union([z.string(), z.array(z.string())]).optional(),
-  time: components.Operator$inboundSchema.optional(),
-  limit: z.number().int().default(100),
-  next: z.string().optional(),
-  prev: z.string().optional(),
-  include: z.union([z.string(), z.array(z.string())]).optional(),
-  order_by: ListTenantDestinationAttemptsOrderBy$inboundSchema.default("time"),
-  dir: ListTenantDestinationAttemptsDir$inboundSchema.default("desc"),
-}).transform((v) => {
-  return remap$(v, {
-    "tenant_id": "tenantId",
-    "destination_id": "destinationId",
-    "event_id": "eventId",
-    "order_by": "orderBy",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    tenant_id: z.string(),
+    destination_id: z.string(),
+    event_id: z.union([z.string(), z.array(z.string())]).optional(),
+    status: ListTenantDestinationAttemptsStatus$inboundSchema.optional(),
+    topic: z.union([z.string(), z.array(z.string())]).optional(),
+    time: components.Operator$inboundSchema.optional(),
+    limit: z.number().int().default(100),
+    next: z.string().optional(),
+    prev: z.string().optional(),
+    include: z.union([z.string(), z.array(z.string())]).optional(),
+    order_by: ListTenantDestinationAttemptsOrderBy$inboundSchema.default(
+      "time",
+    ),
+    dir: ListTenantDestinationAttemptsDir$inboundSchema.default("desc"),
+  }).transform((v) => {
+    return remap$(v, {
+      "tenant_id": "tenantId",
+      "destination_id": "destinationId",
+      "event_id": "eventId",
+      "order_by": "orderBy",
+    });
+  })
+);
 /** @internal */
 export type ListTenantDestinationAttemptsRequest$Outbound = {
   tenant_id: string;
@@ -318,27 +339,31 @@ export const ListTenantDestinationAttemptsRequest$outboundSchema: z.ZodType<
   ListTenantDestinationAttemptsRequest$Outbound,
   z.ZodTypeDef,
   ListTenantDestinationAttemptsRequest
-> = z.object({
-  tenantId: z.string(),
-  destinationId: z.string(),
-  eventId: z.union([z.string(), z.array(z.string())]).optional(),
-  status: ListTenantDestinationAttemptsStatus$outboundSchema.optional(),
-  topic: z.union([z.string(), z.array(z.string())]).optional(),
-  time: components.Operator$outboundSchema.optional(),
-  limit: z.number().int().default(100),
-  next: z.string().optional(),
-  prev: z.string().optional(),
-  include: z.union([z.string(), z.array(z.string())]).optional(),
-  orderBy: ListTenantDestinationAttemptsOrderBy$outboundSchema.default("time"),
-  dir: ListTenantDestinationAttemptsDir$outboundSchema.default("desc"),
-}).transform((v) => {
-  return remap$(v, {
-    tenantId: "tenant_id",
-    destinationId: "destination_id",
-    eventId: "event_id",
-    orderBy: "order_by",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    tenantId: z.string(),
+    destinationId: z.string(),
+    eventId: z.union([z.string(), z.array(z.string())]).optional(),
+    status: ListTenantDestinationAttemptsStatus$outboundSchema.optional(),
+    topic: z.union([z.string(), z.array(z.string())]).optional(),
+    time: components.Operator$outboundSchema.optional(),
+    limit: z.number().int().default(100),
+    next: z.string().optional(),
+    prev: z.string().optional(),
+    include: z.union([z.string(), z.array(z.string())]).optional(),
+    orderBy: ListTenantDestinationAttemptsOrderBy$outboundSchema.default(
+      "time",
+    ),
+    dir: ListTenantDestinationAttemptsDir$outboundSchema.default("desc"),
+  }).transform((v) => {
+    return remap$(v, {
+      tenantId: "tenant_id",
+      destinationId: "destination_id",
+      eventId: "event_id",
+      orderBy: "order_by",
+    });
+  })
+);
 
 export function listTenantDestinationAttemptsRequestToJSON(
   listTenantDestinationAttemptsRequest: ListTenantDestinationAttemptsRequest,

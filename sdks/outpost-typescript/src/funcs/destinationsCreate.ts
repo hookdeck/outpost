@@ -8,9 +8,8 @@ import { matchStatusCode } from "../lib/http.js";
 import * as M from "../lib/matchers.js";
 import { compactMap } from "../lib/primitives.js";
 import { safeParse } from "../lib/schemas.js";
-import { RequestOptions } from "../lib/sdks.js";
+import { encodePath, RequestOptions } from "../lib/sdks.js";
 import { extractSecurity, resolveGlobalSecurity } from "../lib/security.js";
-import { pathToFunc } from "../lib/url.js";
 import * as components from "../models/components/index.js";
 import {
   ConnectionError,
@@ -31,7 +30,7 @@ import { Result } from "../types/fp.js";
  * Create Destination
  *
  * @remarks
- * Creates a new destination for the tenant. The request body structure depends on the `type`.
+ * Creates a new destination for the tenant. The request body structure depends on the `type`. Keys in `config` and `credentials` that the destination type does not define are ignored and not stored.
  */
 export function destinationsCreate(
   client: OutpostCore,
@@ -113,7 +112,14 @@ async function $do(
       charEncoding: "percent",
     }),
   };
-  const path = pathToFunc("/tenants/{tenant_id}/destinations")(pathParams);
+  const pathResult = encodePath(
+    "/tenants/{tenant_id}/destinations",
+    pathParams,
+  );
+  if (!pathResult.ok) {
+    return [pathResult, { status: "invalid" }];
+  }
+  const path = pathResult.value;
 
   const headers = new Headers(compactMap({
     "Content-Type": "application/json",

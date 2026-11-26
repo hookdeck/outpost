@@ -3,7 +3,7 @@
  */
 
 import * as z from "zod/v3";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { ClosedEnum } from "../../types/enums.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
@@ -53,7 +53,9 @@ export const ListTenantsId$inboundSchema: z.ZodType<
   ListTenantsId,
   z.ZodTypeDef,
   unknown
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 /** @internal */
 export type ListTenantsId$Outbound = string | Array<string>;
 
@@ -62,7 +64,9 @@ export const ListTenantsId$outboundSchema: z.ZodType<
   ListTenantsId$Outbound,
   z.ZodTypeDef,
   ListTenantsId
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 
 export function listTenantsIdToJSON(listTenantsId: ListTenantsId): string {
   return JSON.stringify(ListTenantsId$outboundSchema.parse(listTenantsId));
@@ -80,7 +84,7 @@ export function listTenantsIdFromJSON(
 /** @internal */
 export const ListTenantsDir$inboundSchema: z.ZodNativeEnum<
   typeof ListTenantsDir
-> = z.nativeEnum(ListTenantsDir);
+> = /* @__PURE__ */ lazySchema$(() => z.nativeEnum(ListTenantsDir));
 /** @internal */
 export const ListTenantsDir$outboundSchema: z.ZodNativeEnum<
   typeof ListTenantsDir
@@ -91,13 +95,15 @@ export const ListTenantsRequest$inboundSchema: z.ZodType<
   ListTenantsRequest,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  id: z.union([z.string(), z.array(z.string())]).optional(),
-  limit: z.number().int().default(20),
-  dir: ListTenantsDir$inboundSchema.default("desc"),
-  next: z.string().optional(),
-  prev: z.string().optional(),
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    id: z.union([z.string(), z.array(z.string())]).optional(),
+    limit: z.number().int().default(20),
+    dir: ListTenantsDir$inboundSchema.default("desc"),
+    next: z.string().optional(),
+    prev: z.string().optional(),
+  })
+);
 /** @internal */
 export type ListTenantsRequest$Outbound = {
   id?: string | Array<string> | undefined;
@@ -112,13 +118,15 @@ export const ListTenantsRequest$outboundSchema: z.ZodType<
   ListTenantsRequest$Outbound,
   z.ZodTypeDef,
   ListTenantsRequest
-> = z.object({
-  id: z.union([z.string(), z.array(z.string())]).optional(),
-  limit: z.number().int().default(20),
-  dir: ListTenantsDir$outboundSchema.default("desc"),
-  next: z.string().optional(),
-  prev: z.string().optional(),
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    id: z.union([z.string(), z.array(z.string())]).optional(),
+    limit: z.number().int().default(20),
+    dir: ListTenantsDir$outboundSchema.default("desc"),
+    next: z.string().optional(),
+    prev: z.string().optional(),
+  })
+);
 
 export function listTenantsRequestToJSON(
   listTenantsRequest: ListTenantsRequest,

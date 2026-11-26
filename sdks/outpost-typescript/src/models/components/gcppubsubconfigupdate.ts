@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
@@ -21,7 +21,7 @@ export type GCPPubSubConfigUpdate = {
    */
   topic?: string | undefined;
   /**
-   * Optional. Custom endpoint URL (e.g., localhost:8085 for emulator).
+   * Optional. Custom endpoint (e.g., localhost:8085 for the Pub/Sub emulator), connected without TLS or authentication. Only accepted when the Outpost deployment sets DESTINATIONS_ALLOW_CUSTOM_ENDPOINTS=true.
    */
   endpoint?: string | undefined;
 };
@@ -31,15 +31,17 @@ export const GCPPubSubConfigUpdate$inboundSchema: z.ZodType<
   GCPPubSubConfigUpdate,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  project_id: z.string().optional(),
-  topic: z.string().optional(),
-  endpoint: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "project_id": "projectId",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    project_id: z.string().optional(),
+    topic: z.string().optional(),
+    endpoint: z.string().optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      "project_id": "projectId",
+    });
+  })
+);
 /** @internal */
 export type GCPPubSubConfigUpdate$Outbound = {
   project_id?: string | undefined;
@@ -52,15 +54,17 @@ export const GCPPubSubConfigUpdate$outboundSchema: z.ZodType<
   GCPPubSubConfigUpdate$Outbound,
   z.ZodTypeDef,
   GCPPubSubConfigUpdate
-> = z.object({
-  projectId: z.string().optional(),
-  topic: z.string().optional(),
-  endpoint: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    projectId: "project_id",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    projectId: z.string().optional(),
+    topic: z.string().optional(),
+    endpoint: z.string().optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      projectId: "project_id",
+    });
+  })
+);
 
 export function gcpPubSubConfigUpdateToJSON(
   gcpPubSubConfigUpdate: GCPPubSubConfigUpdate,

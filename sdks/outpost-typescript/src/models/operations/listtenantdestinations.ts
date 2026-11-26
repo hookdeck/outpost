@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import * as components from "../components/index.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
@@ -44,10 +44,12 @@ export const ListTenantDestinationsType$inboundSchema: z.ZodType<
   ListTenantDestinationsType,
   z.ZodTypeDef,
   unknown
-> = z.union([
-  components.DestinationType$inboundSchema,
-  z.array(components.DestinationType$inboundSchema),
-]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([
+    components.DestinationType$inboundSchema,
+    z.array(components.DestinationType$inboundSchema),
+  ])
+);
 /** @internal */
 export type ListTenantDestinationsType$Outbound = string | Array<string>;
 
@@ -56,10 +58,12 @@ export const ListTenantDestinationsType$outboundSchema: z.ZodType<
   ListTenantDestinationsType$Outbound,
   z.ZodTypeDef,
   ListTenantDestinationsType
-> = z.union([
-  components.DestinationType$outboundSchema,
-  z.array(components.DestinationType$outboundSchema),
-]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([
+    components.DestinationType$outboundSchema,
+    z.array(components.DestinationType$outboundSchema),
+  ])
+);
 
 export function listTenantDestinationsTypeToJSON(
   listTenantDestinationsType: ListTenantDestinationsType,
@@ -79,8 +83,8 @@ export function listTenantDestinationsTypeFromJSON(
 }
 
 /** @internal */
-export const Topics$inboundSchema: z.ZodType<Topics, z.ZodTypeDef, unknown> = z
-  .union([z.string(), z.array(z.string())]);
+export const Topics$inboundSchema: z.ZodType<Topics, z.ZodTypeDef, unknown> =
+  /* @__PURE__ */ lazySchema$(() => z.union([z.string(), z.array(z.string())]));
 /** @internal */
 export type Topics$Outbound = string | Array<string>;
 
@@ -89,7 +93,9 @@ export const Topics$outboundSchema: z.ZodType<
   Topics$Outbound,
   z.ZodTypeDef,
   Topics
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 
 export function topicsToJSON(topics: Topics): string {
   return JSON.stringify(Topics$outboundSchema.parse(topics));
@@ -109,18 +115,20 @@ export const ListTenantDestinationsRequest$inboundSchema: z.ZodType<
   ListTenantDestinationsRequest,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  tenant_id: z.string(),
-  type: z.union([
-    components.DestinationType$inboundSchema,
-    z.array(components.DestinationType$inboundSchema),
-  ]).optional(),
-  topics: z.union([z.string(), z.array(z.string())]).optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "tenant_id": "tenantId",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    tenant_id: z.string(),
+    type: z.union([
+      components.DestinationType$inboundSchema,
+      z.array(components.DestinationType$inboundSchema),
+    ]).optional(),
+    topics: z.union([z.string(), z.array(z.string())]).optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      "tenant_id": "tenantId",
+    });
+  })
+);
 /** @internal */
 export type ListTenantDestinationsRequest$Outbound = {
   tenant_id: string;
@@ -133,18 +141,20 @@ export const ListTenantDestinationsRequest$outboundSchema: z.ZodType<
   ListTenantDestinationsRequest$Outbound,
   z.ZodTypeDef,
   ListTenantDestinationsRequest
-> = z.object({
-  tenantId: z.string(),
-  type: z.union([
-    components.DestinationType$outboundSchema,
-    z.array(components.DestinationType$outboundSchema),
-  ]).optional(),
-  topics: z.union([z.string(), z.array(z.string())]).optional(),
-}).transform((v) => {
-  return remap$(v, {
-    tenantId: "tenant_id",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    tenantId: z.string(),
+    type: z.union([
+      components.DestinationType$outboundSchema,
+      z.array(components.DestinationType$outboundSchema),
+    ]).optional(),
+    topics: z.union([z.string(), z.array(z.string())]).optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      tenantId: "tenant_id",
+    });
+  })
+);
 
 export function listTenantDestinationsRequestToJSON(
   listTenantDestinationsRequest: ListTenantDestinationsRequest,

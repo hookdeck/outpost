@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 import {
@@ -34,6 +34,7 @@ export type DestinationUpdateHookdeck = {
    *
    * @remarks
    * Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
+   * A filter can be nested up to 16 levels deep. The filter object is level 1, and each nested object or array adds one.
    * If null or empty, all events matching the topic filter will be delivered.
    * Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
    */
@@ -61,22 +62,24 @@ export const DestinationUpdateHookdeck$inboundSchema: z.ZodType<
   DestinationUpdateHookdeck,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  type: z.literal("hookdeck"),
-  topics: Topics$inboundSchema.optional(),
-  filter: z.nullable(z.record(z.any())).optional(),
-  credentials: HookdeckCredentialsUpdate$inboundSchema.optional(),
-  delivery_metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
-  metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
-  disabled_at: z.nullable(
-    z.string().datetime({ offset: true }).transform(v => new Date(v)),
-  ).optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "delivery_metadata": "deliveryMetadata",
-    "disabled_at": "disabledAt",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    type: z.literal("hookdeck"),
+    topics: Topics$inboundSchema.optional(),
+    filter: z.nullable(z.record(z.any())).optional(),
+    credentials: HookdeckCredentialsUpdate$inboundSchema.optional(),
+    delivery_metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
+    metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
+    disabled_at: z.nullable(
+      z.string().datetime({ offset: true }).transform(v => new Date(v)),
+    ).optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      "delivery_metadata": "deliveryMetadata",
+      "disabled_at": "disabledAt",
+    });
+  })
+);
 /** @internal */
 export type DestinationUpdateHookdeck$Outbound = {
   type: "hookdeck";
@@ -93,20 +96,22 @@ export const DestinationUpdateHookdeck$outboundSchema: z.ZodType<
   DestinationUpdateHookdeck$Outbound,
   z.ZodTypeDef,
   DestinationUpdateHookdeck
-> = z.object({
-  type: z.literal("hookdeck"),
-  topics: Topics$outboundSchema.optional(),
-  filter: z.nullable(z.record(z.any())).optional(),
-  credentials: HookdeckCredentialsUpdate$outboundSchema.optional(),
-  deliveryMetadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
-  metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
-  disabledAt: z.nullable(z.date().transform(v => v.toISOString())).optional(),
-}).transform((v) => {
-  return remap$(v, {
-    deliveryMetadata: "delivery_metadata",
-    disabledAt: "disabled_at",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    type: z.literal("hookdeck"),
+    topics: Topics$outboundSchema.optional(),
+    filter: z.nullable(z.record(z.any())).optional(),
+    credentials: HookdeckCredentialsUpdate$outboundSchema.optional(),
+    deliveryMetadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
+    metadata: z.nullable(z.record(z.nullable(z.string()))).optional(),
+    disabledAt: z.nullable(z.date().transform(v => v.toISOString())).optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      deliveryMetadata: "delivery_metadata",
+      disabledAt: "disabled_at",
+    });
+  })
+);
 
 export function destinationUpdateHookdeckToJSON(
   destinationUpdateHookdeck: DestinationUpdateHookdeck,

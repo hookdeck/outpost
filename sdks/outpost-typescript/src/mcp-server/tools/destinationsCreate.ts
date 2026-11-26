@@ -16,7 +16,7 @@ export const tool$destinationsCreate: ToolDefinition<typeof args> = {
   name: "destinations-create",
   description: `Create Destination
 
-Creates a new destination for the tenant. The request body structure depends on the \`type\`.`,
+Creates a new destination for the tenant. The request body structure depends on the \`type\`. Keys in \`config\` and \`credentials\` that the destination type does not define are ignored and not stored.`,
   args,
   tool: async (client, args, ctx) => {
     const [result, apiCall] = await destinationsCreate(

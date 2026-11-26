@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 import {
@@ -39,6 +39,7 @@ export type AttemptDestination = {
    *
    * @remarks
    * Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
+   * A filter can be nested up to 16 levels deep. The filter object is level 1, and each nested object or array adds one.
    * If null or empty, all events matching the topic filter will be delivered.
    * Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
    */
@@ -82,32 +83,38 @@ export const AttemptDestination$inboundSchema: z.ZodType<
   AttemptDestination,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  id: z.string(),
-  tenant_id: z.string(),
-  type: z.string(),
-  topics: Topics$inboundSchema,
-  filter: z.nullable(z.record(z.any())).optional(),
-  config: z.record(z.string()),
-  delivery_metadata: z.nullable(z.record(z.string())).optional(),
-  metadata: z.nullable(z.record(z.string())).optional(),
-  disabled_at: z.nullable(
-    z.string().datetime({ offset: true }).transform(v => new Date(v)),
-  ),
-  created_at: z.string().datetime({ offset: true }).transform(v => new Date(v)),
-  updated_at: z.string().datetime({ offset: true }).transform(v => new Date(v)),
-  target: z.string(),
-  target_url: z.nullable(z.string()).optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "tenant_id": "tenantId",
-    "delivery_metadata": "deliveryMetadata",
-    "disabled_at": "disabledAt",
-    "created_at": "createdAt",
-    "updated_at": "updatedAt",
-    "target_url": "targetUrl",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    id: z.string(),
+    tenant_id: z.string(),
+    type: z.string(),
+    topics: Topics$inboundSchema,
+    filter: z.nullable(z.record(z.any())).optional(),
+    config: z.record(z.string()),
+    delivery_metadata: z.nullable(z.record(z.string())).optional(),
+    metadata: z.nullable(z.record(z.string())).optional(),
+    disabled_at: z.nullable(
+      z.string().datetime({ offset: true }).transform(v => new Date(v)),
+    ),
+    created_at: z.string().datetime({ offset: true }).transform(v =>
+      new Date(v)
+    ),
+    updated_at: z.string().datetime({ offset: true }).transform(v =>
+      new Date(v)
+    ),
+    target: z.string(),
+    target_url: z.nullable(z.string()).optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      "tenant_id": "tenantId",
+      "delivery_metadata": "deliveryMetadata",
+      "disabled_at": "disabledAt",
+      "created_at": "createdAt",
+      "updated_at": "updatedAt",
+      "target_url": "targetUrl",
+    });
+  })
+);
 /** @internal */
 export type AttemptDestination$Outbound = {
   id: string;
@@ -130,30 +137,32 @@ export const AttemptDestination$outboundSchema: z.ZodType<
   AttemptDestination$Outbound,
   z.ZodTypeDef,
   AttemptDestination
-> = z.object({
-  id: z.string(),
-  tenantId: z.string(),
-  type: z.string(),
-  topics: Topics$outboundSchema,
-  filter: z.nullable(z.record(z.any())).optional(),
-  config: z.record(z.string()),
-  deliveryMetadata: z.nullable(z.record(z.string())).optional(),
-  metadata: z.nullable(z.record(z.string())).optional(),
-  disabledAt: z.nullable(z.date().transform(v => v.toISOString())),
-  createdAt: z.date().transform(v => v.toISOString()),
-  updatedAt: z.date().transform(v => v.toISOString()),
-  target: z.string(),
-  targetUrl: z.nullable(z.string()).optional(),
-}).transform((v) => {
-  return remap$(v, {
-    tenantId: "tenant_id",
-    deliveryMetadata: "delivery_metadata",
-    disabledAt: "disabled_at",
-    createdAt: "created_at",
-    updatedAt: "updated_at",
-    targetUrl: "target_url",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    id: z.string(),
+    tenantId: z.string(),
+    type: z.string(),
+    topics: Topics$outboundSchema,
+    filter: z.nullable(z.record(z.any())).optional(),
+    config: z.record(z.string()),
+    deliveryMetadata: z.nullable(z.record(z.string())).optional(),
+    metadata: z.nullable(z.record(z.string())).optional(),
+    disabledAt: z.nullable(z.date().transform(v => v.toISOString())),
+    createdAt: z.date().transform(v => v.toISOString()),
+    updatedAt: z.date().transform(v => v.toISOString()),
+    target: z.string(),
+    targetUrl: z.nullable(z.string()).optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      tenantId: "tenant_id",
+      deliveryMetadata: "delivery_metadata",
+      disabledAt: "disabled_at",
+      createdAt: "created_at",
+      updatedAt: "updated_at",
+      targetUrl: "target_url",
+    });
+  })
+);
 
 export function attemptDestinationToJSON(
   attemptDestination: AttemptDestination,

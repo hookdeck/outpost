@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
@@ -18,7 +18,7 @@ export type Awss3Config = {
    */
   region: string;
   /**
-   * JMESPath expression for generating S3 object keys. Default is join('', [time.rfc3339_nano, '_', metadata."event-id", '.json']).
+   * JMESPath expression for generating S3 object keys. Default is join('', [time.rfc3339_nano, '_', metadata."event-id", '.json']). Templates may use field paths, string literals, `join`, `to_string`, `not_null` and `||`.
    */
   keyTemplate?: string | undefined;
   /**
@@ -32,17 +32,19 @@ export const Awss3Config$inboundSchema: z.ZodType<
   Awss3Config,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  bucket: z.string(),
-  region: z.string(),
-  key_template: z.string().optional(),
-  storage_class: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "key_template": "keyTemplate",
-    "storage_class": "storageClass",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    bucket: z.string(),
+    region: z.string(),
+    key_template: z.string().optional(),
+    storage_class: z.string().optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      "key_template": "keyTemplate",
+      "storage_class": "storageClass",
+    });
+  })
+);
 /** @internal */
 export type Awss3Config$Outbound = {
   bucket: string;
@@ -56,17 +58,19 @@ export const Awss3Config$outboundSchema: z.ZodType<
   Awss3Config$Outbound,
   z.ZodTypeDef,
   Awss3Config
-> = z.object({
-  bucket: z.string(),
-  region: z.string(),
-  keyTemplate: z.string().optional(),
-  storageClass: z.string().optional(),
-}).transform((v) => {
-  return remap$(v, {
-    keyTemplate: "key_template",
-    storageClass: "storage_class",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    bucket: z.string(),
+    region: z.string(),
+    keyTemplate: z.string().optional(),
+    storageClass: z.string().optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      keyTemplate: "key_template",
+      storageClass: "storage_class",
+    });
+  })
+);
 
 export function awss3ConfigToJSON(awss3Config: Awss3Config): string {
   return JSON.stringify(Awss3Config$outboundSchema.parse(awss3Config));

@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
@@ -49,7 +49,9 @@ export const GetTenantDestinationAttemptInclude$inboundSchema: z.ZodType<
   GetTenantDestinationAttemptInclude,
   z.ZodTypeDef,
   unknown
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 /** @internal */
 export type GetTenantDestinationAttemptInclude$Outbound =
   | string
@@ -60,7 +62,9 @@ export const GetTenantDestinationAttemptInclude$outboundSchema: z.ZodType<
   GetTenantDestinationAttemptInclude$Outbound,
   z.ZodTypeDef,
   GetTenantDestinationAttemptInclude
-> = z.union([z.string(), z.array(z.string())]);
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.union([z.string(), z.array(z.string())])
+);
 
 export function getTenantDestinationAttemptIncludeToJSON(
   getTenantDestinationAttemptInclude: GetTenantDestinationAttemptInclude,
@@ -87,18 +91,20 @@ export const GetTenantDestinationAttemptRequest$inboundSchema: z.ZodType<
   GetTenantDestinationAttemptRequest,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  tenant_id: z.string(),
-  destination_id: z.string(),
-  attempt_id: z.string(),
-  include: z.union([z.string(), z.array(z.string())]).optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "tenant_id": "tenantId",
-    "destination_id": "destinationId",
-    "attempt_id": "attemptId",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    tenant_id: z.string(),
+    destination_id: z.string(),
+    attempt_id: z.string(),
+    include: z.union([z.string(), z.array(z.string())]).optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      "tenant_id": "tenantId",
+      "destination_id": "destinationId",
+      "attempt_id": "attemptId",
+    });
+  })
+);
 /** @internal */
 export type GetTenantDestinationAttemptRequest$Outbound = {
   tenant_id: string;
@@ -112,18 +118,20 @@ export const GetTenantDestinationAttemptRequest$outboundSchema: z.ZodType<
   GetTenantDestinationAttemptRequest$Outbound,
   z.ZodTypeDef,
   GetTenantDestinationAttemptRequest
-> = z.object({
-  tenantId: z.string(),
-  destinationId: z.string(),
-  attemptId: z.string(),
-  include: z.union([z.string(), z.array(z.string())]).optional(),
-}).transform((v) => {
-  return remap$(v, {
-    tenantId: "tenant_id",
-    destinationId: "destination_id",
-    attemptId: "attempt_id",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    tenantId: z.string(),
+    destinationId: z.string(),
+    attemptId: z.string(),
+    include: z.union([z.string(), z.array(z.string())]).optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      tenantId: "tenant_id",
+      destinationId: "destination_id",
+      attemptId: "attempt_id",
+    });
+  })
+);
 
 export function getTenantDestinationAttemptRequestToJSON(
   getTenantDestinationAttemptRequest: GetTenantDestinationAttemptRequest,

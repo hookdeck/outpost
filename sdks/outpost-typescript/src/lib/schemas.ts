@@ -13,6 +13,88 @@ import {
 import { SDKValidationError } from "../models/errors/sdkvalidationerror.js";
 import { ERR, OK, Result } from "../types/fp.js";
 
+export function lazySchema<T extends object>(factory: () => T): T {
+  let schema: T | undefined;
+  const getSchema = (): T => {
+    if (schema === undefined) {
+      schema = factory();
+    }
+    return schema;
+  };
+  const target = Object.create(null);
+
+  return new Proxy(target, {
+    get(_target, property) {
+      const descriptor = Reflect.getOwnPropertyDescriptor(target, property);
+      if (
+        descriptor && !descriptor.configurable && "value" in descriptor
+        && !descriptor.writable
+      ) {
+        return descriptor.value;
+      }
+      const value = Reflect.get(getSchema(), property, getSchema());
+      return property !== "constructor" && typeof value === "function"
+        ? value.bind(getSchema())
+        : value;
+    },
+    getOwnPropertyDescriptor(_target, property) {
+      const descriptor = Reflect.getOwnPropertyDescriptor(
+        getSchema(),
+        property,
+      );
+      return descriptor && {
+        ...descriptor,
+        configurable:
+          Reflect.getOwnPropertyDescriptor(target, property)?.configurable
+            ?? true,
+      };
+    },
+    getPrototypeOf() {
+      return Reflect.getPrototypeOf(getSchema());
+    },
+    has(_target, property) {
+      return Reflect.has(getSchema(), property);
+    },
+    ownKeys() {
+      return Reflect.ownKeys(getSchema());
+    },
+    defineProperty(_target, property, descriptor) {
+      if (!Reflect.defineProperty(getSchema(), property, descriptor)) {
+        return false;
+      }
+      const defined = Reflect.getOwnPropertyDescriptor(getSchema(), property)!;
+      if (!defined.configurable || !Reflect.isExtensible(target)) {
+        return Reflect.defineProperty(target, property, defined);
+      }
+      return true;
+    },
+    deleteProperty(_target, property) {
+      if (!Reflect.deleteProperty(getSchema(), property)) {
+        return false;
+      }
+      return Reflect.deleteProperty(target, property);
+    },
+    preventExtensions() {
+      const concrete = getSchema();
+      if (!Reflect.preventExtensions(concrete)) {
+        return false;
+      }
+      Reflect.setPrototypeOf(target, Reflect.getPrototypeOf(concrete));
+      for (const property of Reflect.ownKeys(concrete)) {
+        Reflect.defineProperty(
+          target,
+          property,
+          Reflect.getOwnPropertyDescriptor(concrete, property)!,
+        );
+      }
+      return Reflect.preventExtensions(target);
+    },
+    set(_target, property, value) {
+      return Reflect.set(getSchema(), property, value, getSchema());
+    },
+  });
+}
+
 /**
  * Utility function that executes some code which may throw a ZodError. It
  * intercepts this error and converts it to an SDKValidationError so as to not

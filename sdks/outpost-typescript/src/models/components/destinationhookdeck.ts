@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 import {
@@ -38,6 +38,7 @@ export type DestinationHookdeck = {
    *
    * @remarks
    * Supports operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $startsWith, $endsWith, $exist, $or, $and, $not.
+   * A filter can be nested up to 16 levels deep. The filter object is level 1, and each nested object or array adds one.
    * If null or empty, all events matching the topic filter will be delivered.
    * Uses full-replacement semantics on update: send a new object to replace, null or `{}` to clear, omit for no change.
    */
@@ -79,32 +80,37 @@ export const DestinationHookdeck$inboundSchema: z.ZodType<
   DestinationHookdeck,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  id: z.string(),
-  type: z.literal("hookdeck"),
-  topics: Topics$inboundSchema,
-  filter: z.nullable(z.record(z.any())).optional(),
-  disabled_at: z.nullable(
-    z.string().datetime({ offset: true }).transform(v => new Date(v)),
-  ),
-  created_at: z.string().datetime({ offset: true }).transform(v => new Date(v)),
-  updated_at: z.string().datetime({ offset: true }).transform(v => new Date(v))
-    .optional(),
-  config: z.any().optional(),
-  credentials: HookdeckCredentials$inboundSchema,
-  delivery_metadata: z.nullable(z.record(z.string())).optional(),
-  metadata: z.nullable(z.record(z.string())).optional(),
-  target: z.string().optional(),
-  target_url: z.nullable(z.string()).optional(),
-}).transform((v) => {
-  return remap$(v, {
-    "disabled_at": "disabledAt",
-    "created_at": "createdAt",
-    "updated_at": "updatedAt",
-    "delivery_metadata": "deliveryMetadata",
-    "target_url": "targetUrl",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    id: z.string(),
+    type: z.literal("hookdeck"),
+    topics: Topics$inboundSchema,
+    filter: z.nullable(z.record(z.any())).optional(),
+    disabled_at: z.nullable(
+      z.string().datetime({ offset: true }).transform(v => new Date(v)),
+    ),
+    created_at: z.string().datetime({ offset: true }).transform(v =>
+      new Date(v)
+    ),
+    updated_at: z.string().datetime({ offset: true }).transform(v =>
+      new Date(v)
+    ).optional(),
+    config: z.any().optional(),
+    credentials: HookdeckCredentials$inboundSchema,
+    delivery_metadata: z.nullable(z.record(z.string())).optional(),
+    metadata: z.nullable(z.record(z.string())).optional(),
+    target: z.string().optional(),
+    target_url: z.nullable(z.string()).optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      "disabled_at": "disabledAt",
+      "created_at": "createdAt",
+      "updated_at": "updatedAt",
+      "delivery_metadata": "deliveryMetadata",
+      "target_url": "targetUrl",
+    });
+  })
+);
 /** @internal */
 export type DestinationHookdeck$Outbound = {
   id: string;
@@ -127,29 +133,31 @@ export const DestinationHookdeck$outboundSchema: z.ZodType<
   DestinationHookdeck$Outbound,
   z.ZodTypeDef,
   DestinationHookdeck
-> = z.object({
-  id: z.string(),
-  type: z.literal("hookdeck"),
-  topics: Topics$outboundSchema,
-  filter: z.nullable(z.record(z.any())).optional(),
-  disabledAt: z.nullable(z.date().transform(v => v.toISOString())),
-  createdAt: z.date().transform(v => v.toISOString()),
-  updatedAt: z.date().transform(v => v.toISOString()).optional(),
-  config: z.any().optional(),
-  credentials: HookdeckCredentials$outboundSchema,
-  deliveryMetadata: z.nullable(z.record(z.string())).optional(),
-  metadata: z.nullable(z.record(z.string())).optional(),
-  target: z.string().optional(),
-  targetUrl: z.nullable(z.string()).optional(),
-}).transform((v) => {
-  return remap$(v, {
-    disabledAt: "disabled_at",
-    createdAt: "created_at",
-    updatedAt: "updated_at",
-    deliveryMetadata: "delivery_metadata",
-    targetUrl: "target_url",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    id: z.string(),
+    type: z.literal("hookdeck"),
+    topics: Topics$outboundSchema,
+    filter: z.nullable(z.record(z.any())).optional(),
+    disabledAt: z.nullable(z.date().transform(v => v.toISOString())),
+    createdAt: z.date().transform(v => v.toISOString()),
+    updatedAt: z.date().transform(v => v.toISOString()).optional(),
+    config: z.any().optional(),
+    credentials: HookdeckCredentials$outboundSchema,
+    deliveryMetadata: z.nullable(z.record(z.string())).optional(),
+    metadata: z.nullable(z.record(z.string())).optional(),
+    target: z.string().optional(),
+    targetUrl: z.nullable(z.string()).optional(),
+  }).transform((v) => {
+    return remap$(v, {
+      disabledAt: "disabled_at",
+      createdAt: "created_at",
+      updatedAt: "updated_at",
+      deliveryMetadata: "delivery_metadata",
+      targetUrl: "target_url",
+    });
+  })
+);
 
 export function destinationHookdeckToJSON(
   destinationHookdeck: DestinationHookdeck,

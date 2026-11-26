@@ -4,7 +4,7 @@
 
 import * as z from "zod/v3";
 import { remap as remap$ } from "../../lib/primitives.js";
-import { safeParse } from "../../lib/schemas.js";
+import { lazySchema as lazySchema$, safeParse } from "../../lib/schemas.js";
 import { Result as SafeParseResult } from "../../types/fp.js";
 import { SDKValidationError } from "../errors/sdkvalidationerror.js";
 
@@ -20,13 +20,15 @@ export const EnableOperatorEventDestinationRequest$inboundSchema: z.ZodType<
   EnableOperatorEventDestinationRequest,
   z.ZodTypeDef,
   unknown
-> = z.object({
-  destination_id: z.string(),
-}).transform((v) => {
-  return remap$(v, {
-    "destination_id": "destinationId",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    destination_id: z.string(),
+  }).transform((v) => {
+    return remap$(v, {
+      "destination_id": "destinationId",
+    });
+  })
+);
 /** @internal */
 export type EnableOperatorEventDestinationRequest$Outbound = {
   destination_id: string;
@@ -37,13 +39,15 @@ export const EnableOperatorEventDestinationRequest$outboundSchema: z.ZodType<
   EnableOperatorEventDestinationRequest$Outbound,
   z.ZodTypeDef,
   EnableOperatorEventDestinationRequest
-> = z.object({
-  destinationId: z.string(),
-}).transform((v) => {
-  return remap$(v, {
-    destinationId: "destination_id",
-  });
-});
+> = /* @__PURE__ */ lazySchema$(() =>
+  z.object({
+    destinationId: z.string(),
+  }).transform((v) => {
+    return remap$(v, {
+      destinationId: "destination_id",
+    });
+  })
+);
 
 export function enableOperatorEventDestinationRequestToJSON(
   enableOperatorEventDestinationRequest: EnableOperatorEventDestinationRequest,
