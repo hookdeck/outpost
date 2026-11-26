@@ -491,6 +491,38 @@ func TestAPI_Events(t *testing.T) {
 				assert.Equal(t, "e1", result.Models[0].ID)
 			})
 
+			t.Run("time gt filter", func(t *testing.T) {
+				cutoff := now.Add(-1 * time.Hour).UTC().Format(time.RFC3339)
+				v := url.Values{}
+				v.Set("time[gt]", cutoff)
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/events?"+v.Encode(), nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.EventPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				require.Len(t, result.Models, 2)
+				for _, e := range result.Models {
+					assert.NotEqual(t, "e1", e.ID)
+				}
+			})
+
+			t.Run("time lt filter", func(t *testing.T) {
+				cutoff := now.Add(-1 * time.Hour).UTC().Format(time.RFC3339)
+				v := url.Values{}
+				v.Set("time[lt]", cutoff)
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/events?"+v.Encode(), nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.EventPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				require.Len(t, result.Models, 1)
+				assert.Equal(t, "e1", result.Models[0].ID)
+			})
+
 			t.Run("combined filters", func(t *testing.T) {
 				req := httptest.NewRequest(http.MethodGet, "/api/v1/events?topic[0]=user.created&tenant_id[0]=t1", nil)
 				resp := h.do(h.withAPIKey(req))
@@ -982,6 +1014,36 @@ func TestAPI_Attempts(t *testing.T) {
 				cutoff := now.Add(-1 * time.Hour).UTC().Format(time.RFC3339)
 				v := url.Values{}
 				v.Set("time[lte]", cutoff)
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?"+v.Encode(), nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				require.Len(t, result.Models, 1)
+				assert.Equal(t, "a1", result.Models[0].ID)
+			})
+
+			t.Run("time gt filter", func(t *testing.T) {
+				cutoff := now.Add(-1 * time.Hour).UTC().Format(time.RFC3339)
+				v := url.Values{}
+				v.Set("time[gt]", cutoff)
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?"+v.Encode(), nil)
+				resp := h.do(h.withAPIKey(req))
+
+				require.Equal(t, http.StatusOK, resp.Code)
+
+				var result apirouter.AttemptPaginatedResult
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &result))
+				require.Len(t, result.Models, 1)
+				assert.Equal(t, "a2", result.Models[0].ID)
+			})
+
+			t.Run("time lt filter", func(t *testing.T) {
+				cutoff := now.Add(-1 * time.Hour).UTC().Format(time.RFC3339)
+				v := url.Values{}
+				v.Set("time[lt]", cutoff)
 				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?"+v.Encode(), nil)
 				resp := h.do(h.withAPIKey(req))
 
