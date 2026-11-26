@@ -921,12 +921,15 @@ func (s *RSMQSuite) TestScriptCacheFlushed() {
 	flushScripts()
 	queMsg, err := s.rsmq.ReceiveMessage(qname, UnsetVt)
 	assert.NoError(t, err, "receive after script flush")
-	if assert.NotNil(t, queMsg) {
-		assert.Equal(t, id1, queMsg.ID)
-	}
+	// This test checks that each operation still works after a flush, not
+	// the order messages come back in: two messages sent in the same
+	// millisecond share a score, so either can be received first. The steps
+	// below work on whichever one came back.
+	s.Require().NotNil(queMsg)
+	assert.Contains(t, []string{id1, id2}, queMsg.ID)
 
 	flushScripts()
-	assert.NoError(t, s.rsmq.ChangeMessageVisibility(qname, id1, 0), "change visibility after script flush")
+	assert.NoError(t, s.rsmq.ChangeMessageVisibility(qname, queMsg.ID, 0), "change visibility after script flush")
 
 	flushScripts()
 	queMsg, err = s.rsmq.PopMessage(qname)
