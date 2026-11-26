@@ -131,7 +131,7 @@ func (h *DestinationHandlers) Create(c *gin.Context) {
 		return
 	}
 	if err := h.tenantStore.CreateDestination(c.Request.Context(), destination); err != nil {
-		h.handleDestinationWriteError(c, err)
+		h.handleDestinationCreateError(c, err)
 		return
 	}
 	h.telemetry.DestinationCreated(c.Request.Context(), destination.Type)
@@ -482,8 +482,8 @@ func mustRetrieveDestination(c *gin.Context, store tenantstore.TenantStore, tena
 }
 
 func (h *DestinationHandlers) handleDestinationWriteError(c *gin.Context, err error) {
-	if strings.Contains(err.Error(), "validation failed") {
-		AbortWithValidationError(c, err)
+	if h.writeErrorIsBadRequest(err) {
+		AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
 		return
 	}
 	if errors.Is(err, tenantstore.ErrDestinationNotFound) {
@@ -498,15 +498,36 @@ func (h *DestinationHandlers) handleDestinationWriteError(c *gin.Context, err er
 		AbortWithError(c, http.StatusConflict, NewErrConflict("destination was modified by another request, retry"))
 		return
 	}
+	AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
+}
+
+// handleDestinationCreateError answers a failed CreateDestination. Two of its
+// errors are conflicts with the tenant's current state rather than malformed
+// requests: creating a destination whose ID is taken, and creating a
+// destination at the per-tenant limit. Both used to answer 400 everywhere.
+// Only the create endpoint changes, so PATCH keeps answering 400 for a
+// destination limit and 404 for an unknown destination (see
+// handleDestinationWriteError).
+func (h *DestinationHandlers) handleDestinationCreateError(c *gin.Context, err error) {
 	if errors.Is(err, tenantstore.ErrDuplicateDestination) {
-		AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
+		AbortWithError(c, http.StatusConflict, NewErrConflict(err.Error()))
 		return
 	}
 	if errors.Is(err, tenantstore.ErrMaxDestinationsPerTenantReached) {
-		AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
+		AbortWithError(c, http.StatusConflict, NewErrConflict(err.Error()))
 		return
 	}
-	AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
+	h.handleDestinationWriteError(c, err)
+}
+
+// writeErrorIsBadRequest reports the write errors that remain 400: an error
+// text that reports a validation failure, and the per-tenant destination
+// limit.
+func (h *DestinationHandlers) writeErrorIsBadRequest(err error) bool {
+	if strings.Contains(err.Error(), "validation failed") {
+		return true
+	}
+	return errors.Is(err, tenantstore.ErrMaxDestinationsPerTenantReached)
 }
 
 // ===== Requests =====

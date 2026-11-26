@@ -189,7 +189,7 @@ func (s *basicSuite) TestErrorResponses_CreateDestinationValidation() {
 	s.Run("duplicate destination id", func() {
 		dest := s.createWebhookDestination(tenant.ID, "*")
 
-		s.requireError(create("", webhook(map[string]any{"id": dest.ID}), http.StatusBadRequest, "destination already exists", ""))
+		s.requireError(create("", webhook(map[string]any{"id": dest.ID}), http.StatusConflict, "destination already exists", ""))
 	})
 
 	s.Run("maximum number of destinations", func() {
@@ -202,7 +202,7 @@ func (s *basicSuite) TestErrorResponses_CreateDestinationValidation() {
 
 		s.requireError(errorCase{
 			method: http.MethodPost, path: "/tenants/" + full.ID + "/destinations", auth: admin, body: webhook(nil),
-			status: http.StatusBadRequest, message: "maximum number of destinations per tenant reached",
+			status: http.StatusConflict, message: "maximum number of destinations per tenant reached",
 		})
 	})
 }
@@ -237,6 +237,15 @@ func (s *basicSuite) TestErrorResponses_UpdateDestinationValidation() {
 		update("disabled_at that is not RFC3339", map[string]any{"disabled_at": "yesterday"}, "invalid disabled_at: "+expectedRFC3339, ""),
 		update("disabled_at in the future", map[string]any{"disabled_at": "2999-01-01T00:00:00Z"}, "disabled_at cannot be in the future", ""),
 		update("invalid url", map[string]any{"config": map[string]any{"url": "not a url"}}, validationError, "config.url"),
+	})
+
+	// Only the two create-path conflicts moved to 409. PATCH keeps its statuses:
+	// an unknown destination is still 404, not a conflict.
+	s.Run("patch of an unknown destination is still 404", func() {
+		s.requireError(errorCase{
+			method: http.MethodPatch, path: "/tenants/" + tenant.ID + "/destinations/dest_missing", auth: admin,
+			body: map[string]any{"topics": []string{"*"}}, status: http.StatusNotFound, message: "destination not found",
+		})
 	})
 }
 
