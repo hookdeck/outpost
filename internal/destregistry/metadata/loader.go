@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -120,8 +121,10 @@ func (l *FSMetadataLoader) loadFile(providerType, filename string) ([]byte, erro
 		// Don't return error here, try embedded next
 	}
 
-	// Fall back to embedded
-	bytes, err := defaultFS.ReadFile(filepath.Join("providers", providerType, filename))
+	// Fall back to embedded. embed.FS keys are slash-separated regardless of
+	// platform, so this must not use filepath.Join: on Windows the OS separator
+	// is a backslash and the lookup misses.
+	bytes, err := defaultFS.ReadFile(path.Join("providers", providerType, filename))
 	if err != nil {
 		return nil, fmt.Errorf("file %s not found in filesystem or embedded", filename)
 	}
@@ -129,7 +132,8 @@ func (l *FSMetadataLoader) loadFile(providerType, filename string) ([]byte, erro
 }
 
 func (l *FSMetadataLoader) loadEmbeddedJSONFile(providerType, filename string, v interface{}) error {
-	bytes, err := defaultFS.ReadFile(filepath.Join("providers", providerType, filename))
+	// Slash-separated for the same reason as loadFile.
+	bytes, err := defaultFS.ReadFile(path.Join("providers", providerType, filename))
 	if err != nil {
 		return err
 	}
