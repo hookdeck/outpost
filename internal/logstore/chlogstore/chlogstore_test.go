@@ -402,6 +402,7 @@ func setupClickHouseConnectionWithDeploymentID(t *testing.T, deploymentID string
 
 func TestListLatestAttempts_DuplicateRowsDoNotDropKeys(t *testing.T) {
 	testutil.CheckIntegrationTest(t)
+	t.Parallel()
 
 	chDB := setupClickHouseConnection(t)
 	ctx := context.Background()
@@ -454,6 +455,7 @@ func TestListLatestAttempts_DuplicateRowsDoNotDropKeys(t *testing.T) {
 
 func TestListLatestAttempts_UndecodableRowFailsOwnKey(t *testing.T) {
 	testutil.CheckIntegrationTest(t)
+	t.Parallel()
 
 	chDB := setupClickHouseConnection(t)
 	ctx := context.Background()
@@ -500,6 +502,7 @@ func TestListLatestAttempts_UndecodableRowFailsOwnKey(t *testing.T) {
 
 func TestListAttempt_UndecodableRowFails(t *testing.T) {
 	testutil.CheckIntegrationTest(t)
+	t.Parallel()
 
 	chDB := setupClickHouseConnection(t)
 	ctx := context.Background()
@@ -531,6 +534,7 @@ func TestListAttempt_UndecodableRowFails(t *testing.T) {
 
 func TestListLatestAttempts_UndecodableRowPushedOutFailsOwnKey(t *testing.T) {
 	testutil.CheckIntegrationTest(t)
+	t.Parallel()
 
 	chDB := setupClickHouseConnection(t)
 	ctx := context.Background()

@@ -3,6 +3,7 @@ package testinfra
 import (
 	"context"
 	"log"
+	"path/filepath"
 	"testing"
 
 	"github.com/hookdeck/outpost/internal/clickhouse"
@@ -72,6 +73,11 @@ func ensureClickHouse(t testing.TB) string {
 func startCHTestcontainer(cfg *Config) (string, error) {
 	ctx := context.Background()
 
+	projectRoot, err := findProjectRoot()
+	if err != nil {
+		return "", err
+	}
+
 	clickHouseContainer, err := chTestcontainer.Run(ctx,
 		cfg.Images.ClickHouse,
 		chTestcontainer.WithUsername("default"),
@@ -79,6 +85,12 @@ func startCHTestcontainer(cfg *Config) (string, error) {
 		chTestcontainer.WithDatabase("default"),
 		// Keep the passwordless default user reachable over the network.
 		testcontainers.WithEnv(map[string]string{"CLICKHOUSE_SKIP_USER_SETUP": "1"}),
+		// Same test settings as the compose stack (build/test/compose.yml).
+		testcontainers.WithFiles(testcontainers.ContainerFile{
+			HostFilePath:      filepath.Join(projectRoot, "build", "test", "clickhouse-users.xml"),
+			ContainerFilePath: "/etc/clickhouse-server/users.d/test.xml",
+			FileMode:          0o644,
+		}),
 	)
 	if err != nil {
 		return "", err

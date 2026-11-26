@@ -20,6 +20,8 @@ services:
     environment:
       # Keep the passwordless default user reachable over the network.
       - CLICKHOUSE_SKIP_USER_SETUP=1
+    volumes:
+      - ./clickhouse-users.xml:/etc/clickhouse-server/users.d/test.xml:ro
     ports:
       - 39000:9000
   test-postgres:
