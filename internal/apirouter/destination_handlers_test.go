@@ -61,7 +61,7 @@ func TestAPI_Destinations(t *testing.T) {
 			require.Equal(t, http.StatusCreated, resp.Code)
 		})
 
-		t.Run("max destinations per tenant returns 400", func(t *testing.T) {
+		t.Run("max destinations per tenant returns 409", func(t *testing.T) {
 			h := newAPITest(t, withTenantStore(memtenantstore.New(memtenantstore.WithMaxDestinationsPerTenant(1))))
 			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
 
@@ -72,10 +72,32 @@ func TestAPI_Destinations(t *testing.T) {
 			req = h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", validDestination())
 			resp = h.do(h.withAPIKey(req))
 
-			require.Equal(t, http.StatusBadRequest, resp.Code)
+			require.Equal(t, http.StatusConflict, resp.Code)
 			var body map[string]any
 			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
 			assert.Equal(t, "maximum number of destinations per tenant reached", body["message"])
+		})
+
+		t.Run("destination id already in use returns 409", func(t *testing.T) {
+			h := newAPITest(t)
+			h.tenantStore.UpsertTenant(t.Context(), tf.Any(tf.WithID("t1")))
+
+			first := validDestination()
+			first["id"] = "dest_conflicting"
+			resp := h.do(h.withAPIKey(h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", first)))
+			require.Equal(t, http.StatusCreated, resp.Code)
+
+			// Same id again: the body is well formed, it conflicts with a live
+			// destination.
+			second := validDestination()
+			second["id"] = "dest_conflicting"
+			resp = h.do(h.withAPIKey(h.jsonReq(http.MethodPost, "/api/v1/tenants/t1/destinations", second)))
+
+			require.Equal(t, http.StatusConflict, resp.Code)
+			var body map[string]any
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
+			assert.Equal(t, "destination already exists", body["message"])
+			assert.EqualValues(t, http.StatusConflict, body["status"])
 		})
 
 		t.Run("missing type returns 422", func(t *testing.T) {
