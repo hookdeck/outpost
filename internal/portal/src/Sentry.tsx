@@ -4,7 +4,7 @@ import * as Sentry from "@sentry/react";
 import CONFIGS from "./config";
 
 Sentry.init({
-  dsn: "https://35671160affeb03460b893b7e9e59439@o376420.ingest.us.sentry.io/4507984881385472", // Outpost maintainers managed DSN for Sentry
+  dsn: "https://e53653f8b83691c0b4d02c92fc7505b6@o376420.ingest.us.sentry.io/4508422371409920", // Outpost maintainers managed DSN for Sentry
   integrations: [],
   enabled: !CONFIGS.DISABLE_TELEMETRY,
   environment: import.meta.env.MODE,
