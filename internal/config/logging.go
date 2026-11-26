@@ -132,7 +132,7 @@ func (c *Config) LogConfigurationSummary() []zap.Field {
 		zap.Int("log_batch_size", c.LogBatchSize),
 
 		// Telemetry
-		zap.Bool("telemetry_disabled", c.Telemetry.Disabled || c.DisableTelemetry),
+		zap.Bool("telemetry_disabled", c.Telemetry.Disabled),
 		zap.Bool("otel_enabled", c.OpenTelemetry.ServiceName != ""),
 		zap.Strings("otel_enabled_instrumentations", c.OpenTelemetry.enabledInstrumentations()),
 

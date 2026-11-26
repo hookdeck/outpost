@@ -110,8 +110,6 @@ type Config struct {
 	LogBatchThresholdSeconds int `yaml:"log_batch_threshold_seconds" env:"LOG_BATCH_THRESHOLD_SECONDS" desc:"Maximum time in seconds to buffer logs before flushing them to storage, if batch size is not reached." required:"N"`
 	LogBatchSize             int `yaml:"log_batch_size" env:"LOG_BATCH_SIZE" desc:"Maximum number of log entries to batch together before writing to storage." required:"N"`
 
-	DisableTelemetry bool `yaml:"disable_telemetry" env:"DISABLE_TELEMETRY" desc:"Global flag to disable all telemetry (anonymous usage statistics to Hookdeck and error reporting to Sentry). If true, overrides 'telemetry.disabled'." required:"N"`
-
 	// Destinations
 	Destinations DestinationsConfig `yaml:"destinations"`
 
@@ -754,7 +752,7 @@ func (c *Config) GetRetryPollBackoff() time.Duration {
 }
 
 type TelemetryConfig struct {
-	Disabled          bool   `yaml:"disabled" env:"DISABLE_TELEMETRY" desc:"Disables telemetry within the 'telemetry' block (Hookdeck usage stats and Sentry). Can be overridden by the global 'disable_telemetry' flag at the root of the configuration." required:"N"`
+	Disabled          bool   `yaml:"disabled" env:"DISABLE_TELEMETRY" desc:"Disables anonymous usage statistics sent to Hookdeck and portal error reporting." required:"N"`
 	BatchSize         int    `yaml:"batch_size" env:"TELEMETRY_BATCH_SIZE" desc:"Maximum number of telemetry events to batch before sending." required:"N"`
 	BatchInterval     int    `yaml:"batch_interval" env:"TELEMETRY_BATCH_INTERVAL" desc:"Maximum time in seconds to wait before sending a batch of telemetry events if batch size is not reached." required:"N"`
 	HookdeckSourceURL string `yaml:"hookdeck_source_url" env:"TELEMETRY_HOOKDECK_SOURCE_URL" desc:"The Hookdeck Source URL to send anonymous usage telemetry data to. Set to empty to disable sending to Hookdeck." required:"N"`

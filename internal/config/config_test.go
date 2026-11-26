@@ -3,6 +3,8 @@ package config_test
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -1241,4 +1243,59 @@ func TestMaxEventSizeBytesValidation(t *testing.T) {
 
 	_, err := config.ParseWithOS(config.Flags{}, mockOS)
 	assert.ErrorContains(t, err, "max_event_size_bytes must not be negative")
+}
+
+func TestTelemetryDisabled(t *testing.T) {
+	tests := []struct {
+		name         string
+		files        map[string][]byte
+		env          map[string]string
+		wantDisabled bool
+	}{
+		{name: "nothing set"},
+		{
+			name:  "unknown top-level key is ignored",
+			files: map[string][]byte{"config.yaml": []byte("disable_telemetry: true\n")},
+			env:   map[string]string{"CONFIG": "config.yaml"},
+		},
+		{
+			name:         "env",
+			env:          map[string]string{"DISABLE_TELEMETRY": "true"},
+			wantDisabled: true,
+		},
+		{
+			name:         "yaml telemetry.disabled",
+			files:        map[string][]byte{"config.yaml": []byte("telemetry:\n  disabled: true\n")},
+			env:          map[string]string{"CONFIG": "config.yaml"},
+			wantDisabled: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := &mockOS{files: map[string][]byte{}, envVars: map[string]string{}}
+			for k, v := range tt.files {
+				m.files[k] = v
+			}
+			for k, v := range tt.env {
+				m.envVars[k] = v
+			}
+			cfg, err := config.ParseWithoutValidation(config.Flags{}, m)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantDisabled, cfg.Telemetry.Disabled)
+			assert.Equal(t, strconv.FormatBool(tt.wantDisabled), cfg.GetPortalConfig().Configs["DISABLE_TELEMETRY"])
+		})
+	}
+}
+
+func TestTelemetryDisabledEnvConfigFile(t *testing.T) {
+	const content = "DISABLE_TELEMETRY=true\n"
+	path := filepath.Join(t.TempDir(), "config.env")
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+	m := &mockOS{
+		files:   map[string][]byte{path: []byte(content)},
+		envVars: map[string]string{"CONFIG": path},
+	}
+	cfg, err := config.ParseWithoutValidation(config.Flags{}, m)
+	require.NoError(t, err)
+	assert.True(t, cfg.Telemetry.Disabled)
 }
