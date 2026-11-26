@@ -176,7 +176,7 @@ export function App() {
               )}
             </ErrorBoundary>
           </div>
-          {!CONFIGS.DISABLE_OUTPOST_BRANDING && (
+          {CONFIGS.DISABLE_OUTPOST_BRANDING !== "true" && (
             <div className="powered-by subtitle-s">
               Powered by{" "}
               <a
