@@ -1,0 +1,14 @@
+<!--
+  Test-only ClickHouse settings, mounted by build/test/compose.yml and the
+  testcontainers ClickHouse in internal/util/testinfra.
+
+  Synchronous inserts: with async_insert, the default since ClickHouse 26.x,
+  each insert waits for the async buffer to flush.
+-->
+<clickhouse>
+    <profiles>
+        <default>
+            <async_insert>0</async_insert>
+        </default>
+    </profiles>
+</clickhouse>

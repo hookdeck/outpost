@@ -31,6 +31,7 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 	farPast := baseTime.Add(-48 * time.Hour)
 
 	t.Run("ListAttempt", func(t *testing.T) {
+		t.Parallel()
 		var tenantID, destinationID, idPrefix string
 
 		suite := paginationtest.Suite[*driver.AttemptRecord]{
@@ -114,6 +115,7 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 	})
 
 	t.Run("ListAttempt_WithDestinationFilter", func(t *testing.T) {
+		t.Parallel()
 		var tenantID, targetDestID, otherDestID, idPrefix string
 
 		suite := paginationtest.Suite[*driver.AttemptRecord]{
@@ -208,6 +210,7 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 	})
 
 	t.Run("ListEvent", func(t *testing.T) {
+		t.Parallel()
 		var eventTenantID, eventDestID, idPrefix string
 
 		suite := paginationtest.Suite[*models.Event]{
@@ -287,6 +290,7 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 	})
 
 	t.Run("ListEvent_WithDestinationFilter", func(t *testing.T) {
+		t.Parallel()
 		var tenantID, targetDestID, otherDestID, idPrefix string
 
 		suite := paginationtest.Suite[*models.Event]{
@@ -385,6 +389,7 @@ func testPagination(t *testing.T, newHarness HarnessMaker) {
 	// IMPORTANT: ListAttempt filters by ATTEMPT time, ListEvent filters by EVENT time.
 	// In this test, attempt_time = event_time + 100ms.
 	t.Run("TimeFilterWithCursor", func(t *testing.T) {
+		t.Parallel()
 		tenantID := idgen.String()
 		destinationID := idgen.Destination()
 		idPrefix := idgen.String()[:8]
