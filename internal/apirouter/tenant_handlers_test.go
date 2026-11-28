@@ -437,13 +437,13 @@ func TestAPI_Tenants(t *testing.T) {
 				require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
 			})
 
-			t.Run("both next and prev returns 400", func(t *testing.T) {
+			t.Run("both next and prev returns 422", func(t *testing.T) {
 				h := newAPITest(t)
 
 				req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants?next=abc&prev=def", nil)
 				resp := h.do(h.withAPIKey(req))
 
-				require.Equal(t, http.StatusBadRequest, resp.Code)
+				testutil.RequireValidationError(t, resp, "query.cursor", "cannot specify both 'next' and 'prev' cursors")
 			})
 		})
 
