@@ -555,13 +555,13 @@ func TestAPI_Events(t *testing.T) {
 				require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
 			})
 
-			t.Run("both next and prev returns 400", func(t *testing.T) {
+			t.Run("both next and prev returns 422", func(t *testing.T) {
 				h := newAPITest(t)
 
 				req := httptest.NewRequest(http.MethodGet, "/api/v1/events?next=abc&prev=def", nil)
 				resp := h.do(h.withAPIKey(req))
 
-				require.Equal(t, http.StatusBadRequest, resp.Code)
+				testutil.RequireValidationError(t, resp, "query.cursor", "cannot specify both 'next' and 'prev' cursors")
 			})
 
 			t.Run("invalid date format returns 422", func(t *testing.T) {
@@ -1130,13 +1130,13 @@ func TestAPI_Attempts(t *testing.T) {
 				require.Equal(t, http.StatusUnprocessableEntity, resp.Code)
 			})
 
-			t.Run("both next and prev returns 400", func(t *testing.T) {
+			t.Run("both next and prev returns 422", func(t *testing.T) {
 				h := newAPITest(t)
 
 				req := httptest.NewRequest(http.MethodGet, "/api/v1/attempts?next=abc&prev=def", nil)
 				resp := h.do(h.withAPIKey(req))
 
-				require.Equal(t, http.StatusBadRequest, resp.Code)
+				testutil.RequireValidationError(t, resp, "query.cursor", "cannot specify both 'next' and 'prev' cursors")
 			})
 
 			t.Run("invalid date format returns 422", func(t *testing.T) {
