@@ -59,7 +59,7 @@ func TestParseCursors(t *testing.T) {
 		{
 			name:        "both next and prev returns error",
 			queryParams: map[string]string{"next": "cursor123", "prev": "cursor456"},
-			wantErrCode: http.StatusBadRequest,
+			wantErrCode: http.StatusUnprocessableEntity,
 		},
 	}
 
@@ -72,7 +72,8 @@ func TestParseCursors(t *testing.T) {
 			if tt.wantErrCode != 0 {
 				require.NotNil(t, errResp)
 				assert.Equal(t, tt.wantErrCode, errResp.Code)
-				assert.Contains(t, errResp.Message, "both")
+				assert.Equal(t, "query.cursor", onlyDataKey(t, errResp))
+				assert.Contains(t, errResp.Data.(map[string]string)["query.cursor"], "both")
 				return
 			}
 
@@ -344,7 +345,7 @@ func TestParseDateFilter_UnsupportedOperators(t *testing.T) {
 	unsupportedOps := []string{"any"}
 
 	for _, op := range unsupportedOps {
-		t.Run(op+" returns 400", func(t *testing.T) {
+		t.Run(op+" returns 422 with the same shape as the other query failures", func(t *testing.T) {
 			c, _ := createTestContext(map[string]string{
 				"time[" + op + "]": "2024-01-01T00:00:00Z",
 			})
@@ -352,8 +353,10 @@ func TestParseDateFilter_UnsupportedOperators(t *testing.T) {
 			_, errResp := apirouter.ParseDateFilter(c, "time")
 
 			require.NotNil(t, errResp)
-			assert.Equal(t, http.StatusBadRequest, errResp.Code)
-			assert.Contains(t, errResp.Message, "not supported")
+			assert.Equal(t, http.StatusUnprocessableEntity, errResp.Code)
+			assert.Equal(t, "validation error", errResp.Message)
+			assert.Equal(t, "query.time[any]", onlyDataKey(t, errResp))
+			assert.Contains(t, errResp.Data.(map[string]string)["query.time[any]"], "not supported")
 		})
 	}
 }
@@ -449,6 +452,19 @@ func createTestContextWithQuery(queryString string) (*gin.Context, *httptest.Res
 
 func timePtr(t time.Time) *time.Time {
 	return &t
+}
+
+// onlyDataKey returns the single field name an error response names, and fails if it names
+// none or more than one.
+func onlyDataKey(t *testing.T, errResp *apirouter.ErrorResponse) string {
+	t.Helper()
+	data, ok := errResp.Data.(map[string]string)
+	require.True(t, ok, "data is %T, want map[string]string", errResp.Data)
+	require.Len(t, data, 1)
+	for key := range data {
+		return key
+	}
+	return ""
 }
 
 func assertTimePtr(t *testing.T, name string, want, got *time.Time) {
