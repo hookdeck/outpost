@@ -34,19 +34,20 @@ func newLimitTest(t *testing.T) *apiTest {
 	return h
 }
 
-// Every list answers a limit it cannot use with the same 400 and wording,
-// instead of falling back to the default or the maximum.
-func TestAPI_InvalidLimitReturns400(t *testing.T) {
-	const notAnInteger = "invalid limit: must be an integer"
+// Every list answers a limit it cannot use with the same 422 and the same field,
+// instead of falling back to the default or the maximum, and instead of the 400
+// that a limit used to share with nothing else on this endpoint.
+func TestAPI_InvalidLimitReturns422(t *testing.T) {
+	const notAnInteger = "must be an integer"
 
 	for _, list := range limitLists {
 		t.Run(list.name, func(t *testing.T) {
-			outOfRange := fmt.Sprintf("invalid limit: must be between 1 and %d", list.maxLimit)
+			outOfRange := fmt.Sprintf("must be between 1 and %d", list.maxLimit)
 
 			cases := []struct {
-				name    string
-				limit   string
-				message string
+				name   string
+				limit  string
+				detail string
 			}{
 				{"a word", "ten", notAnInteger},
 				{"a decimal", "1.5", notAnInteger},
@@ -68,7 +69,7 @@ func TestAPI_InvalidLimitReturns400(t *testing.T) {
 					req := httptest.NewRequest(http.MethodGet, list.path+"?"+query.Encode(), nil)
 					resp := h.do(h.withAPIKey(req))
 
-					testutil.RequireErrorResponse(t, resp, http.StatusBadRequest, tc.message)
+					testutil.RequireValidationError(t, resp, "query.limit", tc.detail)
 				})
 			}
 		})

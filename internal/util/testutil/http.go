@@ -56,3 +56,16 @@ func RequireErrorResponse(t testing.TB, resp *httptest.ResponseRecorder, status 
 	assert.Equal(t, float64(status), body["status"])
 	assert.Equal(t, message, body["message"])
 }
+
+// RequireValidationError asserts that resp is the 422 "validation error" envelope and that
+// its data names the given field key with the given detail.
+func RequireValidationError(t testing.TB, resp *httptest.ResponseRecorder, key, detail string) {
+	t.Helper()
+	RequireErrorResponse(t, resp, http.StatusUnprocessableEntity, "validation error")
+
+	var body struct {
+		Data map[string]string `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body), "body: %s", resp.Body.String())
+	assert.Equal(t, map[string]string{key: detail}, body.Data)
+}

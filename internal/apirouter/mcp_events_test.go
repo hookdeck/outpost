@@ -161,9 +161,17 @@ func TestAPI_MCPEvents(t *testing.T) {
 	})
 
 	t.Run("bad paging parameters", func(t *testing.T) {
-		for _, q := range []string{"?limit=0", "?limit=101", "?limit=x", "?cursor=!!"} {
+		// A limit the list cannot use is a query validation failure, like on the HTTP list
+		// endpoints; a cursor the catalog cannot decode is still a plain bad request.
+		cases := map[string]int{
+			"?limit=0":   http.StatusUnprocessableEntity,
+			"?limit=101": http.StatusUnprocessableEntity,
+			"?limit=x":   http.StatusUnprocessableEntity,
+			"?cursor=!!": http.StatusBadRequest,
+		}
+		for q, want := range cases {
 			_, code := listMCPEvents(t, h, q)
-			assert.Equal(t, http.StatusBadRequest, code, q)
+			assert.Equal(t, want, code, q)
 		}
 	})
 
