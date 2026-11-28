@@ -17,8 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Every list answers a cursor it cannot read with the same 400 and wording.
-func TestAPI_InvalidCursorReturns400(t *testing.T) {
+// Every list answers a cursor it cannot read with the same 422 and the same field.
+func TestAPI_InvalidCursorReturns422(t *testing.T) {
 	const (
 		invalidCursor    = "invalid cursor"
 		invalidTimestamp = "invalid cursor: invalid timestamp"
@@ -26,9 +26,9 @@ func TestAPI_InvalidCursorReturns400(t *testing.T) {
 	)
 
 	type cursorCase struct {
-		name    string
-		cursor  string
-		message string
+		name   string
+		cursor string
+		detail string
 	}
 
 	lists := []struct {
@@ -81,7 +81,7 @@ func TestAPI_InvalidCursorReturns400(t *testing.T) {
 						req := httptest.NewRequest(http.MethodGet, list.path+"?"+query.Encode(), nil)
 						resp := h.do(h.withAPIKey(req))
 
-						testutil.RequireErrorResponse(t, resp, http.StatusBadRequest, tc.message)
+						testutil.RequireValidationError(t, resp, "query.next/prev", tc.detail)
 					})
 				}
 			}
