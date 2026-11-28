@@ -1,7 +1,6 @@
 package apirouter
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"slices"
@@ -44,10 +43,7 @@ func ParseCursors(c *gin.Context) (CursorParams, *ErrorResponse) {
 	prev := c.Query("prev")
 
 	if next != "" && prev != "" {
-		return CursorParams{}, &ErrorResponse{
-			Code:    http.StatusBadRequest,
-			Message: "cannot specify both 'next' and 'prev' cursors",
-		}
+		return CursorParams{}, newQueryValidationError("query.cursor", "cannot specify both 'next' and 'prev' cursors")
 	}
 
 	return CursorParams{Next: next, Prev: prev}, nil
@@ -63,12 +59,10 @@ func ParseLimit(c *gin.Context, maxLimit int) (int, *ErrorResponse) {
 	}
 	limit, err := strconv.Atoi(limitStr)
 	if err != nil {
-		errResp := NewErrBadRequest(errors.New("invalid limit: must be an integer"))
-		return 0, &errResp
+		return 0, newQueryValidationError("query.limit", "must be an integer")
 	}
 	if limit < 1 || limit > maxLimit {
-		errResp := NewErrBadRequest(fmt.Errorf("invalid limit: must be between 1 and %d", maxLimit))
-		return 0, &errResp
+		return 0, newQueryValidationError("query.limit", fmt.Sprintf("must be between 1 and %d", maxLimit))
 	}
 	return limit, nil
 }
@@ -82,13 +76,7 @@ func ParseDir(c *gin.Context) (string, *ErrorResponse) {
 		return "", nil
 	}
 	if dir != "asc" && dir != "desc" {
-		return "", &ErrorResponse{
-			Code:    http.StatusUnprocessableEntity,
-			Message: "validation error",
-			Data: map[string]string{
-				"query.dir": "must be 'asc' or 'desc'",
-			},
-		}
+		return "", newQueryValidationError("query.dir", "must be 'asc' or 'desc'")
 	}
 	return dir, nil
 }
@@ -106,13 +94,7 @@ func ParseOrderBy(c *gin.Context, allowedValues []string) (string, *ErrorRespons
 		return orderBy, nil
 	}
 
-	return "", &ErrorResponse{
-		Code:    http.StatusUnprocessableEntity,
-		Message: "validation error",
-		Data: map[string]string{
-			"query.order_by": fmt.Sprintf("must be one of: %v", allowedValues),
-		},
-	}
+	return "", newQueryValidationError("query.order_by", fmt.Sprintf("must be one of: %v", allowedValues))
 }
 
 // ParseArrayQueryParam parses array query parameters. Supports three formats:
@@ -195,17 +177,15 @@ type DateFilterResult struct {
 var unsupportedDateOps = []string{"any"}
 
 // ParseDateFilter parses bracket notation date filters (e.g., field[gte], field[lte], field[gt], field[lt]).
-// Returns 400 for unsupported operators (any).
+// Returns 422 for unsupported operators (any), like every other query validation failure.
 // Accepts both RFC3339 format (2024-01-01T00:00:00Z) and date-only format (2024-01-01).
 func ParseDateFilter(c *gin.Context, fieldName string) (*DateFilterResult, *ErrorResponse) {
 	// Check for unsupported operators first
 	for _, op := range unsupportedDateOps {
 		key := fieldName + "[" + op + "]"
 		if c.Query(key) != "" {
-			return nil, &ErrorResponse{
-				Code:    http.StatusBadRequest,
-				Message: fmt.Sprintf("operator '%s' is not supported, use 'gte', 'lte', 'gt', or 'lt'", op),
-			}
+			return nil, newQueryValidationError("query."+key,
+				fmt.Sprintf("operator '%s' is not supported, use 'gte', 'lte', 'gt', or 'lt'", op))
 		}
 	}
 
@@ -254,15 +234,28 @@ func ParseDateFilter(c *gin.Context, fieldName string) (*DateFilterResult, *Erro
 	return result, nil
 }
 
-// dateFormatError returns a validation error for invalid date format.
-func dateFormatError(key string) *ErrorResponse {
+// newQueryValidationError builds the 422 response used for every query parameter validation
+// failure, so a client handles one status and one shape for the whole list request.
+func newQueryValidationError(key, detail string) *ErrorResponse {
 	return &ErrorResponse{
 		Code:    http.StatusUnprocessableEntity,
 		Message: "validation error",
 		Data: map[string]string{
-			"query." + key: "invalid format, expected RFC3339 (e.g. 2024-01-15T09:30:00Z or 2024-01-15T09:30:00.123Z) or YYYY-MM-DD",
+			key: detail,
 		},
 	}
+}
+
+// abortWithQueryValidationError answers a query parameter that could not be read with the same
+// 422 shape as the other query validation failures. key names the parameter in the response.
+func abortWithQueryValidationError(c *gin.Context, key string, err error) {
+	errResp := newQueryValidationError("query."+key, err.Error())
+	AbortWithError(c, errResp.Code, *errResp)
+}
+
+// dateFormatError returns a validation error for invalid date format.
+func dateFormatError(key string) *ErrorResponse {
+	return newQueryValidationError("query."+key, "invalid format, expected RFC3339 (e.g. 2024-01-15T09:30:00Z or 2024-01-15T09:30:00.123Z) or YYYY-MM-DD")
 }
 
 // Note: String and number filters are not yet supported by the stores.
