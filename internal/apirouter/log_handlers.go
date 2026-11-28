@@ -310,7 +310,7 @@ func (h *LogHandlers) listAttemptsInternal(c *gin.Context, tenantIDs []string, d
 	response, err := h.logStore.ListAttempt(c.Request.Context(), req)
 	if err != nil {
 		if errors.Is(err, cursor.ErrInvalidCursor) {
-			AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
+			abortWithQueryValidationError(c, "next/prev", err)
 			return
 		}
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
@@ -539,7 +539,7 @@ func (h *LogHandlers) listEventsInternal(c *gin.Context, tenantIDs []string) {
 	response, err := h.logStore.ListEvent(c.Request.Context(), req)
 	if err != nil {
 		if errors.Is(err, cursor.ErrInvalidCursor) {
-			AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
+			abortWithQueryValidationError(c, "next/prev", err)
 			return
 		}
 		AbortWithError(c, http.StatusInternalServerError, NewErrInternalServer(err))
