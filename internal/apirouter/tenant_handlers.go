@@ -196,11 +196,11 @@ func (h *TenantHandlers) List(c *gin.Context) {
 			return
 		}
 		if errors.Is(err, tenantstore.ErrConflictingCursors) {
-			AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
+			abortWithQueryValidationError(c, "cursor", err)
 			return
 		}
 		if errors.Is(err, tenantstore.ErrInvalidCursor) {
-			AbortWithError(c, http.StatusBadRequest, NewErrBadRequest(err))
+			abortWithQueryValidationError(c, "next/prev", err)
 			return
 		}
 		if errors.Is(err, tenantstore.ErrInvalidOrder) {
