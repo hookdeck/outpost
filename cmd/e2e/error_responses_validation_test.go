@@ -113,22 +113,22 @@ func (s *basicSuite) TestErrorResponses_TenantValidation() {
 		{name: "create with malformed JSON", method: http.MethodPut, path: "/tenants/" + idgen.String(), body: rawBody("{"), status: http.StatusUnprocessableEntity, message: invalidJSON},
 
 		{name: "list with invalid dir", method: http.MethodGet, path: "/tenants?dir=sideways", status: http.StatusUnprocessableEntity, message: validationError, detail: "must be 'asc' or 'desc'"},
-		{name: "list with next and prev", method: http.MethodGet, path: "/tenants?next=abc&prev=def", status: http.StatusBadRequest, message: "cannot specify both 'next' and 'prev' cursors"},
-		{name: "list with a limit that is not a number", method: http.MethodGet, path: "/tenants?limit=ten", status: http.StatusBadRequest, message: "invalid limit: must be an integer"},
-		{name: "list with a limit of zero", method: http.MethodGet, path: "/tenants?limit=0", status: http.StatusBadRequest, message: "invalid limit: must be between 1 and 100"},
-		{name: "list with a limit over the maximum", method: http.MethodGet, path: "/tenants?limit=101", status: http.StatusBadRequest, message: "invalid limit: must be between 1 and 100"},
+		{name: "list with next and prev", method: http.MethodGet, path: "/tenants?next=abc&prev=def", status: http.StatusUnprocessableEntity, message: validationError, detail: "cannot specify both 'next' and 'prev' cursors"},
+		{name: "list with a limit that is not a number", method: http.MethodGet, path: "/tenants?limit=ten", status: http.StatusUnprocessableEntity, message: validationError, detail: "must be an integer"},
+		{name: "list with a limit of zero", method: http.MethodGet, path: "/tenants?limit=0", status: http.StatusUnprocessableEntity, message: validationError, detail: "must be between 1 and 100"},
+		{name: "list with a limit over the maximum", method: http.MethodGet, path: "/tenants?limit=101", status: http.StatusUnprocessableEntity, message: validationError, detail: "must be between 1 and 100"},
 	}
 	// The tenant store parses cursors, and a Redis without RediSearch answers the list with 501.
 	if s.doJSON(http.MethodGet, s.apiURL("/tenants"), nil, nil) != http.StatusNotImplemented {
 		cases = append(cases,
-			errorCase{name: "list with an invalid next cursor", method: http.MethodGet, path: "/tenants?next=not-a-cursor", status: http.StatusBadRequest, message: invalidCursor},
-			errorCase{name: "list with an invalid prev cursor", method: http.MethodGet, path: "/tenants?prev=not-a-cursor", status: http.StatusBadRequest, message: invalidCursor},
-			errorCase{name: "list with a next cursor of another version", method: http.MethodGet, path: "/tenants?next=" + cursor.Encode("tnt", 2, "1700000000000"), status: http.StatusBadRequest, message: cursorVersionMismatch},
-			errorCase{name: "list with a prev cursor of another version", method: http.MethodGet, path: "/tenants?prev=" + cursor.Encode("tnt", 2, "1700000000000"), status: http.StatusBadRequest, message: cursorVersionMismatch},
-			errorCase{name: "list with a next cursor with an empty position", method: http.MethodGet, path: "/tenants?next=" + cursor.Encode("tnt", 1, ""), status: http.StatusBadRequest, message: invalidCursor},
-			errorCase{name: "list with a prev cursor with an empty position", method: http.MethodGet, path: "/tenants?prev=" + cursor.Encode("tnt", 1, ""), status: http.StatusBadRequest, message: invalidCursor},
-			errorCase{name: "list with a next cursor with a timestamp out of range", method: http.MethodGet, path: "/tenants?next=" + cursor.Encode("tnt", 1, "9223372036854775807"), status: http.StatusBadRequest, message: cursorInvalidTimestamp},
-			errorCase{name: "list with a prev cursor with a timestamp out of range", method: http.MethodGet, path: "/tenants?prev=" + cursor.Encode("tnt", 1, "9223372036854775807"), status: http.StatusBadRequest, message: cursorInvalidTimestamp},
+			errorCase{name: "list with an invalid next cursor", method: http.MethodGet, path: "/tenants?next=not-a-cursor", status: http.StatusUnprocessableEntity, message: validationError, detail: invalidCursor},
+			errorCase{name: "list with an invalid prev cursor", method: http.MethodGet, path: "/tenants?prev=not-a-cursor", status: http.StatusUnprocessableEntity, message: validationError, detail: invalidCursor},
+			errorCase{name: "list with a next cursor of another version", method: http.MethodGet, path: "/tenants?next=" + cursor.Encode("tnt", 2, "1700000000000"), status: http.StatusUnprocessableEntity, message: validationError, detail: cursorVersionMismatch},
+			errorCase{name: "list with a prev cursor of another version", method: http.MethodGet, path: "/tenants?prev=" + cursor.Encode("tnt", 2, "1700000000000"), status: http.StatusUnprocessableEntity, message: validationError, detail: cursorVersionMismatch},
+			errorCase{name: "list with a next cursor with an empty position", method: http.MethodGet, path: "/tenants?next=" + cursor.Encode("tnt", 1, ""), status: http.StatusUnprocessableEntity, message: validationError, detail: invalidCursor},
+			errorCase{name: "list with a prev cursor with an empty position", method: http.MethodGet, path: "/tenants?prev=" + cursor.Encode("tnt", 1, ""), status: http.StatusUnprocessableEntity, message: validationError, detail: invalidCursor},
+			errorCase{name: "list with a next cursor with a timestamp out of range", method: http.MethodGet, path: "/tenants?next=" + cursor.Encode("tnt", 1, "9223372036854775807"), status: http.StatusUnprocessableEntity, message: validationError, detail: cursorInvalidTimestamp},
+			errorCase{name: "list with a prev cursor with a timestamp out of range", method: http.MethodGet, path: "/tenants?prev=" + cursor.Encode("tnt", 1, "9223372036854775807"), status: http.StatusUnprocessableEntity, message: validationError, detail: cursorInvalidTimestamp},
 		)
 	}
 	for i := range cases {
@@ -189,7 +189,7 @@ func (s *basicSuite) TestErrorResponses_CreateDestinationValidation() {
 	s.Run("duplicate destination id", func() {
 		dest := s.createWebhookDestination(tenant.ID, "*")
 
-		s.requireError(create("", webhook(map[string]any{"id": dest.ID}), http.StatusBadRequest, "destination already exists", ""))
+		s.requireError(create("", webhook(map[string]any{"id": dest.ID}), http.StatusConflict, "destination already exists", ""))
 	})
 
 	s.Run("maximum number of destinations", func() {
@@ -202,7 +202,7 @@ func (s *basicSuite) TestErrorResponses_CreateDestinationValidation() {
 
 		s.requireError(errorCase{
 			method: http.MethodPost, path: "/tenants/" + full.ID + "/destinations", auth: admin, body: webhook(nil),
-			status: http.StatusBadRequest, message: "maximum number of destinations per tenant reached",
+			status: http.StatusConflict, message: "maximum number of destinations per tenant reached",
 		})
 	})
 }
@@ -238,6 +238,15 @@ func (s *basicSuite) TestErrorResponses_UpdateDestinationValidation() {
 		update("disabled_at in the future", map[string]any{"disabled_at": "2999-01-01T00:00:00Z"}, "disabled_at cannot be in the future", ""),
 		update("invalid url", map[string]any{"config": map[string]any{"url": "not a url"}}, validationError, "config.url"),
 	})
+
+	// Only the two create-path conflicts moved to 409. PATCH keeps its statuses:
+	// an unknown destination is still 404, not a conflict.
+	s.Run("patch of an unknown destination is still 404", func() {
+		s.requireError(errorCase{
+			method: http.MethodPatch, path: "/tenants/" + tenant.ID + "/destinations/dest_missing", auth: admin,
+			body: map[string]any{"topics": []string{"*"}}, status: http.StatusNotFound, message: "destination not found",
+		})
+	})
 }
 
 func (s *basicSuite) TestErrorResponses_LogQueryValidation() {
@@ -270,14 +279,14 @@ func (s *basicSuite) TestErrorResponses_LogQueryValidation() {
 		{"invalid time[lte]", "time[lte]=yesterday", http.StatusUnprocessableEntity, validationError, "query.time[lte]"},
 		{"invalid time[gt]", "time[gt]=yesterday", http.StatusUnprocessableEntity, validationError, "query.time[gt]"},
 		{"invalid time[lt]", "time[lt]=yesterday", http.StatusUnprocessableEntity, validationError, "query.time[lt]"},
-		{"unsupported time operator", "time[any]=2024-01-01", http.StatusBadRequest, "operator 'any' is not supported, use 'gte', 'lte', 'gt', or 'lt'", ""},
-		{"next and prev", "next=abc&prev=def", http.StatusBadRequest, "cannot specify both 'next' and 'prev' cursors", ""},
-		{"limit that is not a number", "limit=ten", http.StatusBadRequest, "invalid limit: must be an integer", ""},
-		{"limit of zero", "limit=0", http.StatusBadRequest, "invalid limit: must be between 1 and 1000", ""},
-		{"negative limit", "limit=-1", http.StatusBadRequest, "invalid limit: must be between 1 and 1000", ""},
-		{"limit over the maximum", "limit=1001", http.StatusBadRequest, "invalid limit: must be between 1 and 1000", ""},
-		{"invalid next cursor", "next=not-a-cursor", http.StatusBadRequest, invalidCursor, ""},
-		{"invalid prev cursor", "prev=not-a-cursor", http.StatusBadRequest, invalidCursor, ""},
+		{"unsupported time operator", "time[any]=2024-01-01", http.StatusUnprocessableEntity, validationError, "operator 'any' is not supported, use 'gte', 'lte', 'gt', or 'lt'"},
+		{"next and prev", "next=abc&prev=def", http.StatusUnprocessableEntity, validationError, "cannot specify both 'next' and 'prev' cursors"},
+		{"limit that is not a number", "limit=ten", http.StatusUnprocessableEntity, validationError, "must be an integer"},
+		{"limit of zero", "limit=0", http.StatusUnprocessableEntity, validationError, "must be between 1 and 1000"},
+		{"negative limit", "limit=-1", http.StatusUnprocessableEntity, validationError, "must be between 1 and 1000"},
+		{"limit over the maximum", "limit=1001", http.StatusUnprocessableEntity, validationError, "must be between 1 and 1000"},
+		{"invalid next cursor", "next=not-a-cursor", http.StatusUnprocessableEntity, validationError, invalidCursor},
+		{"invalid prev cursor", "prev=not-a-cursor", http.StatusUnprocessableEntity, validationError, invalidCursor},
 	}
 
 	// The message names the cursor format the log store issues: version 2
@@ -305,8 +314,8 @@ func (s *basicSuite) TestErrorResponses_LogQueryValidation() {
 			listQueries := queries
 			for _, c := range cursors {
 				listQueries = append(listQueries,
-					logQuery{"next " + c.name, "next=" + c.cursor, http.StatusBadRequest, c.message, ""},
-					logQuery{"prev " + c.name, "prev=" + c.cursor, http.StatusBadRequest, c.message, ""},
+					logQuery{"next " + c.name, "next=" + c.cursor, http.StatusUnprocessableEntity, validationError, c.message},
+					logQuery{"prev " + c.name, "prev=" + c.cursor, http.StatusUnprocessableEntity, validationError, c.message},
 				)
 			}
 			for _, query := range listQueries {
